@@ -15,45 +15,149 @@ from timeit import default_timer as timer
 import torch
 import torch.nn.functional as fun
 from visualization_msgs.msg import Marker, MarkerArray
-from yacs.config import CfgNode
+# from yacs.config import CfgNode
 
 
 # https://github.com/rbgirshick/yacs
-cfg = CfgNode()
-cfg.visibility_sphere_radius = 100.
+# cfg = CfgNode()
+# cfg.visibility_sphere_radius = 100.
 
 
 np.set_printoptions(precision=2)
 
 
-def cloud_to_rpz_tensor(msg):
+def cloud_to_grid_transform(cloud):
+    t = timer()
+    sz = cloud.shape
+    x_cloud = []
+    u_grid = []
+    for i, j in ((0, 0), (0, 1), (1, 0)):
+        # x = torch.tensor([cloud['x'][i, j],
+        #                   cloud['y'][i, j]])
+        # u = torch.tensor([-1.0 + (i + 0.5) * 2 / sz[0],
+        #                   -1.0 + (j + 0.5) * 2 / sz[1]])
+        x = [cloud['x'][i, j], cloud['y'][i, j]]
+        u = [-1.0 + (i + 0.5) * 2 / sz[0], -1.0 + (j + 0.5) * 2 / sz[1]]
+        print('(%i, %i): x = (%.3f, %.3f), u = (%.3f, %.3f)' % (i, j, x[0], x[1], u[0], u[1]))
+        x_cloud.append(x)
+        u_grid.append(u)
+
+    A = []
+    b = []
+    for x, u in zip(x_cloud, u_grid):
+        A.append([x[0], x[1], 1.,   0.,   0., 0.])
+        A.append([  0.,   0., 0., x[0], x[1], 1.])
+        b.append([u[0]])
+        b.append([u[1]])
+    A = torch.tensor(A)
+    b = torch.tensor(b)
+    print('A\n%s' % A)
+    print('b\n%s' % b)
+    sol, _ = torch.solve(b, A)
+    print('sol\n%s' % sol)
+
+    cloud_to_grid = torch.eye(3)
+    cloud_to_grid[:2, :] = sol.reshape((2, 3))
+
+    print(u_grid)
+    x_in_grid = p2e(torch.matmul(cloud_to_grid, e2p(torch.transpose(torch.tensor(x_cloud), 1, 0))))
+    print(x_in_grid)
+
+    rospy.logdebug('Cloud to grid transform computed (%.3f s).', timer() - t)
+    return cloud_to_grid
+
+
+def msg_to_rpz_tensor(msg):
     assert isinstance(msg, PointCloud2)
-    print('RPZ cloud (%i, %i) received, channels %s.'
-          % (msg.height, msg.width, ', '.join([f.name for f in msg.fields])))
+    rospy.logdebug('Converting RPZ cloud in %s of size (%i, %i) with channels %s...'
+                   % (msg.header.frame_id, msg.height, msg.width, ', '.join([f.name for f in msg.fields])))
 
-    cloud = numpify(msg)
-    assert 'x' in cloud
-    assert 'roll_0' in cloud
-    assert 'pitch_0' in cloud
-    assert 'z_0' in cloud
+    sz = (250, 248)
+    assert (msg.height * msg.width == sz[0] * sz[1])
 
-    # TODO: Create torch tensor of size (XD, YD, YawD, RPZ).
-    # XD, YD is DEM size.
-    # YawD is num. of quantized yaw levels, currently YawD = 8,
-    # RPZ = 3 are roll, pitch, z.
+    cloud = numpify(msg).reshape(sz)
+    print(cloud.dtype.names)
+
+    # assert 'x' in cloud.dtype.names
+    # assert 'roll_0' in cloud.dtype.names
+    # assert 'pitch_0' in cloud.dtype.names
+    # assert 'z_0' in cloud.dtype.names
+
+    # Convert cloud to roll, pitch, z tensors of size (8, 250, 248).
+    # roll = torch.full((8,) + sz, np.nan, dtype=torch.float32)
+    # pitch = torch.full((8,) + sz, np.nan, dtype=torch.float32)
+    # z = torch.full((8,) + sz, np.nan, dtype=torch.float32)
+    # rospy.logdebug(z.shape)
+
+    # Convert cloud to RPZ tensor of size (1, 3, 8, 250, 248)
+    rpz = torch.full((1, 3, 8) + sz, np.nan, dtype=torch.float32)
+
+    for i, yaw in enumerate(range(0, 360, 45)):
+        # roll[i, ...] = torch.tensor(cloud['roll_%i' % yaw], dtype=torch.float32).reshape(sz[1:])
+        # pitch[i, ...] = torch.tensor(cloud['pitch_%i' % yaw], dtype=torch.float32).reshape(sz[1:])
+        # z[i, ...] = torch.tensor(cloud['z_%i' % yaw], dtype=torch.float32).reshape(sz[1:])
+        # roll[i, ...] = torch.tensor(cloud['roll_%i' % yaw], dtype=torch.float32)
+        # pitch[i, ...] = torch.tensor(cloud['pitch_%i' % yaw], dtype=torch.float32)
+        # z[i, ...] = torch.tensor(cloud['z_%i' % yaw], dtype=torch.float32)
+        rpz[0, 0, i, ...] = torch.tensor(cloud['roll_%i' % yaw], dtype=torch.float32)
+        rpz[0, 1, i, ...] = torch.tensor(cloud['pitch_%i' % yaw], dtype=torch.float32)
+        rpz[0, 2, i, ...] = torch.tensor(cloud['z_%i' % yaw], dtype=torch.float32)
 
     # Check point order.
-    for i in range(min(10, cloud.size)):
-        print('Point %i: (%.2f, %.2f)' % (i, cloud['x'][i], cloud['y'][i]))
+    # for i in range(min(10, cloud.size)):
+    #     print('Point %i: (%.2f, %.2f)' % (i, cloud['x'][0, i], cloud['y'][0, i]))
+    # Point 0: (-18.07, -7.45)
+    # Point 1: (-17.97, -7.45)
+    # Point 2: (-17.87, -7.45)
+    # Point 3: (-17.77, -7.45)
+    # Point 4: (-17.67, -7.45)
+    # Point 5: (-17.57, -7.45)
+    # Point 6: (-17.47, -7.45)
+    # Point 7: (-17.37, -7.45)
+    # Point 8: (-17.27, -7.45)
+    # Point 9: (-17.17, -7.45)
+    # for i, j in ((0, 0), (0, 1), (1, 0)):
+    #     print('Point at (%i, %i): (%.2f, %.2f)' % (i, j, cloud['x'][i, j], cloud['y'][i, j]))
 
-    # torch.tensor()
+    # x_cloud = []
+    # u_grid = []
+    # for i, j in ((0, 0), (0, 1), (1, 0)):
+    #     x = torch.tensor([cloud['x'][i, j],
+    #                       cloud['y'][i, j]])
+    #     u = torch.tensor([-1.0 + (i + 0.5) * 2 / sz[0],
+    #                       -1.0 + (j + 0.5) * 2 / sz[1]])
+    #     print('(%i, %i): x = (%.3f, %.3f), u = (%.3f, %.3f)' % (i, j, x[0], x[1], u[0], u[1]))
+    #     x_cloud.append(x)
+    #     u_grid.append(u)
+    #
+    # A = []
+    # b = []
+    # for x, u in zip(x_cloud, u_grid):
+    #     A.append([x[0], x[1], 1.,   0.,   0., 0.])
+    #     A.append([  0.,   0., 0., x[0], x[1], 1.])
+    #     b.append([u[0]])
+    #     b.append([u[1]])
+    # A = torch.tensor(A)
+    # b = torch.tensor(b)
+    # print('A\n%s' % A)
+    # print('b\n%s' % b)
+    # sol, _ = torch.solve(b, A)
+    # print('sol\n%s' % sol)
+    # cloud_to_grid = torch.eye(3)
+    # cloud_to_grid[:2, :] = sol.reshape((2, 3))
+    # cloud_to_grid = cloud_to_grid_transform(cloud)
+
+    # return roll, pitch, z
+    # return cloud, rpz, cloud_to_grid
+    return cloud, rpz
 
 
-def smooth_rpz(sigma):
+def smooth_rpz(rpz, sigma):
     # TODO: torch.nn.Conv3d
     # padding_mode='circular' for yaw
     # padding_mode='zeros' for xy
     # Use circular as the values near xy edges are often garbage anyway.
+    # Pad xy edges with zeros if needed.
     pass
 
 
@@ -64,6 +168,10 @@ def interpolate_rpz(rpz, xyy):
     # padding_mode = 'zeros' | 'border' | 'reflection'
     # Circular padding mode not supported.
     # TODO: Create YawD + 2 to wrap yaw for interpolation.
+
+    # Only bilinear in 5-D
+    # mode = 'bilinear'
+    torch.nn.functional.grid_sample(rpz, xyy)
     pass
 
 
@@ -72,9 +180,7 @@ def point_visibility(pts, origin):
     if isinstance(pts, np.ndarray):
         r = (pts - origin) ** 2
     if isinstance(pts, torch.Tensor):
-
-
-    pass
+        pass
 
 
 def point_fov_mask(pts, cam):
@@ -114,7 +220,10 @@ def p2e(xh):
 
 
 def e2p(x):
-    xh = np.concatenate((x, np.ones((1, x.shape[1]))))
+    if isinstance(x, np.ndarray):
+        xh = np.concatenate((x, np.ones((1, x.shape[1]))))
+    if isinstance(x, torch.Tensor):
+        xh = torch.cat((x, torch.ones((1, x.shape[1]))))
     return xh
 
 
@@ -137,12 +246,20 @@ class RPZPlanner(object):
         # self.min_points_obstacle = rospy.get_param('~min_points_obstacle', 1)
 
         self.num_cameras = rospy.get_param('~num_cameras', 1)
+        device = rospy.get_param('~device', 'cuda:0' if torch.cuda.is_available() else 'cpu')
+        self.device = torch.device(device)
 
         # Latest RPZ manifold
         # TODO: frame vs map
         self.rpz_lock = RLock()
         self.rpz_msg = None
+        # self.roll = None
+        # self.pitch = None
+        # self.z = None
+        self.rpz_cloud = None
         self.rpz = None
+        self.map_to_grid = None
+        self.grid_to_map = None
 
         # Latest point cloud map to cover
         self.map_lock = RLock()
@@ -216,9 +333,50 @@ class RPZPlanner(object):
 
     def rpz_received(self, msg):
         """Process and store RPZ manifold for use in planning."""
-        assert isinstance(msg, PointCloud2)
+        t = timer()
+        # assert isinstance(msg, PointCloud2)
+        #
+        # rospy.loginfo('RPZ: %s (%i, %i)' % (msg.header.frame_id, msg.height, msg.width))
+        # sz = (8, 250, 248)
+        # assert(msg.height * msg.width == sz[1] * sz[2])
+        # cloud = numpify(msg)
+        # roll = torch.full(sz, np.nan, dtype=torch.float32)
+        # pitch = torch.full(sz, np.nan, dtype=torch.float32)
+        # z = torch.full(sz, np.nan, dtype=torch.float32)
+        # for i, yaw in enumerate(range(0, 360, 45)):
+        #     roll[i, ...] = torch.tensor(cloud['roll_%i' % yaw], dtype=torch.float32).reshape(sz[1:])
+        #     pitch[i, ...] = torch.tensor(cloud['pitch_%i' % yaw], dtype=torch.float32).reshape(sz[1:])
+        #     z[i, ...] = torch.tensor(cloud['z_%i' % yaw], dtype=torch.float32).reshape(sz[1:])
+        # rospy.loginfo(roll.shape)
+        # with self.rpz_lock:
+        #     self.rpz_msg = msg
+        #     self.roll = roll
+        #     self.pitch = pitch
+        #     self.z = z
+
+        # roll, pitch, z = msg_to_rpz_tensor(msg)
+        cloud, rpz = msg_to_rpz_tensor(msg)
+        cloud_to_grid = cloud_to_grid_transform(cloud)
+        grid_to_cloud = torch.inverse(cloud_to_grid)
         with self.rpz_lock:
             self.rpz_msg = msg
+            # self.roll = roll
+            # self.pitch = pitch
+            # self.z = z
+            self.rpz_cloud = cloud
+            # Yaw offset
+            # p0 = np.array([self.rpz_cloud['x'][0, 0], self.rpz_cloud['y'][0, 0]])
+            # p1 = np.array([self.rpz_cloud['x'][0, 1], self.rpz_cloud['y'][0, 1]])
+            # p0 = torch.tensor([self.rpz_cloud['x'][0, 0], self.rpz_cloud['y'][0, 0]])
+            # p1 = torch.tensor([self.rpz_cloud['x'][0, 1], self.rpz_cloud['y'][0, 1]])
+            # x = (p1 - p0).norm()
+            # yaw_offset = torch.atan2(self.rpz_cloud['y'][0, 1] - self.rpz_cloud['y'][0, 0],
+            #                          self.rpz_cloud['x'][0, 1] - self.rpz_cloud['x'][0, 0])
+            self.rpz = rpz
+            self.map_to_grid = cloud_to_grid
+            self.grid_to_map = grid_to_cloud
+
+        rospy.loginfo('RPZ processed and stored (%.3f s).', (timer() - t))
 
     def map_received(self, msg):
         """Process and store map for use in planning."""
@@ -228,6 +386,14 @@ class RPZPlanner(object):
 
     def path_received(self, msg):
         assert isinstance(msg, Path)
+        # http://docs.ros.org/en/melodic/api/nav_msgs/html/msg/Path.html
+
+        with self.rpz_lock:
+            assert isinstance(self.rpz_msg, PointCloud2)
+            assert self.rpz_msg.header.frame_id == msg.header.frame_id
+        with self.map_lock:
+            assert isinstance(self.map_msg, PointCloud2)
+            assert self.map_msg.header.frame_id == msg.header.frame_id
 
         if not msg.header.frame_id:
             rospy.logwarn_once('Map frame %s will be used instead of empty path frame.',
@@ -245,8 +411,15 @@ class RPZPlanner(object):
             rospy.logwarn('Discarding path %.1f s > %.1f s old.', age, self.max_age)
             return
 
+        # TODO: Convert path to x, y, yaw sequence.
+
         # TODO: Optimize path.
+        #   TODO: Interpolate RPZ for given x, y, yaw.
+        #   TODO: Construct cameras.
+        #   TODO: Compute visibility and reward.
+
         # TODO: Publish optimized path.
+        self.path_pub.publish(msg)
 
 
 if __name__ == '__main__':

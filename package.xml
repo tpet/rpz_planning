@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="2">
+    <name>rpz_planning</name>
+    <version>0.0.1</version>
+    <description>Gradient-based planning on RPZ subspace.</description>
+    <maintainer email="tpetricek@gmail.com">Tomas Petricek</maintainer>
+    <license>BSD</license>
+    <url type="website">https://github.com/tpet/rpz_planning</url>
+    <author email="tpetricek@gmail.com">Tomas Petricek</author>
+    <buildtool_depend>catkin</buildtool_depend>
+    <depend>geometry_msgs</depend>
+    <depend>message_runtime</depend>
+    <depend>nav_msgs</depend>
+    <depend>sensor_msgs</depend>
+    <depend>std_msgs</depend>
+    <depend>tf2_ros</depend>
+</package>
