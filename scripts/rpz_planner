@@ -450,7 +450,7 @@ def e2p(x):
 
 
 def isometry_inverse(transform):
-    inv = torch.zeros(transform.shape)
+    inv = torch.zeros(transform.shape, device=transform.device)
     inv[..., :-1, :-1] = transform[..., :-1, :-1].transpose(-1, -2)
     inv[..., :-1, -1:] = -transform[..., :-1, :-1].transpose(-1, -2).matmul(transform[..., :-1, -1:])
     return inv
@@ -499,7 +499,7 @@ def xyzrpy_matrix(xyzrpy):
     # assert robot_to_map.shape[-2:] == (4, 4)
 
     # TODO: Set requires grad?
-    mat = torch.zeros(xyzrpy.shape[:-1] + (4, 4), dtype=torch.float32)
+    mat = torch.zeros(xyzrpy.shape[:-1] + (4, 4), dtype=torch.float32, device=xyzrpy.device)
     mat[..., :3, :3] = rpy_matrix(xyzrpy[..., 3:])
     mat[..., :3, 3] = xyzrpy[..., :3]
     mat[..., 3, 3] = 1.
@@ -870,6 +870,16 @@ class RPZPlanner(object):
 
         xyzrpy = path_msg_to_xyzrpy(msg)
         assert xyzrpy.shape == (n_poses, 6)
+
+        t = timer()
+        cam_to_robot = cam_to_robot.to(self.device)
+        frustums = frustums.to(self.device)
+        rpz_all = rpz_all.to(self.device)
+        map_to_grid = map_to_grid.to(self.device)
+        grid_to_map = grid_to_map.to(self.device)
+        map = map.to(self.device)
+        xyzrpy = xyzrpy.to(self.device)
+        rospy.loginfo('Moving to %s: %.3f s', self.device, timer() - t)
 
         # Get camera to map transforms.
         t = timer()
