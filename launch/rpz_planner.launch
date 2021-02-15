@@ -1,0 +1,71 @@
+<launch>
+    <arg name="robot" default="X1"/>
+    <arg name="points_slow_filtered" default="points_slow_filtered"/>
+
+    <!--
+    <include file="$(find nifti_drivers_launchers)/launch/tf_server.launch">
+        <arg name="tf_prefix" value="$(arg robot)/"/>
+    </include>
+    -->
+    <!--
+    <node name="tf_server_odom" pkg="topic_tools" type="relay"
+          args="/tf /tf/server/odom"/>
+    <node name="tf_server_odom_static" pkg="topic_tools" type="relay"
+          args="/tf_static /tf/server/odom/static"/>
+    <include file="$(find tradr_odometry)/launch/base_link_leveller.launch">
+        <arg name="tf_prefix" value="$(arg robot)/"/>
+    </include>
+    -->
+
+    <!-- TODO: Leveller -->
+    <node name="box_filter" pkg="cloud_proc" type="cloud_proc" output="log">
+        <rosparam param="filters" subst_value="true">
+            - cloud_proc.DiscardOld:
+                max_age: 5.0
+            - cloud_proc.Box:
+                keep: 1
+                lower: [-13.0, -13.0, -1.4]
+                upper: [ 13.0,  13.0,  1.1]
+<!--                lower: [-13.0, -13.0, -1.5]-->
+<!--                upper: [ 13.0,  13.0,  1.0]-->
+                fields: ["x", "y", "z"]
+<!--                frame: "base_link"-->
+                frame: $(arg robot)/base_footprint
+<!--                frame: $(arg robot)/base_link_zero_roll_pitch-->
+                timeout: 1.0
+        </rosparam>
+        <remap from="in" to="$(arg points_slow_filtered)"/>
+        <remap from="out" to="$(arg points_slow_filtered)_bigbox"/>
+    </node>
+
+    <node name="traversability_predictor" pkg="dem_predictor" type="whole_pipeline.py" output="screen">
+        <rosparam subst_value="true">
+            map_frame: subt
+            baselink_frame: $(arg robot)/base_footprint
+            max_input_age: 1.
+            highres_z: true
+            threshold_output: false
+            confidence_threshold: -3
+            device: cpu
+<!--            s2d_path: $(find dem_predictor)/data/net_weights_s2d-->
+            s2d_path: $(find dem_predictor)/data/net_weights_velo_s2d
+            d2rpz_path: $(find dem_predictor)/data/net_weights_d2rpz
+        </rosparam>
+        <remap from="input_cloud" to="$(arg points_slow_filtered)_bigbox"/>
+    </node>
+
+    <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
+        <rosparam subst_value="true">
+            map_frame: subt
+            robot_frame: $(arg robot)/base_footprint
+            max_age: 1.0
+            num_cameras: 4
+            device: cpu
+        </rosparam>
+        <remap from="camera_info_0" to="front_rgbd/optical/camera_info"/>
+        <remap from="camera_info_1" to="left_rgbd/optical/camera_info"/>
+        <remap from="camera_info_2" to="right_rgbd/optical/camera_info"/>
+        <remap from="camera_info_3" to="rear_rgbd/optical/camera_info"/>
+        <remap from="rpz" to="traversability"/>
+    </node>
+</launch>
