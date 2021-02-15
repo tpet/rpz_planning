@@ -18,6 +18,8 @@ catkin_package(
     CATKIN_DEPENDS ${CATKIN_DEPS}
 )
 
+catkin_python_setup()
+
 install(
     PROGRAMS
         scripts/rpz_planner
