@@ -2,16 +2,18 @@
 """RPZ compliant planner."""
 from __future__ import absolute_import, division, print_function
 # from exploration.msg import Path
-from geometry_msgs.msg import Pose, PoseStamped, Pose2D, Quaternion, Transform, TransformStamped, Twist
+from PIL.ImageEnhance import Color
+from geometry_msgs.msg import Point, Pose, PoseStamped, Pose2D, Quaternion, Transform, TransformStamped, Twist
 import math
+from matplotlib import colors
 from nav_msgs.msg import Path
 import numpy as np
 # from planning_on_rpz_subspace_v1 import Rpz_diff
 import rospy
 from ros_numpy import msgify, numpify
-from scipy.spatial import cKDTree
+from rpz_planning import point_visibility
 from sensor_msgs.msg import CameraInfo, PointCloud2
-from std_msgs.msg import Header
+from std_msgs.msg import ColorRGBA, Header
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 import tf2_ros
 from threading import RLock
@@ -185,19 +187,51 @@ def path_msg_to_xyyaw_tensor(msg, order=DimOrder.YAW_X_Y):
     """Convert path message to x, y, yaw tensor of size (N, XYY=3)."""
     t = timer()
     assert isinstance(msg, Path)
-    xyy = []
+    xyyaw = []
     for pose in msg.poses:
         pose_2d = pose_2d_from_3d(pose.pose)
         assert isinstance(pose_2d, Pose2D)
         if order == DimOrder.X_Y_YAW:
-            xyy.append([pose_2d.x, pose_2d.y, pose_2d.theta])
+            xyyaw.append([pose_2d.x, pose_2d.y, pose_2d.theta])
         elif order == DimOrder.YAW_X_Y:
-            xyy.append([pose_2d.theta, pose_2d.x, pose_2d.y])
+            xyyaw.append([pose_2d.theta, pose_2d.x, pose_2d.y])
         else:
             raise ValueError('Invalid dimension order: %s' % order)
-    xyy = torch.tensor(xyy)
+    xyyaw = torch.tensor(xyyaw)
     print('path_msg_to_xyyaw_tensor: %.6f s' % (timer() - t))
-    return xyy
+    return xyyaw
+
+
+def pose_msg_to_xyzrpy(msg):
+    assert isinstance(msg, Pose)
+    xyz = slots(msg.position)
+    rpy = euler_from_quaternion(slots(msg.orientation))
+    return xyz + list(rpy)
+
+
+def xyzrpy_to_pose_msg(xyzrpy):
+    # assert isinstance(xyzrpy, torch.Tensor)
+    # assert isinstance(xyzrpy, list)
+    msg = Pose(Point(*xyzrpy[:3]), Quaternion(quaternion_from_euler(*xyzrpy[3:])))
+    return msg
+
+
+@timing
+def path_msg_to_xyzrpy(msg):
+    assert isinstance(msg, Path)
+    xyzrpy = [pose_msg_to_xyzrpy(p.pose) for p in msg.poses]
+    xyzrpy = torch.tensor(xyzrpy)
+    return xyzrpy
+
+
+@timing
+def xyzrpy_to_path_msg(xyzrpy):
+    assert isinstance(xyzrpy, torch.Tensor)
+    assert xyzrpy.dim() == 2
+    assert xyzrpy.shape[-1] == 6
+    msg = Path()
+    msg.poses = [PoseStamped(Header(), xyzrpy_to_pose_msg(p)) for p in xyzrpy]
+    return msg
 
 
 @timing
@@ -350,8 +384,7 @@ def interpolate_rpz(rpz_all, xyyaw, order=DimOrder.YAW_X_Y):
 
     # Without wrapping in [-1, 1].
     yaw_grid = torch.remainder(yaw + yaw_step / 2., 2. * np.pi) / np.pi - 1.
-    # With wrapping
-    # yaw_grid = torch.remainder(yaw + yaw_step / 2. + yaw_step, 2. * np.pi + 2 * yaw_step)
+    # Squeeze due to extra wrapping bins.
     yaw_grid = yaw_grid * (n_yaw_steps / (n_yaw_steps + 2))
     if order == DimOrder.YAW_X_Y:
         xyyaw_grid = torch.cat((yaw_grid, xy_grid), dim=1)
@@ -362,23 +395,27 @@ def interpolate_rpz(rpz_all, xyyaw, order=DimOrder.YAW_X_Y):
     rospy.logdebug('xyyaw_grid:\n%s', xyyaw_grid)
     rpz = torch.nn.functional.grid_sample(rpz_wrapped[None], xyyaw_grid[None, None, None])
     rospy.logdebug('rpz:\n%s', rpz)
+    rospy.logdebug('rpz shape: %s', rpz.shape)
+    # return rpz[0, 0, 0]
+    rpz = rpz[0, :, 0, 0, :].transpose(1, 0)
     return rpz
-
-
-def point_visibility(pts, origin):
-    # https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.ConvexHull.html
-    if isinstance(pts, np.ndarray):
-        r = (pts - origin) ** 2
-    if isinstance(pts, torch.Tensor):
-        pass
 
 
 def point_fov_mask(pts, cam):
     pass
 
 
-def point_reward(pts, cam):
-    pass
+def point_reward(pts, origin, mean=3., std=1.5):
+    assert isinstance(pts, torch.Tensor)
+    assert isinstance(origin, torch.Tensor)
+    assert pts.dim() == origin.dim()
+    assert pts.shape[-1] == origin.shape[-1]
+    # assert pts.shape[-1] == 3
+    # assert origin[1].shape[-1] == 3
+    dir = pts - origin
+    dist = torch.norm(dir, dim=1, keepdim=True)
+    reward = torch.exp(-(dist**2)/(std**2))
+    return reward
 
 
 def tf_to_pose(tf):
@@ -412,6 +449,87 @@ def e2p(x):
     return xh
 
 
+def isometry_inverse(transform):
+    inv = torch.zeros(transform.shape)
+    inv[..., :-1, :-1] = transform[..., :-1, :-1].transpose(-1, -2)
+    inv[..., :-1, -1:] = -transform[..., :-1, :-1].transpose(-1, -2).matmul(transform[..., :-1, -1:])
+    return inv
+
+
+def rpy_matrix(rpy):
+    assert isinstance(rpy, torch.Tensor)
+    assert rpy.shape[-1] == 3
+    # (N, 3)
+    c = torch.cos(rpy)
+    s = torch.sin(rpy)
+    c1 = c[..., 0]
+    c2 = c[..., 1]
+    c3 = c[..., 2]
+    s1 = s[..., 0]
+    s2 = s[..., 1]
+    s3 = s[..., 2]
+    assert c1.shape == rpy.shape[:-1]
+    # rmat = torch.tensor([[c1*c2, c1*s2*s3 - s1*c3, c1*c3*s2 + s1*s3],
+    #                      [s1*c2, s1*s2*s3 + c1*c3, s1*s2*c3 - c1*s3],
+    #                      [  -s2,            c2*s3,            c2*c3]])
+    rmat = torch.stack((c1*c2, c1*s2*s3 - s1*c3, c1*c3*s2 + s1*s3,
+                        s1*c2, s1*s2*s3 + c1*c3, s1*s2*c3 - c1*s3,
+                          -s2,            c2*s3,            c2*c3), dim=-1)
+    # assert rmat.shape == rpy.shape[:-1] + (9,)
+    assert rmat.shape[-1] == 9
+    # rmat = rmat.reshape((-1, 3, 3))
+    rmat = rmat.reshape(rmat.shape[:-1] + (3, 3))
+    assert rmat.shape[-2:] == (3, 3)
+    rospy.loginfo('rmat:\n%s', rmat)
+    rospy.loginfo('rmat shape: %s', rmat.shape)
+    return rmat
+
+
+def xyzrpy_matrix(xyzrpy):
+    assert isinstance(xyzrpy, torch.Tensor)
+    assert xyzrpy.shape[-1] == 6
+
+    # rmat = rpy_matrix(xyzrpy[..., 3:])
+    # mat = torch.cat((rmat, xyzrpy[..., :3]), dim=-1)
+    # assert mat.shape[-2:] == (3, 4)
+    # last_row = torch.zeros(mat.shape[:-2] + (1, 4))
+    # last_row[..., 3] = 1.
+    # mat = torch.cat((mat, last_row), dim=-2)
+    # assert mat.shape[-2:] == (4, 4)
+    # assert robot_to_map.shape[-2:] == (4, 4)
+
+    # TODO: Set requires grad?
+    mat = torch.zeros(xyzrpy.shape[:-1] + (4, 4), dtype=torch.float32)
+    mat[..., :3, :3] = rpy_matrix(xyzrpy[..., 3:])
+    mat[..., :3, 3] = xyzrpy[..., :3]
+    mat[..., 3, 3] = 1.
+    assert mat.shape == xyzrpy.shape[:-1] + (4, 4)
+    # assert mat.shape[-2:] == (4, 4)
+
+    return mat
+
+
+def cam_info_fov_planes(msg):
+    """Camera info to corner directions and frustum planes."""
+    assert isinstance(msg, CameraInfo)
+    h, w = msg.height, msg.width
+    k_mat = torch.tensor(msg.K, dtype=torch.float32).reshape((3, 3))
+    k_mat_inv = torch.inverse(k_mat)
+    corners = torch.tensor([[-0.5, w + 0.5, w + 0.5,    -0.5],
+                            [-0.5,    -0.5, h + 0.5, h + 0.5],
+                            [ 1.0,     1.0,     1.0,     1.0]], dtype=torch.float32)
+    n_corners = corners.shape[1]
+    corner_dirs = k_mat_inv.matmul(corners)
+    # normals = corner_dirs.roll(1, 1).cross(corner_dirs)
+    normals = corner_dirs.cross(corner_dirs.roll(1, 1), dim=0)
+    # normals = normals / torch.linalg.norm(normals, 2, dim=0, keepdim=True)
+    normals = normals / torch.norm(normals, 2, dim=0, keepdim=True)
+    planes = torch.cat((normals, torch.zeros((1, n_corners))), dim=0)
+    assert tuple(corner_dirs.shape) == (3, 4)
+    assert tuple(planes.shape) == (4, 4)
+    return corner_dirs, planes
+
+
 class RPZPlanner(object):
 
     def __init__(self):
@@ -432,6 +550,7 @@ class RPZPlanner(object):
         # self.min_points_obstacle = rospy.get_param('~min_points_obstacle', 1)
 
         self.num_cameras = rospy.get_param('~num_cameras', 1)
+        self.keep_updating_cameras = rospy.get_param('~keep_updating_cameras', False)
         device = rospy.get_param('~device', 'cuda:0' if torch.cuda.is_available() else 'cpu')
         self.device = torch.device(device)
 
@@ -456,12 +575,17 @@ class RPZPlanner(object):
         self.tf = tf2_ros.Buffer()
         self.tf_sub = tf2_ros.TransformListener(self.tf)
 
+        self.viz_pub = rospy.Publisher('visualization', MarkerArray)
         self.path_pub = rospy.Publisher('optimized_path', Path, queue_size=2)
         # self.clearance_pub = rospy.Publisher('clearance', MarkerArray, queue_size=2)
 
         # Allow multiple cameras.
         self.cam_info_lock = RLock()
         self.cam_infos = [None] * self.num_cameras
+        self.cam_to_robot = [None] * self.num_cameras
+        self.cam_corner_dirs = [None] * self.num_cameras
+        self.cam_frustums = [None] * self.num_cameras
+
         self.cam_info_subs = [rospy.Subscriber('camera_info_%i' % i, CameraInfo,
                                                lambda msg, i=i: self.cam_info_received(msg, i), queue_size=2)
                               for i in range(self.num_cameras)]
@@ -504,14 +628,98 @@ class RPZPlanner(object):
         pose = tf_to_pose(tf.transform)
         return pose
 
+    def visualize_cams(self):
+        palette = ('r', 'g', 'b', 'c', 'm', 'y')
+        # print(colors.to_rgb('blue'))
+        msg = MarkerArray()
+        with self.cam_info_lock:
+            for i in range(self.num_cameras):
+                if self.cam_infos[i] is None:
+                    continue
+                marker = Marker()
+                marker.header = self.cam_infos[i].header
+                marker.action = Marker.MODIFY
+                marker.ns = 'fov'
+                marker.id = i
+                marker.type = Marker.LINE_LIST
+                marker.scale.x = 0.025
+                # marker.color.a = 1.0
+                marker.pose.orientation.w = 1.0
+
+                c1 = ColorRGBA(*colors.to_rgba(palette[i % len(palette)]))
+                c0 = ColorRGBA(*slots(c1))
+                c0.a = 0.0
+
+                # From origin to corners.
+                marker.points.append(Point(0.0, 0.0, 0.0))
+                marker.colors.append(c0)
+                marker.points.append(Point(*self.cam_corner_dirs[i][:, 0].tolist()))
+                marker.colors.append(c1)
+
+                marker.points.append(Point(0.0, 0.0, 0.0))
+                marker.colors.append(c0)
+                marker.points.append(Point(*self.cam_corner_dirs[i][:, 1].tolist()))
+                marker.colors.append(c1)
+
+                marker.points.append(Point(0.0, 0.0, 0.0))
+                marker.colors.append(c0)
+                marker.points.append(Point(*self.cam_corner_dirs[i][:, 2].tolist()))
+                marker.colors.append(c1)
+
+                marker.points.append(Point(0.0, 0.0, 0.0))
+                marker.colors.append(c0)
+                marker.points.append(Point(*self.cam_corner_dirs[i][:, 3].tolist()))
+                marker.colors.append(c1)
+
+                # Join corners at z = 1.
+                marker.points.append(Point(*self.cam_corner_dirs[i][:, 0].tolist()))
+                marker.colors.append(c1)
+                marker.points.append(Point(*self.cam_corner_dirs[i][:, 1].tolist()))
+                marker.colors.append(c1)
+
+                marker.points.append(Point(*self.cam_corner_dirs[i][:, 1].tolist()))
+                marker.colors.append(c1)
+                marker.points.append(Point(*self.cam_corner_dirs[i][:, 2].tolist()))
+                marker.colors.append(c1)
+
+                marker.points.append(Point(*self.cam_corner_dirs[i][:, 2].tolist()))
+                marker.colors.append(c1)
+                marker.points.append(Point(*self.cam_corner_dirs[i][:, 3].tolist()))
+                marker.colors.append(c1)
+
+                marker.points.append(Point(*self.cam_corner_dirs[i][:, 3].tolist()))
+                marker.colors.append(c1)
+                marker.points.append(Point(*self.cam_corner_dirs[i][:, 0].tolist()))
+                marker.colors.append(c1)
+
+                msg.markers.append(marker)
+
+        self.viz_pub.publish(msg)
+
+    @timing
     def cam_info_received(self, msg, i):
         """Store camera calibration for i-th camera."""
         assert isinstance(msg, CameraInfo)
         assert isinstance(i, int)
+        if self.keep_updating_cameras:
+            time = rospy.Time.now()
+        else:
+            time = rospy.Time(0)
+        tf = self.tf.lookup_transform(self.robot_frame, msg.header.frame_id, time)
+        tf = torch.tensor(numpify(tf.transform), dtype=torch.float32)
+        assert isinstance(tf, torch.Tensor)
+        corner_dirs, planes = cam_info_fov_planes(msg)
         with self.cam_info_lock:
             if self.cam_infos[i] is None:
                 rospy.loginfo('Got calibration for camera %i (%s).', i, msg.header.frame_id)
             self.cam_infos[i] = msg
+            self.cam_to_robot[i] = tf
+            self.cam_corner_dirs[i] = corner_dirs
+            self.cam_frustums[i] = planes
+            self.visualize_cams()
+            if not self.keep_updating_cameras:
+                self.cam_info_subs[i].unregister()
+                rospy.logwarn('Camera %i (%s) unsubscribed.', i, msg.header.frame_id)
 
     @timing
     def rpz_received(self, msg):
@@ -563,21 +771,83 @@ class RPZPlanner(object):
 
         rospy.loginfo('RPZ processed and stored (%.3f s).', (timer() - t))
 
+    @timing
     def map_received(self, msg):
         """Process and store map for use in planning."""
         t = timer()
         assert isinstance(msg, PointCloud2)
+        rospy.loginfo('Map with %i points received.', msg.height * msg.width)
+        map = numpify(msg).ravel()
+        # map = np.stack([map[f] for f in ('x', 'y', 'z')])
+        # map = np.concatenate([map, np.ones((1, map.shape[-1]))], axis=0)
+        map = np.stack([map[f] for f in ('x', 'y', 'z')] + [np.ones((map.size,))])
+        map = torch.tensor(map, dtype=torch.float32)
         with self.map_lock:
             self.map_msg = msg
-        rospy.loginfo('Map processed and stored (%.3f s).', (timer() - t))
+            self.map = map
+        rospy.loginfo('Map with %i processed and stored (%.3f s).',
+                      map.shape[-1], (timer() - t))
+
+    @timing
+    def get_available_cameras(self):
+        """Get available cameras (to robot transforms and frustums)."""
+        with self.cam_info_lock:
+            cam_to_robot = [tf for tf in self.cam_to_robot if tf is not None]
+            if not cam_to_robot:
+                return None, None
+            frustums = [f for f in self.cam_frustums if f is not None]
+            assert len(cam_to_robot) == len(frustums)
+
+        cam_to_robot = torch.stack(cam_to_robot)
+        # n_cams, 4, 4
+        assert cam_to_robot.dim() == 3
+        assert cam_to_robot.shape[1:] == (4, 4)
+
+        frustums = torch.stack(frustums)
+        # n_cams, 4, n_planes
+        assert frustums.dim() == 3
+        assert frustums.shape[-2] == 4
+
+        return cam_to_robot, frustums
+
+    # def reward(self, xyzrpy, cam_to_robot, frustums):
 
     @timing
     def path_received(self, msg):
         t = timer()
-        assert isinstance(msg, Path)
         # http://docs.ros.org/en/melodic/api/nav_msgs/html/msg/Path.html
-        rospy.loginfo('Path with %i poses received.', len(msg.poses))
+        assert isinstance(msg, Path)
 
+        # Discard old messages.
+        age = (rospy.Time.now() - msg.header.stamp).to_sec()
+        if age > self.max_age:
+            rospy.logwarn('Discarding path %.1f s > %.1f s old.', age, self.max_age)
+            return
+
+        n_poses = len(msg.poses)
+        rospy.loginfo('Path with %i poses received.', n_poses)
+
+        if not msg.header.frame_id:
+            rospy.logwarn_once('Map frame %s will be used instead of empty path frame.',
+                               self.map_frame)
+            msg.header.frame_id = self.map_frame
+        # elif not self.map_frame:
+        #     self.map_frame = msg.header.frame_id
+        elif self.map_frame and msg.header.frame_id != self.map_frame:
+            rospy.logwarn_once('Map frame %s will be used instead of path frame %s.',
+                               self.map_frame, msg.header.frame_id)
+
+        # Get frustums of available cameras.
+        cam_to_robot, frustums = self.get_available_cameras()
+        if cam_to_robot is None:
+            rospy.logwarn('Skipping path. No cameras available.')
+            return
+        # n_cams, 4, n_planes
+        n_cams, _, n_planes = frustums.shape
+        assert cam_to_robot.shape == (n_cams, 4, 4)
+        rospy.loginfo('Optimizing %i / %i cameras', n_cams, self.num_cameras)
+
+        # Get RPZ subspace and map for optimization.
         with self.rpz_lock:
             if self.rpz_msg is None:
                 rospy.logwarn('Skipping path. RPZ cloud not yet received.')
@@ -594,27 +864,48 @@ class RPZPlanner(object):
                 return
             assert isinstance(self.map_msg, PointCloud2)
             assert self.map_msg.header.frame_id == msg.header.frame_id
+            map = self.map
+        assert map.shape[0] == 4
+        n_pts = map.shape[-1]
 
-        if not msg.header.frame_id:
-            rospy.logwarn_once('Map frame %s will be used instead of empty path frame.',
-                               self.map_frame)
-            msg.header.frame_id = self.map_frame
-        # elif not self.map_frame:
-        #     self.map_frame = msg.header.frame_id
-        elif self.map_frame and msg.header.frame_id != self.map_frame:
-            rospy.logwarn_once('Map frame %s will be used instead of path frame %s.',
-                               self.map_frame, msg.header.frame_id)
+        xyzrpy = path_msg_to_xyzrpy(msg)
+        assert xyzrpy.shape == (n_poses, 6)
 
-        # Discard old messages.
-        age = (rospy.Time.now() - msg.header.stamp).to_sec()
-        if age > self.max_age:
-            rospy.logwarn('Discarding path %.1f s > %.1f s old.', age, self.max_age)
-            return
+        # Get camera to map transforms.
+        t = timer()
+        robot_to_map = xyzrpy_matrix(xyzrpy)
+        assert robot_to_map.shape == (n_poses, 4, 4)
+        cam_to_map = robot_to_map[:, None].matmul(cam_to_robot[None])
+        assert cam_to_map.shape == (n_poses, n_cams, 4, 4)
+        map_to_cam = isometry_inverse(cam_to_map)
+        assert map_to_cam.shape == (n_poses, n_cams, 4, 4)
+        rospy.loginfo('Camera to map transforms: %.3f s', timer() - t)
+
+        # Move frustum planes to map.
+        t = timer()
+        frustums_in_map = map_to_cam.transpose(-1, -2).matmul(frustums[None])
+        assert frustums_in_map.shape == (n_poses, n_cams, 4, n_planes)
+        rospy.loginfo('Frustum in map: %.3f s', timer() - t)
+
+        # Compute point to plane and point to frustum distances.
+        t = timer()
+        plane_dist = frustums_in_map.transpose(-1, -2).matmul(map)
+        assert plane_dist.shape == (n_poses, n_cams, n_planes, n_pts)
+        fov_dist, _ = plane_dist.min(dim=-2)
+        assert fov_dist.shape == (n_poses, n_cams, n_pts)
+        rospy.loginfo('Distance from frustums: %.3f s', timer() - t)
+
+        # Compute point to sensor distances.
+        t = timer()
+        sensor_dist = torch.norm(cam_to_map[..., 3, None] - map, dim=-2)
+        assert sensor_dist.shape == (n_poses, n_cams, n_pts)
+        rospy.loginfo('Distance to sensors: %.3f s', timer() - t)
+
+        return
 
         # TODO: Convert path to x, y, yaw sequence.
         # xyyaw = path_msg_to_xyyaw(msg)
         # xyyaw_grid = xyyaw_to_grid(xyyaw, map_to_grid)
-
         xyyaw = path_msg_to_xyyaw_tensor(msg)
         rospy.logdebug('Map to grid:\n%s', map_to_grid)
         rospy.logdebug('Grid to amp:\n%s', grid_to_map)
@@ -622,18 +913,88 @@ class RPZPlanner(object):
         # xy in grid coordinates, yaw in radians
 
         # TODO: Optimize path.
-        #   TODO: Interpolate RPZ for given x, y, yaw.
+        # Convert yaw to grid coordinates and interpolate RPZ for given x, y, yaw.
         rpz = interpolate_rpz(rpz_all, xyyaw_grid)
-
+        # This would previously be z in the grid coordinates, now map coordinates.
+        rospy.loginfo('rpz shape: %s', rpz.shape)
         #   TODO: Construct cameras.
-        #   TODO: Compute visibility and reward.
+        order = DimOrder.YAW_X_Y
+        if order == DimOrder.YAW_X_Y:
+            rpy = torch.cat((rpz[:, :2], xyyaw[:, 2:]), dim=-1)
+        elif order == DimOrder.X_Y_YAW:
+            raise NotImplementedError()
+        else:
+            raise ValueError()
+        # Rotation matrix from robot to map?
+        rmat = rpy_matrix(rpy)
+        rospy.loginfo('rmat:\n%s', rmat)
+        rospy.loginfo('rmat shape: %s', rmat.shape)
+
+        # TODO: Compute visibility and reward.
+        #   map to robot to cam
+        #   cam to robot to map
+        # Create 4-by-4 camera to map.
+        if order == DimOrder.YAW_X_Y:
+            xyz = torch.cat((xyyaw[:, :2], rpz[:, 2:]), dim=-1)
+        elif order == DimOrder.X_Y_YAW:
+            raise NotImplementedError()
+        else:
+            raise ValueError()
+        # Create robot to map transforms.
+        robot_to_map = torch.cat((rmat, xyz[..., None]), dim=-1)
+        # last_rows = torch.tensor([0., 0., 0., 1.], dtype=torch.float32)
+        last_row = torch.zeros(robot_to_map.shape[:-2] + (1, 4))
+        last_row[..., 3] = 1.
+        robot_to_map = torch.cat((robot_to_map, last_row), dim=-2)
+        assert robot_to_map.shape[-2:] == (4, 4)
+
+        with self.cam_info_lock:
+            for i in range(len(self.cam_infos)):
+                frustums = self.cam_frustums[i]
+                # Assume planes in columns.
+                assert frustums.shape[-2] == 4
+                cam_to_map = robot_to_map.matmul(self.cam_to_robot[i])
+                assert cam_to_map.shape == (n_poses, 4, 4)
+                map_to_cam = isometry_inverse(cam_to_map)
+                assert map_to_cam.shape == (n_poses, 4, 4)
+                planes_in_map = map_to_cam.transpose(-1, -2).matmul(frustums)
+                in_fov = planes_in_map.transpose(-1, -2).matmul(map).min(dim=-2, keepdim=True)
+                assert in_fov
+                # N, C
+
+        rewards = torch.zeros(map.shape[1:])
+        # Transform camera fov planes to map.
+        # Compute minimum distance from planes - positive distance within frustum.
+        # Compute according rewards.
+        # N positions, C cameras, P planes
+        # For each camera, minimum signed distance from F planes is used to assess FOV-based visibility.
+        # Distance-based reward is masked using FOV visibility and occlusions. and
+        # Point-wise maximum is taken across all positions and cameras.
+        # Sum of the point-wise maxima above is the total reward.
+        with self.cam_info_lock:
+            for i in range(len(self.cam_infos)):
+                frustums = self.cam_frustums[i]
+                # Assume planes in columns.
+                assert frustums.shape[-2] == 4
+                cam_to_map = robot_to_map.matmul(self.cam_to_robot[i])
+                assert cam_to_map.shape == (n_poses, 4, 4)
+                map_to_cam = isometry_inverse(cam_to_map)
+                assert map_to_cam.shape == (n_poses, 4, 4)
+                planes_in_map = map_to_cam.transpose(-1, -2).matmul(frustums)
+                in_fov = planes_in_map.transpose(-1, -2).matmul(map).min(dim=-2, keepdim=True)
+                assert in_fov
+                # N, C
+
+
+                rewards = rewards
+
 
         # TODO: Publish optimized path.
-
         xyyaw_opt = transform_xyyaw_tensor(grid_to_map, xyyaw_grid)
         msg_opt = xyyaw_rpz_to_path_msg(xyyaw_opt, None, header=msg.header)
 
         self.path_pub.publish(msg_opt)
+        self.visualize_cams()
         rospy.loginfo('Path optimized (%.3f s).', timer() - t)
 
 
