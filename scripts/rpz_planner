@@ -152,7 +152,7 @@ def cloud_to_grid_transform(cloud):
         u = [-1.0 + (i + 0.5) * 2 / sz[0], -1.0 + (j + 0.5) * 2 / sz[1]]
         # Transpose
         # u = [-1.0 + (j + 0.5) * 2 / sz[1], -1.0 + (i + 0.5) * 2 / sz[0]]
-        print('(%i, %i): x = (%.3f, %.3f), u = (%.3f, %.3f)' % (i, j, x[0], x[1], u[0], u[1]))
+        # print('(%i, %i): x = (%.3f, %.3f), u = (%.3f, %.3f)' % (i, j, x[0], x[1], u[0], u[1]))
         x_cloud.append(x)
         u_grid.append(u)
 
@@ -165,18 +165,18 @@ def cloud_to_grid_transform(cloud):
         b.append([u[1]])
     A = torch.tensor(A)
     b = torch.tensor(b)
-    print('A\n%s' % A)
-    print('b\n%s' % b)
+    # print('A\n%s' % A)
+    # print('b\n%s' % b)
     sol, _ = torch.solve(b, A)
-    print('sol\n%s' % sol)
+    # print('sol\n%s' % sol)
 
     cloud_to_grid = torch.eye(3)
     cloud_to_grid[:2, :] = sol.reshape((2, 3))
 
-    print(u_grid)
+    # print(u_grid)
     # x_in_grid = p2e(torch.matmul(cloud_to_grid, e2p(torch.transpose(torch.tensor(x_cloud), 1, 0))))
     x_in_grid = transform(cloud_to_grid, torch.tensor(x_cloud).transpose(1, 0))
-    print(x_in_grid)
+    # print(x_in_grid)
 
     rospy.logdebug('Cloud to grid transform computed (%.3f s).', timer() - t)
     return cloud_to_grid
@@ -185,7 +185,7 @@ def cloud_to_grid_transform(cloud):
 @timing
 def path_msg_to_xyyaw_tensor(msg, order=DimOrder.YAW_X_Y):
     """Convert path message to x, y, yaw tensor of size (N, XYY=3)."""
-    t = timer()
+    # t = timer()
     assert isinstance(msg, Path)
     xyyaw = []
     for pose in msg.poses:
@@ -198,7 +198,7 @@ def path_msg_to_xyyaw_tensor(msg, order=DimOrder.YAW_X_Y):
         else:
             raise ValueError('Invalid dimension order: %s' % order)
     xyyaw = torch.tensor(xyyaw)
-    print('path_msg_to_xyyaw_tensor: %.6f s' % (timer() - t))
+    # print('path_msg_to_xyyaw_tensor: %.6f s' % (timer() - t))
     return xyyaw
 
 
@@ -212,7 +212,7 @@ def pose_msg_to_xyzrpy(msg):
 def xyzrpy_to_pose_msg(xyzrpy):
     # assert isinstance(xyzrpy, torch.Tensor)
     # assert isinstance(xyzrpy, list)
-    msg = Pose(Point(*xyzrpy[:3]), Quaternion(quaternion_from_euler(*xyzrpy[3:])))
+    msg = Pose(Point(*xyzrpy[:3]), Quaternion(*quaternion_from_euler(*xyzrpy[3:])))
     return msg
 
 
@@ -325,8 +325,8 @@ def transform_xyyaw_tensor(tf, xyyaw, order=DimOrder.YAW_X_Y):
     # TODO: Yaw offset direction?
     # yaw_grid = [yaw - yaw_0 for _, _, yaw in xyyaw]
     # xyyaw_grid = [[xy_grid[0, i].item(), xy_grid[1, i].item(), yaw_grid[i].item()] for i in range(len(yaw_grid))]
-    print('xy_grid shape', xy_grid.shape)
-    print('xyyaw shape', xyyaw.shape)
+    # print('xy_grid shape', xy_grid.shape)
+    # print('xyyaw shape', xyyaw.shape)
     if order == DimOrder.X_Y_YAW:
         xyyaw_out = torch.cat((xy_grid.transpose(1, 0), yaw - yaw_0), dim=1)
     elif order == DimOrder.YAW_X_Y:
@@ -462,12 +462,18 @@ def rpy_matrix(rpy):
     # (N, 3)
     c = torch.cos(rpy)
     s = torch.sin(rpy)
-    c1 = c[..., 0]
+    # c1 = c[..., 0]
+    # c2 = c[..., 1]
+    # c3 = c[..., 2]
+    # s1 = s[..., 0]
+    # s2 = s[..., 1]
+    # s3 = s[..., 2]
+    c1 = c[..., 2]
     c2 = c[..., 1]
-    c3 = c[..., 2]
-    s1 = s[..., 0]
+    c3 = c[..., 0]
+    s1 = s[..., 2]
     s2 = s[..., 1]
-    s3 = s[..., 2]
+    s3 = s[..., 0]
     assert c1.shape == rpy.shape[:-1]
     # rmat = torch.tensor([[c1*c2, c1*s2*s3 - s1*c3, c1*c3*s2 + s1*s3],
     #                      [s1*c2, s1*s2*s3 + c1*c3, s1*s2*c3 - c1*s3],
@@ -480,8 +486,8 @@ def rpy_matrix(rpy):
     # rmat = rmat.reshape((-1, 3, 3))
     rmat = rmat.reshape(rmat.shape[:-1] + (3, 3))
     assert rmat.shape[-2:] == (3, 3)
-    rospy.loginfo('rmat:\n%s', rmat)
-    rospy.loginfo('rmat shape: %s', rmat.shape)
+    # rospy.loginfo('rmat:\n%s', rmat)
+    # rospy.loginfo('rmat shape: %s', rmat.shape)
     return rmat
 
 
@@ -553,6 +559,8 @@ class RPZPlanner(object):
         self.keep_updating_cameras = rospy.get_param('~keep_updating_cameras', False)
         device = rospy.get_param('~device', 'cuda:0' if torch.cuda.is_available() else 'cpu')
         self.device = torch.device(device)
+        self.order = DimOrder.YAW_X_Y
+        self.num_iters = rospy.get_param('~num_iters', 10)
 
         # Latest RPZ manifold
         # TODO: frame vs map
@@ -575,8 +583,9 @@ class RPZPlanner(object):
         self.tf = tf2_ros.Buffer()
         self.tf_sub = tf2_ros.TransformListener(self.tf)
 
-        self.viz_pub = rospy.Publisher('visualization', MarkerArray)
+        self.viz_pub = rospy.Publisher('visualization', MarkerArray, queue_size=2)
         self.path_pub = rospy.Publisher('optimized_path', Path, queue_size=2)
+        self.reward_cloud_pub = rospy.Publisher('reward_cloud', PointCloud2, queue_size=2)
         # self.clearance_pub = rospy.Publisher('clearance', MarkerArray, queue_size=2)
 
         # Allow multiple cameras.
@@ -628,68 +637,96 @@ class RPZPlanner(object):
         pose = tf_to_pose(tf.transform)
         return pose
 
-    def visualize_cams(self):
+    def visualize_cams(self, pose=None, id=0):
+        # TODO: Visualize whole path.
+        # TODO: Remove previous indices.
+        assert pose is None or isinstance(pose, torch.Tensor)
+        assert id >= 0
         palette = ('r', 'g', 'b', 'c', 'm', 'y')
-        # print(colors.to_rgb('blue'))
+        # if stamps is None:
+        #     stamps = [rospy.Time.now()]
         msg = MarkerArray()
+        now = rospy.Time.now()
         with self.cam_info_lock:
+            # for k, stamp in enumerate(stamps):
             for i in range(self.num_cameras):
                 if self.cam_infos[i] is None:
+                    rospy.loginfo('Camera %i not yet available.', i)
                     continue
+                # cam_corner_dirs = self.cam_corner_dirs[i]
+                # if pose is not None:
+                #     cam_corner_dirs = transform(pose.matmul(self.cam_to_robot[i]), cam_corner_dirs)
+                rospy.loginfo('Visualizing camera %i...', i)
                 marker = Marker()
-                marker.header = self.cam_infos[i].header
+                # TODO: Allow multiple robot poses.
+                dirs = self.cam_corner_dirs[i]
+                origin = Point(0., 0., 0.)
+                if pose is None:
+                    marker.header = self.cam_infos[i].header
+                    marker.pose.orientation.w = 1.0
+                    # origin = Point(0., 0., 0.)
+                else:
+                    marker.header.frame_id = self.map_frame
+                    # marker.pose.orientation.w = 1.0
+                    cam_to_map = pose.matmul(self.cam_to_robot[i])
+                    marker.pose = msgify(Pose, cam_to_map)
+                    # dirs = transform(cam_to_map, dirs)
+                    # origin = Point(*cam_to_map[:3, 3].tolist())
+                    # origin = Point(0., 0., 0.)
+
+                # marker.stamp = stamp
+                marker.header.stamp = now
                 marker.action = Marker.MODIFY
                 marker.ns = 'fov'
-                marker.id = i
+                marker.id = id * self.num_cameras + i
                 marker.type = Marker.LINE_LIST
-                marker.scale.x = 0.025
+                marker.scale.x = 0.05
                 # marker.color.a = 1.0
-                marker.pose.orientation.w = 1.0
 
                 c1 = ColorRGBA(*colors.to_rgba(palette[i % len(palette)]))
                 c0 = ColorRGBA(*slots(c1))
                 c0.a = 0.0
 
                 # From origin to corners.
-                marker.points.append(Point(0.0, 0.0, 0.0))
+                marker.points.append(origin)
                 marker.colors.append(c0)
-                marker.points.append(Point(*self.cam_corner_dirs[i][:, 0].tolist()))
+                marker.points.append(Point(*dirs[:, 0].tolist()))
                 marker.colors.append(c1)
 
-                marker.points.append(Point(0.0, 0.0, 0.0))
+                marker.points.append(origin)
                 marker.colors.append(c0)
-                marker.points.append(Point(*self.cam_corner_dirs[i][:, 1].tolist()))
+                marker.points.append(Point(*dirs[:, 1].tolist()))
                 marker.colors.append(c1)
 
-                marker.points.append(Point(0.0, 0.0, 0.0))
+                marker.points.append(origin)
                 marker.colors.append(c0)
-                marker.points.append(Point(*self.cam_corner_dirs[i][:, 2].tolist()))
+                marker.points.append(Point(*dirs[:, 2].tolist()))
                 marker.colors.append(c1)
 
-                marker.points.append(Point(0.0, 0.0, 0.0))
+                marker.points.append(origin)
                 marker.colors.append(c0)
-                marker.points.append(Point(*self.cam_corner_dirs[i][:, 3].tolist()))
+                marker.points.append(Point(*dirs[:, 3].tolist()))
                 marker.colors.append(c1)
 
                 # Join corners at z = 1.
-                marker.points.append(Point(*self.cam_corner_dirs[i][:, 0].tolist()))
+                marker.points.append(Point(*dirs[:, 0].tolist()))
                 marker.colors.append(c1)
-                marker.points.append(Point(*self.cam_corner_dirs[i][:, 1].tolist()))
-                marker.colors.append(c1)
-
-                marker.points.append(Point(*self.cam_corner_dirs[i][:, 1].tolist()))
-                marker.colors.append(c1)
-                marker.points.append(Point(*self.cam_corner_dirs[i][:, 2].tolist()))
+                marker.points.append(Point(*dirs[:, 1].tolist()))
                 marker.colors.append(c1)
 
-                marker.points.append(Point(*self.cam_corner_dirs[i][:, 2].tolist()))
+                marker.points.append(Point(*dirs[:, 1].tolist()))
                 marker.colors.append(c1)
-                marker.points.append(Point(*self.cam_corner_dirs[i][:, 3].tolist()))
+                marker.points.append(Point(*dirs[:, 2].tolist()))
                 marker.colors.append(c1)
 
-                marker.points.append(Point(*self.cam_corner_dirs[i][:, 3].tolist()))
+                marker.points.append(Point(*dirs[:, 2].tolist()))
                 marker.colors.append(c1)
-                marker.points.append(Point(*self.cam_corner_dirs[i][:, 0].tolist()))
+                marker.points.append(Point(*dirs[:, 3].tolist()))
+                marker.colors.append(c1)
+
+                marker.points.append(Point(*dirs[:, 3].tolist()))
+                marker.colors.append(c1)
+                marker.points.append(Point(*dirs[:, 0].tolist()))
                 marker.colors.append(c1)
 
                 msg.markers.append(marker)
@@ -705,7 +742,13 @@ class RPZPlanner(object):
             time = rospy.Time.now()
         else:
             time = rospy.Time(0)
-        tf = self.tf.lookup_transform(self.robot_frame, msg.header.frame_id, time)
+        timeout = rospy.Duration.from_sec(1.0)
+        try:
+            tf = self.tf.lookup_transform(self.robot_frame, msg.header.frame_id, time, timeout)
+        except tf2_ros.TransformException as ex:
+            rospy.logerr('Could not transform from camera %s to robot %s: %s.',
+                         msg.header.frame_id, self.robot_frame, ex)
+
         tf = torch.tensor(numpify(tf.transform), dtype=torch.float32)
         assert isinstance(tf, torch.Tensor)
         corner_dirs, planes = cam_info_fov_planes(msg)
@@ -769,14 +812,14 @@ class RPZPlanner(object):
             self.map_to_grid = cloud_to_grid
             self.grid_to_map = grid_to_cloud
 
-        rospy.loginfo('RPZ processed and stored (%.3f s).', (timer() - t))
+        rospy.logdebug('RPZ processed and stored (%.3f s).', (timer() - t))
 
     @timing
     def map_received(self, msg):
         """Process and store map for use in planning."""
         t = timer()
         assert isinstance(msg, PointCloud2)
-        rospy.loginfo('Map with %i points received.', msg.height * msg.width)
+        rospy.logdebug('Map with %i points received.', msg.height * msg.width)
         map = numpify(msg).ravel()
         # map = np.stack([map[f] for f in ('x', 'y', 'z')])
         # map = np.concatenate([map, np.ones((1, map.shape[-1]))], axis=0)
@@ -785,8 +828,8 @@ class RPZPlanner(object):
         with self.map_lock:
             self.map_msg = msg
             self.map = map
-        rospy.loginfo('Map with %i processed and stored (%.3f s).',
-                      map.shape[-1], (timer() - t))
+        rospy.logdebug('Map with %i processed and stored (%.3f s).',
+                       map.shape[-1], timer() - t)
 
     @timing
     def get_available_cameras(self):
@@ -857,6 +900,10 @@ class RPZPlanner(object):
             rpz_all = self.rpz_all
             map_to_grid = self.map_to_grid
             grid_to_map = self.grid_to_map
+        assert map_to_grid.shape == (4, 4)
+        assert grid_to_map.shape == (4, 4)
+        rospy.logdebug('Map to grid:\n%s', map_to_grid)
+        rospy.logdebug('Grid to amp:\n%s', grid_to_map)
 
         with self.map_lock:
             if self.map_msg is None:
@@ -871,6 +918,17 @@ class RPZPlanner(object):
         xyzrpy = path_msg_to_xyzrpy(msg)
         assert xyzrpy.shape == (n_poses, 6)
 
+        if self.order == DimOrder.YAW_X_Y:
+            xyyaw = xyzrpy[[5, 0, 1]]
+        elif self.order == DimOrder.X_Y_YAW:
+            xyyaw = xyzrpy[[0, 1, 5]]
+        else:
+            raise ValueError()
+        assert xyyaw.shape == (n_poses, 3)
+
+        xyyaw_grid = transform_xyyaw_tensor(map_to_grid, xyyaw)
+        assert xyyaw_grid.shape == (n_poses, 3)
+
         t = timer()
         cam_to_robot = cam_to_robot.to(self.device)
         frustums = frustums.to(self.device)
@@ -881,134 +939,108 @@ class RPZPlanner(object):
         xyzrpy = xyzrpy.to(self.device)
         rospy.loginfo('Moving to %s: %.3f s', self.device, timer() - t)
 
-        # Get camera to map transforms.
-        t = timer()
-        robot_to_map = xyzrpy_matrix(xyzrpy)
-        assert robot_to_map.shape == (n_poses, 4, 4)
-        cam_to_map = robot_to_map[:, None].matmul(cam_to_robot[None])
-        assert cam_to_map.shape == (n_poses, n_cams, 4, 4)
-        map_to_cam = isometry_inverse(cam_to_map)
-        assert map_to_cam.shape == (n_poses, n_cams, 4, 4)
-        rospy.loginfo('Camera to map transforms: %.3f s', timer() - t)
+        # optimize loop
+        #   interpolate rpz at xyyaw
+        #   construct xyzrpy
+        #   compute reward
+        #   backward to xyyaw
+        #   step in xyyaw
+        reward_history = []
+        for i in range(self.num_iters):
+            t_iter = timer()
+            rospy.loginfo('Iteration %i started.', i)
 
-        # Move frustum planes to map.
-        t = timer()
-        frustums_in_map = map_to_cam.transpose(-1, -2).matmul(frustums[None])
-        assert frustums_in_map.shape == (n_poses, n_cams, 4, n_planes)
-        rospy.loginfo('Frustum in map: %.3f s', timer() - t)
+            # Interpolate and optimize in grid coordinates.
+            rpz = interpolate_rpz(rpz_all, xyyaw_grid)
+            assert rpz.shape == (n_poses, 3)
+            # This would previously be z in the grid coordinates,
+            # now it should also be in map coordinates.
 
-        # Compute point to plane and point to frustum distances.
-        t = timer()
-        plane_dist = frustums_in_map.transpose(-1, -2).matmul(map)
-        assert plane_dist.shape == (n_poses, n_cams, n_planes, n_pts)
-        fov_dist, _ = plane_dist.min(dim=-2)
-        assert fov_dist.shape == (n_poses, n_cams, n_pts)
-        rospy.loginfo('Distance from frustums: %.3f s', timer() - t)
+            # Convert to map coordinates for assessing reward.
+            xyyaw = transform_xyyaw_tensor(grid_to_map, xyyaw_grid)
+            if self.order == DimOrder.YAW_X_Y:
+                xyzrpy = torch.cat((xyyaw[:, :2], rpz[:, 2:], rpz[:, :2], xyyaw[:, 2:]), dim=-1)
+            elif self.order == DimOrder.X_Y_YAW:
+                xyzrpy = torch.cat((xyyaw[:, :2], rpz[:, 2:], xyyaw[:, 2:], rpz[:, :2]), dim=-1)
+            else:
+                raise ValueError()
 
-        # Compute point to sensor distances.
-        t = timer()
-        sensor_dist = torch.norm(cam_to_map[..., 3, None] - map, dim=-2)
-        assert sensor_dist.shape == (n_poses, n_cams, n_pts)
-        rospy.loginfo('Distance to sensors: %.3f s', timer() - t)
+            # Publish current optimized path.
+            msg_out = xyzrpy_to_path_msg(xyzrpy)
+            msg_out.header = msg.header
+            for p in msg_out.poses:
+                assert isinstance(p, PoseStamped)
+                p.header = msg.header
+            self.path_pub.publish(msg_out)
 
-        return
+            # Get camera to map transforms.
+            t = timer()
+            robot_to_map = xyzrpy_matrix(xyzrpy)
+            assert robot_to_map.shape == (n_poses, 4, 4)
+            cam_to_map = robot_to_map[:, None].matmul(cam_to_robot[None])
+            assert cam_to_map.shape == (n_poses, n_cams, 4, 4)
+            map_to_cam = isometry_inverse(cam_to_map)
+            assert map_to_cam.shape == (n_poses, n_cams, 4, 4)
+            rospy.loginfo('Camera to map transforms: %.3f s', timer() - t)
 
-        # TODO: Convert path to x, y, yaw sequence.
-        # xyyaw = path_msg_to_xyyaw(msg)
-        # xyyaw_grid = xyyaw_to_grid(xyyaw, map_to_grid)
-        xyyaw = path_msg_to_xyyaw_tensor(msg)
-        rospy.logdebug('Map to grid:\n%s', map_to_grid)
-        rospy.logdebug('Grid to amp:\n%s', grid_to_map)
-        xyyaw_grid = transform_xyyaw_tensor(map_to_grid, xyyaw)
-        # xy in grid coordinates, yaw in radians
+            # Move frustum planes to map.
+            t = timer()
+            frustums_in_map = map_to_cam.transpose(-1, -2).matmul(frustums[None])
+            assert frustums_in_map.shape == (n_poses, n_cams, 4, n_planes)
+            rospy.loginfo('Frustum in map: %.3f s', timer() - t)
+            # Compute point to plane and point to frustum distances.
+            t = timer()
+            plane_dist = frustums_in_map.transpose(-1, -2).matmul(map)
+            assert plane_dist.shape == (n_poses, n_cams, n_planes, n_pts)
+            fov_dist, _ = plane_dist.min(dim=-2)
+            assert fov_dist.shape == (n_poses, n_cams, n_pts)
+            ramp_size = 0.5  # [m]
+            # fov_mask = torch.nn.functional.relu(fov_dist)
+            fov_mask = torch.clamp(fov_dist / ramp_size + 1., 0.0, 1.0)
+            rospy.loginfo('Distance from frustums: %.3f s', timer() - t)
 
-        # TODO: Optimize path.
-        # Convert yaw to grid coordinates and interpolate RPZ for given x, y, yaw.
-        rpz = interpolate_rpz(rpz_all, xyyaw_grid)
-        # This would previously be z in the grid coordinates, now map coordinates.
-        rospy.loginfo('rpz shape: %s', rpz.shape)
-        #   TODO: Construct cameras.
-        order = DimOrder.YAW_X_Y
-        if order == DimOrder.YAW_X_Y:
-            rpy = torch.cat((rpz[:, :2], xyyaw[:, 2:]), dim=-1)
-        elif order == DimOrder.X_Y_YAW:
-            raise NotImplementedError()
-        else:
-            raise ValueError()
-        # Rotation matrix from robot to map?
-        rmat = rpy_matrix(rpy)
-        rospy.loginfo('rmat:\n%s', rmat)
-        rospy.loginfo('rmat shape: %s', rmat.shape)
+            # Compute point to sensor distances.
+            t = timer()
+            sensor_dist = torch.norm(cam_to_map[..., 3, None] - map, dim=-2)
+            assert sensor_dist.shape == (n_poses, n_cams, n_pts)
+            rospy.loginfo('Distance to sensors: %.3f s', timer() - t)
 
-        # TODO: Compute visibility and reward.
-        #   map to robot to cam
-        #   cam to robot to map
-        # Create 4-by-4 camera to map.
-        if order == DimOrder.YAW_X_Y:
-            xyz = torch.cat((xyyaw[:, :2], rpz[:, 2:]), dim=-1)
-        elif order == DimOrder.X_Y_YAW:
-            raise NotImplementedError()
-        else:
-            raise ValueError()
-        # Create robot to map transforms.
-        robot_to_map = torch.cat((rmat, xyz[..., None]), dim=-1)
-        # last_rows = torch.tensor([0., 0., 0., 1.], dtype=torch.float32)
-        last_row = torch.zeros(robot_to_map.shape[:-2] + (1, 4))
-        last_row[..., 3] = 1.
-        robot_to_map = torch.cat((robot_to_map, last_row), dim=-2)
-        assert robot_to_map.shape[-2:] == (4, 4)
+            # Compute rewards
+            dist_mean = 3.0
+            dist_std = 1.5
+            rewards = torch.exp(-(sensor_dist - dist_mean)**2 / dist_std**2)
+            # TODO: Visibility / occlusion mask.
+            rewards = fov_mask * rewards
+            assert rewards.shape == (n_poses, n_cams, n_pts)
+            rewards, _ = rewards.view(n_poses * n_cams, n_pts).max(dim=0)
+            assert rewards.shape == (n_pts,)
 
-        with self.cam_info_lock:
-            for i in range(len(self.cam_infos)):
-                frustums = self.cam_frustums[i]
-                # Assume planes in columns.
-                assert frustums.shape[-2] == 4
-                cam_to_map = robot_to_map.matmul(self.cam_to_robot[i])
-                assert cam_to_map.shape == (n_poses, 4, 4)
-                map_to_cam = isometry_inverse(cam_to_map)
-                assert map_to_cam.shape == (n_poses, 4, 4)
-                planes_in_map = map_to_cam.transpose(-1, -2).matmul(frustums)
-                in_fov = planes_in_map.transpose(-1, -2).matmul(map).min(dim=-2, keepdim=True)
-                assert in_fov
-                # N, C
+            reward = rewards.sum()
+            assert reward[-1].shape == ()
+            rospy.loginfo('Total reward: %.3f', reward[-1].detach().item())
+            reward_history.append(reward.detach().item())
 
-        rewards = torch.zeros(map.shape[1:])
-        # Transform camera fov planes to map.
-        # Compute minimum distance from planes - positive distance within frustum.
-        # Compute according rewards.
-        # N positions, C cameras, P planes
-        # For each camera, minimum signed distance from F planes is used to assess FOV-based visibility.
-        # Distance-based reward is masked using FOV visibility and occlusions. and
-        # Point-wise maximum is taken across all positions and cameras.
-        # Sum of the point-wise maxima above is the total reward.
-        with self.cam_info_lock:
-            for i in range(len(self.cam_infos)):
-                frustums = self.cam_frustums[i]
-                # Assume planes in columns.
-                assert frustums.shape[-2] == 4
-                cam_to_map = robot_to_map.matmul(self.cam_to_robot[i])
-                assert cam_to_map.shape == (n_poses, 4, 4)
-                map_to_cam = isometry_inverse(cam_to_map)
-                assert map_to_cam.shape == (n_poses, 4, 4)
-                planes_in_map = map_to_cam.transpose(-1, -2).matmul(frustums)
-                in_fov = planes_in_map.transpose(-1, -2).matmul(map).min(dim=-2, keepdim=True)
-                assert in_fov
-                # N, C
+            # Publish reward cloud for visualization.
+            reward_cloud = np.zeros((n_pts,), dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'), ('reward', 'f4')])
+            for i, f in enumerate(['x', 'y', 'z']):
+                reward_cloud[f] = map[i]
+            reward_cloud['reward'] = rewards
+            reward_cloud_msg = msgify(PointCloud2, reward_cloud)
+            assert isinstance(reward_cloud_msg, PointCloud2)
+            reward_cloud_msg.header = msg.header
+            self.reward_cloud_pub.publish(reward_cloud_msg)
 
+            # Visualize cameras (first and last).
+            t = timer()
+            self.visualize_cams(robot_to_map[0], id=0)
+            if n_poses > 1:
+                self.visualize_cams(robot_to_map[-1], id=1)
+            rospy.loginfo('Cameras visualized for %i poses (%.3f s).', n_poses, timer() - t)
 
-                rewards = rewards
-
-
-        # TODO: Publish optimized path.
-        xyyaw_opt = transform_xyyaw_tensor(grid_to_map, xyyaw_grid)
-        msg_opt = xyyaw_rpz_to_path_msg(xyyaw_opt, None, header=msg.header)
-
-        self.path_pub.publish(msg_opt)
-        self.visualize_cams()
-        rospy.loginfo('Path optimized (%.3f s).', timer() - t)
+            rospy.loginfo('Iteration %i finished (%.3f s).', i, timer() - t)
 
 
 if __name__ == '__main__':
-    rospy.init_node('rpz_planner', log_level=rospy.DEBUG)
+    rospy.init_node('rpz_planner', log_level=rospy.INFO)
     node = RPZPlanner()
     rospy.spin()
