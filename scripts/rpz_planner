@@ -175,7 +175,7 @@ def cloud_to_grid_transform(cloud):
 
     # print(u_grid)
     # x_in_grid = p2e(torch.matmul(cloud_to_grid, e2p(torch.transpose(torch.tensor(x_cloud), 1, 0))))
-    x_in_grid = transform(cloud_to_grid, torch.tensor(x_cloud).transpose(1, 0))
+    # x_in_grid = transform(cloud_to_grid, torch.tensor(x_cloud).transpose(1, 0))
     # print(x_in_grid)
 
     rospy.logdebug('Cloud to grid transform computed (%.3f s).', timer() - t)
@@ -333,7 +333,7 @@ def transform_xyyaw_tensor(tf, xyyaw, order=DimOrder.YAW_X_Y):
         xyyaw_out = torch.cat((yaw - yaw_0, xy_grid.transpose(1, 0)), dim=1)
     else:
         raise ValueError('Invalid dimension order: %s' % order)
-    rospy.loginfo('X, y, yaw in grid: %s', xyyaw_out)
+    # rospy.loginfo('X, y, yaw in grid: %s', xyyaw_out)
 
     return xyyaw_out
 
@@ -505,7 +505,7 @@ def xyzrpy_matrix(xyzrpy):
     # assert robot_to_map.shape[-2:] == (4, 4)
 
     # TODO: Set requires grad?
-    mat = torch.zeros(xyzrpy.shape[:-1] + (4, 4), dtype=torch.float32, device=xyzrpy.device)
+    mat = torch.zeros(xyzrpy.shape[:-1] + (4, 4), dtype=xyzrpy.dtype, device=xyzrpy.device)
     mat[..., :3, :3] = rpy_matrix(xyzrpy[..., 3:])
     mat[..., :3, 3] = xyzrpy[..., :3]
     mat[..., 3, 3] = 1.
@@ -561,6 +561,8 @@ class RPZPlanner(object):
         self.device = torch.device(device)
         self.order = DimOrder.YAW_X_Y
         self.num_iters = rospy.get_param('~num_iters', 10)
+        self.map_step = rospy.get_param('~map_step', 4)
+        self.path_step = rospy.get_param('~path_step', 2)
 
         # Latest RPZ manifold
         # TODO: frame vs map
@@ -641,6 +643,7 @@ class RPZPlanner(object):
         # TODO: Visualize whole path.
         # TODO: Remove previous indices.
         assert pose is None or isinstance(pose, torch.Tensor)
+        # assert pose is None or isinstance(pose, np.ndarray)
         assert id >= 0
         palette = ('r', 'g', 'b', 'c', 'm', 'y')
         # if stamps is None:
@@ -656,7 +659,7 @@ class RPZPlanner(object):
                 # cam_corner_dirs = self.cam_corner_dirs[i]
                 # if pose is not None:
                 #     cam_corner_dirs = transform(pose.matmul(self.cam_to_robot[i]), cam_corner_dirs)
-                rospy.loginfo('Visualizing camera %i...', i)
+                rospy.logdebug('Visualizing camera %i...', i)
                 marker = Marker()
                 # TODO: Allow multiple robot poses.
                 dirs = self.cam_corner_dirs[i]
@@ -669,6 +672,7 @@ class RPZPlanner(object):
                     marker.header.frame_id = self.map_frame
                     # marker.pose.orientation.w = 1.0
                     cam_to_map = pose.matmul(self.cam_to_robot[i])
+                    # cam_to_map = np.matmul(pose, self.cam_to_robot[i])
                     marker.pose = msgify(Pose, cam_to_map)
                     # dirs = transform(cam_to_map, dirs)
                     # origin = Point(*cam_to_map[:3, 3].tolist())
@@ -821,6 +825,7 @@ class RPZPlanner(object):
         assert isinstance(msg, PointCloud2)
         rospy.logdebug('Map with %i points received.', msg.height * msg.width)
         map = numpify(msg).ravel()
+        map = np.random.choice(map, map.size // self.map_step)
         # map = np.stack([map[f] for f in ('x', 'y', 'z')])
         # map = np.concatenate([map, np.ones((1, map.shape[-1]))], axis=0)
         map = np.stack([map[f] for f in ('x', 'y', 'z')] + [np.ones((map.size,))])
@@ -867,6 +872,9 @@ class RPZPlanner(object):
             rospy.logwarn('Discarding path %.1f s > %.1f s old.', age, self.max_age)
             return
 
+        if self.path_step > 1:
+            msg.poses = msg.poses[::self.path_step]
+
         n_poses = len(msg.poses)
         rospy.loginfo('Path with %i poses received.', n_poses)
 
@@ -888,7 +896,7 @@ class RPZPlanner(object):
         # n_cams, 4, n_planes
         n_cams, _, n_planes = frustums.shape
         assert cam_to_robot.shape == (n_cams, 4, 4)
-        rospy.loginfo('Optimizing %i / %i cameras', n_cams, self.num_cameras)
+        rospy.logdebug('Optimizing %i / %i cameras.', n_cams, self.num_cameras)
 
         # Get RPZ subspace and map for optimization.
         with self.rpz_lock:
@@ -900,8 +908,8 @@ class RPZPlanner(object):
             rpz_all = self.rpz_all
             map_to_grid = self.map_to_grid
             grid_to_map = self.grid_to_map
-        assert map_to_grid.shape == (4, 4)
-        assert grid_to_map.shape == (4, 4)
+        assert map_to_grid.shape == (3, 3)
+        assert grid_to_map.shape == (3, 3)
         rospy.logdebug('Map to grid:\n%s', map_to_grid)
         rospy.logdebug('Grid to amp:\n%s', grid_to_map)
 
@@ -919,15 +927,16 @@ class RPZPlanner(object):
         assert xyzrpy.shape == (n_poses, 6)
 
         if self.order == DimOrder.YAW_X_Y:
-            xyyaw = xyzrpy[[5, 0, 1]]
+            xyyaw = xyzrpy[:, [5, 0, 1]]
         elif self.order == DimOrder.X_Y_YAW:
-            xyyaw = xyzrpy[[0, 1, 5]]
+            xyyaw = xyzrpy[:, [0, 1, 5]]
         else:
             raise ValueError()
         assert xyyaw.shape == (n_poses, 3)
 
         xyyaw_grid = transform_xyyaw_tensor(map_to_grid, xyyaw)
         assert xyyaw_grid.shape == (n_poses, 3)
+        xyyaw_grid.requires_grad = True
 
         t = timer()
         cam_to_robot = cam_to_robot.to(self.device)
@@ -937,7 +946,7 @@ class RPZPlanner(object):
         grid_to_map = grid_to_map.to(self.device)
         map = map.to(self.device)
         xyzrpy = xyzrpy.to(self.device)
-        rospy.loginfo('Moving to %s: %.3f s', self.device, timer() - t)
+        rospy.logdebug('Moving to %s: %.3f s', self.device, timer() - t)
 
         # optimize loop
         #   interpolate rpz at xyyaw
@@ -945,10 +954,14 @@ class RPZPlanner(object):
         #   compute reward
         #   backward to xyyaw
         #   step in xyyaw
+        optimizer = torch.optim.Adam([xyyaw_grid], lr=0.01)
+
         reward_history = []
-        for i in range(self.num_iters):
+        for iter in range(self.num_iters):
             t_iter = timer()
-            rospy.loginfo('Iteration %i started.', i)
+            rospy.logdebug('Iteration %i started.', iter)
+
+            optimizer.zero_grad()
 
             # Interpolate and optimize in grid coordinates.
             rpz = interpolate_rpz(rpz_all, xyyaw_grid)
@@ -959,9 +972,9 @@ class RPZPlanner(object):
             # Convert to map coordinates for assessing reward.
             xyyaw = transform_xyyaw_tensor(grid_to_map, xyyaw_grid)
             if self.order == DimOrder.YAW_X_Y:
-                xyzrpy = torch.cat((xyyaw[:, :2], rpz[:, 2:], rpz[:, :2], xyyaw[:, 2:]), dim=-1)
+                xyzrpy = torch.cat((xyyaw[:, 1:], rpz[:, 2:], rpz[:, :2], xyyaw[:, :1]), dim=-1)
             elif self.order == DimOrder.X_Y_YAW:
-                xyzrpy = torch.cat((xyyaw[:, :2], rpz[:, 2:], xyyaw[:, 2:], rpz[:, :2]), dim=-1)
+                xyzrpy = torch.cat((xyyaw[:, :2], rpz[:, 2:], rpz[:, :2], xyyaw[:, 2:]), dim=-1)
             else:
                 raise ValueError()
 
@@ -981,13 +994,13 @@ class RPZPlanner(object):
             assert cam_to_map.shape == (n_poses, n_cams, 4, 4)
             map_to_cam = isometry_inverse(cam_to_map)
             assert map_to_cam.shape == (n_poses, n_cams, 4, 4)
-            rospy.loginfo('Camera to map transforms: %.3f s', timer() - t)
+            rospy.logdebug('Camera to map transforms: %.3f s', timer() - t)
 
             # Move frustum planes to map.
             t = timer()
             frustums_in_map = map_to_cam.transpose(-1, -2).matmul(frustums[None])
             assert frustums_in_map.shape == (n_poses, n_cams, 4, n_planes)
-            rospy.loginfo('Frustum in map: %.3f s', timer() - t)
+            rospy.logdebug('Frustum in map: %.3f s', timer() - t)
             # Compute point to plane and point to frustum distances.
             t = timer()
             plane_dist = frustums_in_map.transpose(-1, -2).matmul(map)
@@ -997,13 +1010,13 @@ class RPZPlanner(object):
             ramp_size = 0.5  # [m]
             # fov_mask = torch.nn.functional.relu(fov_dist)
             fov_mask = torch.clamp(fov_dist / ramp_size + 1., 0.0, 1.0)
-            rospy.loginfo('Distance from frustums: %.3f s', timer() - t)
+            rospy.logdebug('Distance from frustums: %.3f s', timer() - t)
 
             # Compute point to sensor distances.
             t = timer()
             sensor_dist = torch.norm(cam_to_map[..., 3, None] - map, dim=-2)
             assert sensor_dist.shape == (n_poses, n_cams, n_pts)
-            rospy.loginfo('Distance to sensors: %.3f s', timer() - t)
+            rospy.logdebug('Distance to sensors: %.3f s', timer() - t)
 
             # Compute rewards
             dist_mean = 3.0
@@ -1016,15 +1029,19 @@ class RPZPlanner(object):
             assert rewards.shape == (n_pts,)
 
             reward = rewards.sum()
-            assert reward[-1].shape == ()
-            rospy.loginfo('Total reward: %.3f', reward[-1].detach().item())
+            assert isinstance(reward, torch.Tensor)
+            assert reward.shape == ()
+            rospy.logdebug('Total reward: %.1f', reward.detach().item())
             reward_history.append(reward.detach().item())
+
+            (-reward).backward()
+            optimizer.step()
 
             # Publish reward cloud for visualization.
             reward_cloud = np.zeros((n_pts,), dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'), ('reward', 'f4')])
             for i, f in enumerate(['x', 'y', 'z']):
                 reward_cloud[f] = map[i]
-            reward_cloud['reward'] = rewards
+            reward_cloud['reward'] = rewards.detach()
             reward_cloud_msg = msgify(PointCloud2, reward_cloud)
             assert isinstance(reward_cloud_msg, PointCloud2)
             reward_cloud_msg.header = msg.header
@@ -1032,12 +1049,13 @@ class RPZPlanner(object):
 
             # Visualize cameras (first and last).
             t = timer()
-            self.visualize_cams(robot_to_map[0], id=0)
-            if n_poses > 1:
-                self.visualize_cams(robot_to_map[-1], id=1)
-            rospy.loginfo('Cameras visualized for %i poses (%.3f s).', n_poses, timer() - t)
+            self.visualize_cams(robot_to_map[0].detach(), id=0)
+            self.visualize_cams(robot_to_map[n_poses // 2].detach(), id=1)
+            self.visualize_cams(robot_to_map[-1].detach(), id=2)
+            rospy.logdebug('Cameras visualized for %i poses (%.3f s).', 2, timer() - t)
 
-            rospy.loginfo('Iteration %i finished (%.3f s).', i, timer() - t)
+            rospy.loginfo('Iteration %i: reward %.1f (%.3f s).',
+                          iter, reward, timer() - t_iter)
 
 
 if __name__ == '__main__':
