@@ -237,6 +237,17 @@ def xy_to_polar_steps(xy):
     return ryaw
 
 
+def recompute_xyzrpy_yaw(xyzrpy):
+    assert isinstance(xyzrpy, torch.Tensor)
+    assert xyzrpy.shape[1] == 6
+    yaw = xy_to_polar_steps(xyzrpy[:, :2])[:, 1:]
+    assert yaw.shape == (xyzrpy.shape[0] - 1, 1)
+    yaw = torch.cat((yaw[:1, :], yaw), dim=0)
+    assert yaw.shape == (xyzrpy.shape[0], 1)
+    xyzrpy = torch.cat((xyzrpy[:, :-1], yaw), dim=1)
+    return xyzrpy
+
+
 @timing
 def polar_steps_to_xyyaw(ryaw, order=DimOrder.YAW_X_Y):
     assert isinstance(ryaw, torch.Tensor)
@@ -572,8 +583,8 @@ def cam_info_fov_planes(msg):
                             [ 1.0,     1.0,     1.0,     1.0]], dtype=torch.float32)
     n_corners = corners.shape[1]
     corner_dirs = k_mat_inv.matmul(corners)
-    # normals = corner_dirs.roll(1, 1).cross(corner_dirs)
-    normals = corner_dirs.cross(corner_dirs.roll(1, 1), dim=0)
+    normals = corner_dirs.roll(1, 1).cross(corner_dirs, dim=0)
+    # normals = corner_dirs.cross(corner_dirs.roll(1, 1), dim=0)
     # normals = normals / torch.linalg.norm(normals, 2, dim=0, keepdim=True)
     normals = normals / torch.norm(normals, 2, dim=0, keepdim=True)
     planes = torch.cat((normals, torch.zeros((1, n_corners))), dim=0)
@@ -1079,12 +1090,19 @@ class RPZPlanner(object):
             rpz = interpolate_rpz(rpz_all, xyyaw_grid)
             assert rpz.shape == (n_poses, 3)
             if self.order == DimOrder.X_Y_YAW:
+                # Fix yaw from XY.
+                # xyyaw[1:, 2:] = xy_to_polar_steps(xyyaw[:, :2])[:, 1:]
+                # xyyaw[0, 2] = xyyaw[1, 2]
                 xyzrpy = torch.cat((xyyaw[:, :2], rpz[:, 2:], rpz[:, :2], xyyaw[:, 2:]), dim=-1)
             elif self.order == DimOrder.YAW_X_Y:
+                # xyyaw[1:, :1] = xy_to_polar_steps(xyyaw[:, 1:])[:, 1:]
+                # xyyaw[0, 0] = xyyaw[1, 0]
                 xyzrpy = torch.cat((xyyaw[:, 1:], rpz[:, 2:], rpz[:, :2], xyyaw[:, :1]), dim=-1)
             else:
                 raise ValueError()
             # rospy.loginfo('xyzrpy:\n%s', xyzrpy.detach().numpy())
+
+            xyzrpy = recompute_xyzrpy_yaw(xyzrpy)
 
             # Interpolate and optimize in grid coordinates.
             # rpz_tail = interpolate_rpz(rpz_all, xyyaw_grid_tail)
@@ -1107,11 +1125,13 @@ class RPZPlanner(object):
 
             # Try fixing yaw for visualization here (test only).
 
-            xyzrpy_path = xyzrpy.detach()
-            ryaw_path = xy_to_polar_steps(xyzrpy_path[:, :2])
-            xyzrpy_path[1:, -1] = ryaw_path[:, 1]
-            msg_out = xyzrpy_to_path_msg(xyzrpy_path)
-            # msg_out = xyzrpy_to_path_msg(xyzrpy)
+            # TODO: Test yaw processing from map to grid and back.
+            # TODO: Alternative solution is to recompute yaw from XY again.
+            # xyzrpy_path = xyzrpy.detach()
+            # ryaw_path = xy_to_polar_steps(xyzrpy_path[:, :2])
+            # xyzrpy_path[1:, -1] = ryaw_path[:, 1]
+            # msg_out = xyzrpy_to_path_msg(xyzrpy_path)
+            msg_out = xyzrpy_to_path_msg(xyzrpy)
             msg_out.header = msg.header
             for p in msg_out.poses:
                 assert isinstance(p, PoseStamped)
