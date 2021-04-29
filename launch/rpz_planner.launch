@@ -38,6 +38,8 @@
         <remap if="$(eval 'explorer_x1' in robot_type.lower())"
                from="camera_info_3" to="rear_rgbd/optical/camera_info"/>
 
+        <remap from="map" to="local_map"/>
+        <remap from="path" to="path"/>
         <remap from="rpz" to="traversability"/>
     </node>
 </launch>
