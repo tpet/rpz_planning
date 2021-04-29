@@ -1229,8 +1229,8 @@ class RPZPlanner(object):
                           avg_roll.detach().item(), avg_pitch.detach().item(), avg_d_yaw.detach().item(),
                           timer() - t_iter)
 
-            rospy.loginfo('Only interpolation, no optimizaiton done.')
-            return
+            # rospy.loginfo('Only interpolation, no optimizaiton done.')
+            # return
             # rospy.loginfo('Iter %i: reward %.1f (%.3f s).',
             #               iter, reward, timer() - t_iter)
 
