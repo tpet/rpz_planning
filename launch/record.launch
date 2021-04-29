@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<launch>
+    <arg name="robot" default="X1"/>
+    <arg name="robot_type" default="x1"/>
+
+    <node name="rosbag_record_rpz" pkg="rosbag" type="record"
+          args="--lz4 -o $(find rpz_planning)/$(arg robot_type)
+                /$(arg robot)/front/optical/camera_info
+                /$(arg robot)/rear/optical/camera_info
+                /$(arg robot)/local_map_slow
+                /$(arg robot)/path
+                /$(arg robot)/traversability
+                /tf
+                /tf_static"/>
+</launch>
