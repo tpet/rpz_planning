@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<launch>
+    <arg name="robot" default="X1"/>
+    <arg name="robot_type" default="x1"/>
+    <arg name="bag" default="$(dirname)/../data/marv_2021-04-29-12-48-13.bag"/>
+
+    <param name="use_sim_time" value="true"/>
+
+    <!--
+        Workaround for /tf_static problems with rosbag.
+        TODO Watch https://github.com/ros/geometry2/issues/181
+    -->
+    <node name="play_tf_static" pkg="nifti_vision_data" type="play_tf_static"
+         args="$(arg bag)" output="log">
+        <remap from="~tf_static" to="/tf_static"/>
+    </node>
+
+    <node name="rosbag_play_rpz" pkg="rosbag" type="play"
+          args="--clock -k -d 3.0 $(arg bag)">
+        <remap from="/X1/local_map_slow" to="/X1/local_map"/>
+    </node>
+
+    <include ns="X1" file="$(dirname)/rpz_planner.launch"
+             pass_all_args="true">
+        <arg name="robot_type" value="marv"/>
+    </include>
+
+    <node name="rviz" pkg="rviz" type="rviz"
+          args="-d $(dirname)/bag.rviz"/>
+</launch>
