@@ -811,6 +811,7 @@ class RPZPlanner(object):
         except tf2_ros.TransformException as ex:
             rospy.logerr('Could not transform from camera %s to robot %s: %s.',
                          msg.header.frame_id, self.robot_frame, ex)
+            return
 
         tf = torch.tensor(numpify(tf.transform), dtype=torch.float32)
         assert isinstance(tf, torch.Tensor)
