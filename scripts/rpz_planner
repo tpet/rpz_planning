@@ -475,6 +475,23 @@ def point_reward(pts, origin, mean=3., std=1.5):
     return reward
 
 
+def log_odds_conversion(rewards, eps = 1e-6):
+    assert isinstance(rewards, torch.Tensor)
+    assert rewards.dim() == 3
+    n_poses, n_cams, n_pts = rewards.shape
+    # apply log odds conversion for global voxel map observations update
+    p = rewards - rewards.min()
+    p = p / p.max()  # normalize rewards to treat them as visibility prob values
+    p = torch.clamp(p, 0.5, 1. - eps)  # 0.5 - "unknown", > 0.5 - visible
+    lo = torch.log(p / (1. - p))  # compute log odds
+    assert lo.shape == (n_poses, n_cams, n_pts)
+    lo = lo.view(n_poses * n_cams, n_pts)
+    lo_sum = lo.sum(0)
+    assert lo_sum.shape == (n_pts,)
+    rewards = 1.0 / (1.0 + torch.exp(-lo_sum))  # back to probs from log odds
+    return rewards
+
+
 def tf_to_pose(tf):
     # tf = Transform()
     pose = Pose()
@@ -1183,19 +1200,10 @@ class RPZPlanner(object):
             rewards = fov_mask * rewards
             assert rewards.shape == (n_poses, n_cams, n_pts)
 
-            # TODO: replace max with log odds
-            # apply log odds conversion for global voxel map observations update
-            p = rewards - rewards.min()
-            p = p / p.max()  # normalize rewards to treat them as visibility prob values
-            eps = 1e-6
-            p = torch.clamp(p, 0.5, 1.-eps)  # 0.5 - "unknown", > 0.5 - visible
-            lo = torch.log(p / (1.-p))  # compute log odds
-            assert lo.shape == (n_poses, n_cams, n_pts)
-            lo = lo.view(n_poses * n_cams, n_pts)
-            lo_sum = lo.sum(0)
-            assert lo_sum.shape == (n_pts, )
-            rewards = 1.0 / (1.0 + torch.exp(-lo_sum))  # back to probs from log odds
+            # share and sum rewards over multiple sensors and view points
+            rewards = log_odds_conversion(rewards)
 
+            # instead of log odds: max of rewards over all sensors and wps poses
             # rewards, _ = rewards.view(n_poses * n_cams, n_pts).max(dim=0)
             assert rewards.shape == (n_pts,)
 
