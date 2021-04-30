@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+
+<launch>
+    <arg name="bag" default="$(find rpz_planning)/data/marv_2021-04-29-12-48-13.bag"/>
+    <arg name="bag_rate" default="1.0"/>
+    <arg name="rviz" default="false"/>
+    <arg name="rviz_config" default="x1"/>
+
+<!--    <param name="use_sim_time" value="true"/>-->
+
+    <node name="play" pkg="rosbag" type="play" output="screen"
+          args="--clock -r $(arg bag_rate) $(arg bag)"/>
+
+    <node name="play_tf_static" pkg="nifti_vision_data" type="play_tf_static"
+         args="$(arg bag)" output="screen">
+       <remap from="~tf_static" to="/tf_static"/>
+   </node>
+
+    <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz" args="-d $(find rpz_planning)/rviz/$(arg rviz_config).rviz"/>
+</launch>
