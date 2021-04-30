@@ -111,7 +111,7 @@ def cloud_msg_to_rpz_tensor(msg, order=DimOrder.YAW_X_Y):
     assert (msg.height * msg.width == sz[0] * sz[1])
 
     cloud = numpify(msg).reshape(sz)
-    print(cloud.dtype.names)
+    # print(cloud.dtype.names)
 
     # assert 'x' in cloud.dtype.names
     # assert 'roll_0' in cloud.dtype.names
@@ -927,10 +927,10 @@ class RPZPlanner(object):
         assert isinstance(msg, Path)
 
         # Discard old messages.
-        # age = (rospy.Time.now() - msg.header.stamp).to_sec()
-        # if age > self.max_age:
-        #     rospy.logwarn('Discarding path %.1f s > %.1f s old.', age, self.max_age)
-        #     return
+        age = (rospy.Time.now() - msg.header.stamp).to_sec()
+        if age > self.max_age:
+            rospy.logwarn('Discarding path %.1f s > %.1f s old.', age, self.max_age)
+            return
 
         if self.path_step > 1:
             msg.poses = msg.poses[::self.path_step]
@@ -973,7 +973,7 @@ class RPZPlanner(object):
             grid_to_map = self.grid_to_map
         assert map_to_grid.shape == (3, 3)
         assert grid_to_map.shape == (3, 3)
-        rospy.loginfo('Map to grid:\n%s', map_to_grid.detach().numpy())
+        # rospy.loginfo('Map to grid:\n%s', map_to_grid.detach().numpy())
         rospy.logdebug('Grid to map:\n%s', grid_to_map.detach().numpy())
 
         with self.map_lock:
@@ -998,10 +998,10 @@ class RPZPlanner(object):
         # rospy.loginfo('Orig. path: abs. change in yaw : %.3f.', avg_d_yaw_0.detach().item())
         # rospy.loginfo('Orig. path: time cost: %.1f s.', time_cost_0.detach().item())
         time_cost_0 = path_len_0 / self.linear_speed + avg_d_yaw_0 / self.angular_speed
-        rospy.loginfo('Original path: length %.1f m, time %.1f s, '
-                      'avg. roll %.2f, avg. pitch %.2f, yaw change %.1f.',
-                      path_len_0.detach().item(), time_cost_0.detach().item(),
-                      avg_roll_0.detach().item(), avg_pitch_0.detach().item(), avg_d_yaw_0.detach().item())
+        # rospy.loginfo('Original path: length %.1f m, time %.1f s, '
+        #               'avg. roll %.2f, avg. pitch %.2f, yaw change %.1f.',
+        #               path_len_0.detach().item(), time_cost_0.detach().item(),
+        #               avg_roll_0.detach().item(), avg_pitch_0.detach().item(), avg_d_yaw_0.detach().item())
 
         # xyzrpy_head = xyzrpy[:1]
 
@@ -1016,7 +1016,7 @@ class RPZPlanner(object):
         xyyaw_grid = transform_xyyaw_tensor(map_to_grid, xyyaw, order=self.order)
         assert xyyaw_grid.shape == (n_poses, 3)
         # xyyaw_grid.requires_grad = True
-        rospy.loginfo('xyyaw_grid:\n%s', xyyaw_grid.detach().numpy())
+        # rospy.loginfo('xyyaw_grid:\n%s', xyyaw_grid.detach().numpy())
         xyyaw_grid_head = xyyaw_grid[:1]
         # Zero yaw - yaw angles will be given by direction of movement.
         if self.order == DimOrder.X_Y_YAW:
@@ -1034,7 +1034,7 @@ class RPZPlanner(object):
         else:
             raise ValueError()
         assert ryaw_steps_grid.shape == (n_poses - 1, 2)
-        rospy.loginfo('ryaw_steps_grid:\n%s', ryaw_steps_grid.detach().numpy())
+        # rospy.loginfo('ryaw_steps_grid:\n%s', ryaw_steps_grid.detach().numpy())
 
         t = timer()
         cam_to_robot = cam_to_robot.to(self.device)
@@ -1045,6 +1045,7 @@ class RPZPlanner(object):
         map = map.to(self.device)
         xyzrpy = xyzrpy.to(self.device)
         xyyaw_grid = xyyaw_grid.to(self.device)
+        xyyaw_grid_head = xyyaw_grid_head.to(self.device)
         ryaw_steps_grid = ryaw_steps_grid.to(self.device)
         rospy.logdebug('Moving to %s: %.3f s', self.device, timer() - t)
 
@@ -1062,10 +1063,10 @@ class RPZPlanner(object):
 
 
         # ryaw_steps_grid.requires_grad = True
-        optimizer = torch.optim.Adam([ryaw_steps_grid], lr=0.001)
-        # r_steps_grid, yaw_steps_grid = ryaw_steps_grid[:, :1], ryaw_steps_grid[:, 1:]
-        # yaw_steps_grid.requires_grad = True
-        # optimizer = torch.optim.Adam([yaw_steps_grid], lr=0.1)
+        # optimizer = torch.optim.Adam([ryaw_steps_grid], lr=0.001)
+        r_steps_grid, yaw_steps_grid = ryaw_steps_grid[:, :1], ryaw_steps_grid[:, 1:]
+        yaw_steps_grid.requires_grad = True
+        optimizer = torch.optim.Adam([yaw_steps_grid], lr=0.1)
 
         reward_history = []
         for iter in range(self.num_iters):
@@ -1078,12 +1079,12 @@ class RPZPlanner(object):
             ryaw_steps_grid = torch.cat((r_steps_grid, yaw_steps_grid), dim=1)
             xyyaw_grid_rel = polar_steps_to_xyyaw(ryaw_steps_grid, order=self.order)
             xyyaw_grid_tail = xyyaw_grid_head + xyyaw_grid_rel
-            rospy.loginfo('xyyaw_grid_head:\n%s\n'
-                          'xyyaw_grid_rel:\n%s\n'
-                          'xyyaw_grid_tail:\n%s',
-                          xyyaw_grid_head.detach().numpy(),
-                          xyyaw_grid_rel.detach().numpy(),
-                          xyyaw_grid_tail.detach().numpy())
+            # rospy.loginfo('xyyaw_grid_head:\n%s\n'
+            #               'xyyaw_grid_rel:\n%s\n'
+            #               'xyyaw_grid_tail:\n%s',
+            #               xyyaw_grid_head.detach().numpy(),
+            #               xyyaw_grid_rel.detach().numpy(),
+            #               xyyaw_grid_tail.detach().numpy())
             xyyaw_grid = torch.cat((xyyaw_grid_head, xyyaw_grid_tail), dim=0)
             assert xyyaw_grid.shape == (n_poses, 3)
             xyyaw = transform_xyyaw_tensor(grid_to_map, xyyaw_grid, order=self.order)
@@ -1178,7 +1179,21 @@ class RPZPlanner(object):
             # TODO: Visibility / occlusion mask.
             rewards = fov_mask * rewards
             assert rewards.shape == (n_poses, n_cams, n_pts)
-            rewards, _ = rewards.view(n_poses * n_cams, n_pts).max(dim=0)
+
+            # TODO: replace max with log odds
+            # apply log odds conversion for global voxel map observations update
+            p = rewards - rewards.min()
+            p = p / p.max()  # normalize rewards to treat them as visibility prob values
+            eps = 1e-6
+            p = torch.clamp(p, 0.5, 1.-eps)  # 0.5 - "unknown", > 0.5 - visible
+            lo = torch.log(p / (1.-p))  # compute log odds
+            assert lo.shape == (n_poses, n_cams, n_pts)
+            lo = lo.view(n_poses * n_cams, n_pts)
+            lo_sum = lo.sum(0)
+            assert lo_sum.shape == (n_pts, )
+            rewards = 1.0 / (1.0 + torch.exp(-lo_sum))  # back to probs from log odds
+
+            # rewards, _ = rewards.view(n_poses * n_cams, n_pts).max(dim=0)
             assert rewards.shape == (n_pts,)
 
             reward = rewards.sum()

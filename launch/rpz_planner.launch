@@ -1,9 +1,7 @@
 <launch>
     <arg name="robot" default="X1"/>
-    <arg name="robot_type" default="explorer_x1"/>
+    <arg name="robot_type=" default="explorer_x1"/>
     <arg name="points_slow_filtered" default="points_slow_filtered"/>
-    <arg name="rviz" default="false"/>
-    <arg name="rviz_config" default="x1"/>
 
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
         <rosparam subst_value="true">
@@ -26,24 +24,22 @@
             num_cameras: 2
         </rosparam>
 
-        <remap from="camera_info_0" to="$(arg robot)/front/optical/camera_info"/>
+        <remap from="camera_info_0" to="front/optical/camera_info"/>
 
         <remap if="$(eval robot_type == 'marv')"
-               from="camera_info_1" to="$(arg robot)/rear/optical/camera_info"/>
+               from="camera_info_1" to="rear/optical/camera_info"/>
 
         <remap if="$(eval 'explorer_x1' in robot_type.lower())"
-               from="camera_info_0" to="$(arg robot)/front_rgbd/optical/camera_info"/>
+               from="camera_info_0" to="front_rgbd/optical/camera_info"/>
         <remap if="$(eval 'explorer_x1' in robot_type.lower())"
-               from="camera_info_1" to="$(arg robot)/left_rgbd/optical/camera_info"/>
+               from="camera_info_1" to="left_rgbd/optical/camera_info"/>
         <remap if="$(eval 'explorer_x1' in robot_type.lower())"
-               from="camera_info_2" to="$(arg robot)/right_rgbd/optical/camera_info"/>
+               from="camera_info_2" to="right_rgbd/optical/camera_info"/>
         <remap if="$(eval 'explorer_x1' in robot_type.lower())"
-               from="camera_info_3" to="$(arg robot)/rear_rgbd/optical/camera_info"/>
+               from="camera_info_3" to="rear_rgbd/optical/camera_info"/>
 
-        <remap from="map" to="$(arg robot)/local_map_slow"/>
-        <remap from="path" to="$(arg robot)/path"/>
-        <remap from="rpz" to="$(arg robot)/traversability"/>
+        <remap from="map" to="local_map"/>
+        <remap from="path" to="path"/>
+        <remap from="rpz" to="traversability"/>
     </node>
-
-    <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz" args="-d $(find rpz_planning)/rviz/$(arg rviz_config).rviz"/>
 </launch>

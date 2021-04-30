@@ -3,6 +3,7 @@
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="x1"/>
     <arg name="bag" default="$(dirname)/../data/marv_2021-04-29-12-48-13.bag"/>
+    <arg name="rviz" default="true"/>
 
     <param name="use_sim_time" value="true"/>
 
@@ -25,6 +26,6 @@
         <arg name="robot_type" value="marv"/>
     </include>
 
-    <node name="rviz" pkg="rviz" type="rviz"
+    <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
           args="-d $(dirname)/bag.rviz"/>
 </launch>
