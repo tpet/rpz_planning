@@ -898,7 +898,7 @@ class RPZPlanner(object):
 
     @timing
     def get_available_cameras(self):
-        """Get available cameras (to robot transforms and frustums)."""
+        """Get available cameras (camera-to-robot transforms and frustum planes)."""
         with self.cam_info_lock:
             cam_to_robot = [tf for tf in self.cam_to_robot if tf is not None]
             if not cam_to_robot:
@@ -932,15 +932,18 @@ class RPZPlanner(object):
             rospy.logwarn('Discarding path %.1f s > %.1f s old.', age, self.max_age)
             return
 
+        # Subsample input path to reduce computation.
         if self.path_step > 1:
             msg.poses = msg.poses[::self.path_step]
 
+        # Discard short paths.
         n_poses = len(msg.poses)
         rospy.loginfo('Path with %i poses received.', n_poses)
         if n_poses < 2:
             rospy.logwarn('Path too short for optimization.')
             return
 
+        # Check compatibility of path and map frames.
         if not msg.header.frame_id:
             rospy.logwarn_once('Map frame %s will be used instead of empty path frame.',
                                self.map_frame)
