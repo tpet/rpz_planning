@@ -108,6 +108,7 @@ def cloud_msg_to_rpz_tensor(msg, order=DimOrder.YAW_X_Y):
     # TODO: Get yaw angles from channels?
     yaws = list(range(0, 360, 45))
     sz = (250, 248)
+    # sz = (248, 250)
     assert (msg.height * msg.width == sz[0] * sz[1])
 
     cloud = numpify(msg).reshape(sz)
@@ -179,6 +180,7 @@ def cloud_to_grid_transform(cloud):
     # print(x_in_grid)
 
     rospy.logdebug('Cloud to grid transform computed (%.3f s).', timer() - t)
+    # rospy.logdebug('Cloud to grid transform:\n%s', cloud_to_grid)
     return cloud_to_grid
 
 
@@ -235,6 +237,18 @@ def xy_to_polar_steps(xy):
     yaw = torch.atan2(xy_steps[:, 1:], xy_steps[:, :1])
     ryaw = torch.cat((r, yaw), dim=1)
     return ryaw
+
+
+@timing
+def xy_to_azimuth(xy):
+    """Convert (x, y) coordinates to yaw angle."""
+    assert isinstance(xy, torch.Tensor)
+    # assert xy.dim() == 2
+    assert xy.shape[-1] == 2  # (..., 2)
+    # xy_steps = xy[1:, :] - xy[:-1, :]
+    # r = xy_steps.norm(dim=1, keepdim=True)
+    yaw = torch.atan2(xy[..., 1:], xy[..., :1])
+    return yaw
 
 
 def recompute_xyzrpy_yaw(xyzrpy):
@@ -309,12 +323,14 @@ def xyyaw_rpz_to_path_msg(xyyaw, rpz, order=DimOrder.YAW_X_Y, header=None):
 
 def rotation_angle_from_matrix_2d(mat):
     assert isinstance(mat, torch.Tensor)
+    assert mat.shape[-2:] == (3, 3)
     # Transform may include scale (e.g. map-to-grid transform).
     if isinstance(mat, np.ndarray):
-        angle = np.arctan2(mat[1, 0], mat[0, 0])
+        angle = np.arctan2(mat[..., 1, 0], mat[..., 0, 0])
     elif isinstance(mat, torch.Tensor):
-        angle = torch.atan2(mat[1, 0], mat[0, 0])
+        angle = torch.atan2(mat[..., 1, 0], mat[..., 0, 0])
     else:
+        assert False
         # Assume list of lists.
         angle = math.atan2(mat[1][0], mat[0][0])
     return angle
@@ -350,8 +366,7 @@ def transform_xyyaw_tensor(tf, xyyaw, order=DimOrder.YAW_X_Y):
     """Convert x, y, yaw tensor to grid coordinates."""
     assert isinstance(tf, torch.Tensor)
     assert tf.shape == (3, 3)
-    # (N, 3)
-    assert xyyaw.shape[1] == 3
+    assert xyyaw.shape[1] == 3 # (..., 3)
     yaw_0 = rotation_angle_from_matrix_2d(tf)
     # yaw_0 = rotation_angle_from_matrix_2d(tf) + (np.pi / 2.)
     # yaw_0 = torch.tensor(0.)
@@ -489,6 +504,19 @@ def log_odds_conversion(rewards, eps = 1e-6):
     lo_sum = lo.sum(0)
     assert lo_sum.shape == (n_pts,)
     rewards = 1.0 / (1.0 + torch.exp(-lo_sum))  # back to probs from log odds
+    return rewards
+
+
+def reduce_rewards(rewards, eps=1e-6):
+    assert isinstance(rewards, torch.Tensor)
+    assert rewards.dim() == 3
+    n_poses, n_cams, n_pts = rewards.shape
+    rewards = torch.clamp(rewards, eps, 1 - eps)
+    lo = torch.log(1. - rewards)
+    lo = lo.view(n_poses * n_cams, n_pts)
+    lo = lo.sum(dim=0)
+    rewards = 1. - torch.exp(lo)
+    assert rewards.shape == (n_pts,)
     return rewards
 
 
@@ -701,11 +729,15 @@ class RPZPlanner(object):
         # self.show_clearance = rospy.get_param('~show_clearance_pos', [-10, 10])
         # self.min_points_obstacle = rospy.get_param('~min_points_obstacle', 1)
 
+        self.fixed_endpoints = rospy.get_param('~fixed_endpoints', ['start'])
+        assert isinstance(self.fixed_endpoints, list)
+
         self.num_cameras = rospy.get_param('~num_cameras', 1)
         self.keep_updating_cameras = rospy.get_param('~keep_updating_cameras', False)
         device = rospy.get_param('~device', 'cuda:0' if torch.cuda.is_available() else 'cpu')
         self.device = torch.device(device)
-        self.order = DimOrder.YAW_X_Y
+        # self.order = DimOrder.YAW_X_Y
+        self.order = DimOrder.X_Y_YAW
         self.num_iters = rospy.get_param('~num_iters', 10)
         self.map_step = rospy.get_param('~map_step', 4)
         self.path_step = rospy.get_param('~path_step', 2)
@@ -1031,6 +1063,39 @@ class RPZPlanner(object):
 
     # def reward(self, xyzrpy, cam_to_robot, frustums):
 
+    def path_cost(self, xyzrpy):
+        assert isinstance(xyzrpy, torch.Tensor)
+        # (..., N, 6)
+        assert xyzrpy.shape[-1] == 6
+        assert xyzrpy.dim() >= 2
+
+        # Distance cost.
+        # xy_diff = torch.diff(xyzrpy[..., :2], dim=-2)
+        xy_diff = xyzrpy[..., 1:, :2] - xyzrpy[..., :-1, :2]
+        edges = xy_diff.norm(dim=-1, keepdim=True)
+        dist_cost = edges.sum() / self.linear_speed
+        # rospy.logdebug('Distance cost: %.1f s.', dist_cost.item())
+
+        # Turning cost.
+        # yaw_diff = torch.diff(xyzrpy[..., -1:], dim=-2).abs()
+        yaw_diff = (xyzrpy[..., 1:, -1:] - xyzrpy[..., :-1, -1:]).abs()
+        # yaw_diff = torch.remainder(torch.diff(xyzrpy[..., -1:], dim=-2), 2 * np.pi)
+        yaw_diff = torch.min(yaw_diff, 2 * np.pi - yaw_diff)
+        turn_cost = yaw_diff.sum() / self.angular_speed
+        # rospy.logdebug('Turning cost: %.1f s.', turn_cost.item())
+
+        # Traversability cost, penalty for roll and pitch.
+        # TODO: Convert to time cost using control parameters.
+        rp = xyzrpy[..., 1:, 3:5]
+        # Use edge lenghts to scale roll and pitch penalties.
+        rp = rp * edges
+        trav_cost = rp.abs().mean()
+
+        cost = dist_cost + turn_cost + trav_cost
+        rospy.logdebug('Path cost %.1f (dist. %.1f, turning %.1f, trav.: %.1f).',
+                       cost.item(), dist_cost.item(), turn_cost.item(), trav_cost.item())
+        return cost
+
     @timing
     def path_received(self, msg):
         t = timer()
@@ -1102,53 +1167,9 @@ class RPZPlanner(object):
 
         xyzrpy = path_msg_to_xyzrpy(msg)
         assert xyzrpy.shape == (n_poses, 6)
-        path_len_0 = (xyzrpy[1:, :3] - xyzrpy[:-1, :3]).norm(dim=1).sum()
-        # rospy.loginfo('Orig. path: length: %.1f m.', path_len_0.detach().item())
-        avg_roll_0 = xyzrpy[1:, 3].abs().mean()
-        # rospy.loginfo('Orig. path: avg. abs. roll: %.3f.', avg_roll_0.detach().item())
-        avg_pitch_0 = xyzrpy[1:, 4].abs().mean()
-        # rospy.loginfo('Orig. path: avg. abs. pitch: %.3f.', avg_pitch_0.detach().item())
-        avg_d_yaw_0 = (xyzrpy[1:, 5] - xyzrpy[:-1, 5]).abs().sum()
-        # rospy.loginfo('Orig. path: abs. change in yaw : %.3f.', avg_d_yaw_0.detach().item())
-        # rospy.loginfo('Orig. path: time cost: %.1f s.', time_cost_0.detach().item())
-        time_cost_0 = path_len_0 / self.linear_speed + avg_d_yaw_0 / self.angular_speed
-        # rospy.loginfo('Original path: length %.1f m, time %.1f s, '
-        #               'avg. roll %.2f, avg. pitch %.2f, yaw change %.1f.',
-        #               path_len_0.detach().item(), time_cost_0.detach().item(),
-        #               avg_roll_0.detach().item(), avg_pitch_0.detach().item(), avg_d_yaw_0.detach().item())
 
-        # xyzrpy_head = xyzrpy[:1]
-
-        if self.order == DimOrder.X_Y_YAW:
-            xyyaw = xyzrpy[:, [0, 1, 5]]
-        elif self.order == DimOrder.YAW_X_Y:
-            xyyaw = xyzrpy[:, [5, 0, 1]]
-        else:
-            raise ValueError()
-        assert xyyaw.shape == (n_poses, 3)
-
-        xyyaw_grid = transform_xyyaw_tensor(map_to_grid, xyyaw, order=self.order)
-        assert xyyaw_grid.shape == (n_poses, 3)
-        # xyyaw_grid.requires_grad = True
-        # rospy.loginfo('xyyaw_grid:\n%s', xyyaw_grid.detach().numpy())
-        xyyaw_grid_head = xyyaw_grid[:1]
-        # Zero yaw - yaw angles will be given by direction of movement.
-        if self.order == DimOrder.X_Y_YAW:
-            xyyaw_grid_head[0, 2] = 0.
-        elif self.order == DimOrder.YAW_X_Y:
-            xyyaw_grid_head[0, 0] = 0.
-        else:
-            raise ValueError()
-        assert xyyaw_grid_head.shape == (1, 3)
-
-        if self.order == DimOrder.X_Y_YAW:
-            ryaw_steps_grid = xy_to_polar_steps(xyyaw_grid[:, :2])
-        elif self.order == DimOrder.YAW_X_Y:
-            ryaw_steps_grid = xy_to_polar_steps(xyyaw_grid[:, 1:])
-        else:
-            raise ValueError()
-        assert ryaw_steps_grid.shape == (n_poses - 1, 2)
-        # rospy.loginfo('ryaw_steps_grid:\n%s', ryaw_steps_grid.detach().numpy())
+        # TODO: Remove it from here.
+        rospy.loginfo('Original path cost: %.1f [~s].', self.path_cost(xyzrpy))
 
         t = timer()
         cam_to_robot = cam_to_robot.to(self.device)
@@ -1158,29 +1179,33 @@ class RPZPlanner(object):
         grid_to_map = grid_to_map.to(self.device)
         map = map.to(self.device)
         xyzrpy = xyzrpy.to(self.device)
-        xyyaw_grid = xyyaw_grid.to(self.device)
-        xyyaw_grid_head = xyyaw_grid_head.to(self.device)
-        ryaw_steps_grid = ryaw_steps_grid.to(self.device)
         rospy.logdebug('Moving to %s: %.3f s', self.device, timer() - t)
 
-        # optimize loop
-        #   interpolate rpz at xyyaw
-        #   construct xyzrpy
+        # Keep map coordinates, convert to grid just for RPZ interpolation.
+        # Assume map-to-grid transform being 2D similarity with optional z offset.
+        # Optimize xy pairs, with yaw defined by xy steps.
+        # Allow start and/or end xy fixed.
+        # For interpolation we'll have: rpz(to_grid(xyyaw)).
+        # Optionally, offset z if needed.
+
+        # optimization loop
+        #   compute yaw from xy steps (torch.diff)
+        #   convert xyyaw to grid
+        #   interpolate rpz at xyyaw (in grid; torch.grid_sample)
+        #   construct xyzrpy (in map)
         #   compute reward
-        #   backward to xyyaw
-        #   step in xyyaw
-        # Keep starting pose fixed.
-        # xyyaw_grid_tail = xyyaw_grid[1:]
-        # assert xyyaw_grid_tail.shape == (n_poses - 1, 3)
-        # xyyaw_grid_tail.requires_grad = True
-        # optimizer = torch.optim.Adam([xyyaw_grid_tail], lr=0.01)
+        #   backward to xy
+        #   step in xy
 
+        opt_i = slice(1 if 'start' in self.fixed_endpoints else None,
+                      -1 if 'goal' in self.fixed_endpoints else None)
 
-        # ryaw_steps_grid.requires_grad = True
-        # optimizer = torch.optim.Adam([ryaw_steps_grid], lr=0.001)
-        r_steps_grid, yaw_steps_grid = ryaw_steps_grid[:, :1], ryaw_steps_grid[:, 1:]
-        yaw_steps_grid.requires_grad = True
-        optimizer = torch.optim.Adam([yaw_steps_grid], lr=0.1)
+        xy_opt = xyzrpy[opt_i, :2].detach()
+        xy_opt.requires_grad = True
+        xy_start = xyzrpy[:1, :2].detach()
+        xy_goal = xyzrpy[-1:, :2].detach()
+
+        optimizer = torch.optim.Adam([xy_opt], lr=0.01)
 
         reward_history = []
         for iter in range(self.num_iters):
@@ -1189,64 +1214,38 @@ class RPZPlanner(object):
 
             optimizer.zero_grad()
 
-            # Convert steps to grid coordinates.
-            ryaw_steps_grid = torch.cat((r_steps_grid, yaw_steps_grid), dim=1)
-            xyyaw_grid_rel = polar_steps_to_xyyaw(ryaw_steps_grid, order=self.order)
-            xyyaw_grid_tail = xyyaw_grid_head + xyyaw_grid_rel
-            # rospy.loginfo('xyyaw_grid_head:\n%s\n'
-            #               'xyyaw_grid_rel:\n%s\n'
-            #               'xyyaw_grid_tail:\n%s',
-            #               xyyaw_grid_head.detach().numpy(),
-            #               xyyaw_grid_rel.detach().numpy(),
-            #               xyyaw_grid_tail.detach().numpy())
-            xyyaw_grid = torch.cat((xyyaw_grid_head, xyyaw_grid_tail), dim=0)
-            assert xyyaw_grid.shape == (n_poses, 3)
-            xyyaw = transform_xyyaw_tensor(grid_to_map, xyyaw_grid, order=self.order)
-            assert xyyaw.shape == (n_poses, 3)
+            xy = torch.cat(([xy_start] if 'start' in self.fixed_endpoints else [])
+                           + [xy_opt]
+                           + ([xy_goal] if 'goal' in self.fixed_endpoints else []), dim=-2)
+            # yaw = xy_to_azimuth(xy)
+            yaw_tail = xy_to_azimuth(xy[1:, :] - xy[:-1, :])
+            # TODO: Add starting yaw.
+            yaw = torch.cat((yaw_tail[:1, :], yaw_tail), dim=-2)
+            rospy.loginfo('Yaw:\n%s', np.degrees(yaw.detach().numpy()))
+            if self.order == DimOrder.X_Y_YAW:
+                xyyaw = torch.cat((xy, yaw), dim=-1)
+            elif self.order == DimOrder.YAW_X_Y:
+                xyyaw = torch.cat((yaw, xy), dim=-1)
+            else:
+                raise ValueError()
+
+            xyyaw_grid = transform_xyyaw_tensor(map_to_grid, xyyaw, order=self.order)
             rpz = interpolate_rpz(rpz_all, xyyaw_grid)
+
+            # Transform z?
             assert rpz.shape == (n_poses, 3)
             if self.order == DimOrder.X_Y_YAW:
                 # Fix yaw from XY.
-                # xyyaw[1:, 2:] = xy_to_polar_steps(xyyaw[:, :2])[:, 1:]
-                # xyyaw[0, 2] = xyyaw[1, 2]
                 xyzrpy = torch.cat((xyyaw[:, :2], rpz[:, 2:], rpz[:, :2], xyyaw[:, 2:]), dim=-1)
             elif self.order == DimOrder.YAW_X_Y:
-                # xyyaw[1:, :1] = xy_to_polar_steps(xyyaw[:, 1:])[:, 1:]
-                # xyyaw[0, 0] = xyyaw[1, 0]
                 xyzrpy = torch.cat((xyyaw[:, 1:], rpz[:, 2:], rpz[:, :2], xyyaw[:, :1]), dim=-1)
             else:
                 raise ValueError()
-            # rospy.loginfo('xyzrpy:\n%s', xyzrpy.detach().numpy())
-
-            xyzrpy = recompute_xyzrpy_yaw(xyzrpy)
-
-            # Interpolate and optimize in grid coordinates.
-            # rpz_tail = interpolate_rpz(rpz_all, xyyaw_grid_tail)
-            # assert rpz_tail.shape == (n_poses - 1, 3)
-            # This would previously be z in the grid coordinates,
-            # now it should also be in map coordinates.
-
-            # Convert to map coordinates for assessing reward.
-            # xyyaw_tail = transform_xyyaw_tensor(grid_to_map, xyyaw_grid_tail)
-            # if self.order == DimOrder.YAW_X_Y:
-            #     xyzrpy_tail = torch.cat((xyyaw_tail[:, 1:], rpz_tail[:, 2:],
-            #                              rpz_tail[:, :2], xyyaw_tail[:, :1]), dim=-1)
-            #     xyzrpy = torch.cat((xyzrpy_0[:1, :], xyzrpy_tail), dim=0)
-            # elif self.order == DimOrder.X_Y_YAW:
-            #     xyzrpy = torch.cat((xyyaw[:, :2], rpz[:, 2:], rpz[:, :2], xyyaw[:, 2:]), dim=-1)
-            # else:
-            #     raise ValueError()
 
             # Publish current optimized path.
 
-            # Try fixing yaw for visualization here (test only).
-
             # TODO: Test yaw processing from map to grid and back.
             # TODO: Alternative solution is to recompute yaw from XY again.
-            # xyzrpy_path = xyzrpy.detach()
-            # ryaw_path = xy_to_polar_steps(xyzrpy_path[:, :2])
-            # xyzrpy_path[1:, -1] = ryaw_path[:, 1]
-            # msg_out = xyzrpy_to_path_msg(xyzrpy_path)
             msg_out = xyzrpy_to_path_msg(xyzrpy)
             msg_out.header = msg.header
             for p in msg_out.poses:
@@ -1284,11 +1283,12 @@ class RPZPlanner(object):
             assert rewards.shape == (n_poses, n_cams, n_pts)
 
             # share and sum rewards over multiple sensors and view points
-            rewards = log_odds_conversion(rewards)
+            # rewards = log_odds_conversion(rewards)
+            rewards = reduce_rewards(rewards)
 
             # instead of log odds: max of rewards over all sensors and wps poses
             # rewards, _ = rewards.view(n_poses * n_cams, n_pts).max(dim=0)
-            assert rewards.shape == (n_pts,)
+            # assert rewards.shape == (n_pts,)
 
             reward = rewards.sum()
             assert isinstance(reward, torch.Tensor)
@@ -1297,17 +1297,8 @@ class RPZPlanner(object):
             reward_history.append(reward.detach().item())
 
             # Penalize path length change, high roll and pitch and yaw changes.
-            path_len = (xyzrpy[1:, :3] - xyzrpy[:-1, :3]).norm(dim=1).sum()
-            # rospy.loginfo('Iter. %i: length: %.1f m.', iter, path_len.detach().item())
-            avg_roll = xyzrpy[1:, 3].abs().mean()
-            # rospy.loginfo('Iter. %i: avg. roll: %.3f.', iter, avg_roll.detach().item())
-            avg_pitch = xyzrpy[1:, 4].abs().mean()
-            # rospy.loginfo('Iter. %i: avg. pitch: %.3f.', iter, avg_pitch.detach().item())
-            avg_d_yaw = (xyzrpy[1:, 5] - xyzrpy[:-1, 5]).abs().sum()
-            # rospy.loginfo('Iter. %i: abs. change in yaw : %.3f.',
-            #               iter, avg_d_yaw.detach().item())
-            # loss = (path_len - path_len_0)**2
-            time_cost = path_len / self.linear_speed + avg_d_yaw / self.angular_speed
+            time_cost = self.path_cost(xyzrpy)
+
             criterion = time_cost / reward
             criterion.backward()
             optimizer.step()
@@ -1329,20 +1320,12 @@ class RPZPlanner(object):
             self.visualize_cams(robot_to_map[-1].detach(), id=2)
             rospy.logdebug('Cameras visualized for %i poses (%.3f s).', 3, timer() - t)
 
-            rospy.loginfo('Iter. %i: length %.1f m, time %.1f s, '
-                          'reward %.0f, reward/s %.1f, '
-                          'avg. roll %.2f, avg. pitch %.2f, yaw change %.1f '
+            rospy.loginfo('Iter. %i: time %.1f s, '
+                          'reward %.0f, reward/s %.1f '
                           '(%.3f s).',
-                          iter, path_len.detach().item(), time_cost.detach().item(),
+                          iter, time_cost.detach().item(),
                           reward.detach().item(), 1. / criterion.detach().item(),
-                          avg_roll.detach().item(), avg_pitch.detach().item(), avg_d_yaw.detach().item(),
                           timer() - t_iter)
-
-            # rospy.loginfo('Only interpolation, no optimizaiton done.')
-            # return
-
-            # rospy.loginfo('Iter %i: reward %.1f (%.3f s).',
-            #               iter, reward, timer() - t_iter)
 
 
 if __name__ == '__main__':
