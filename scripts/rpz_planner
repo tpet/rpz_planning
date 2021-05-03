@@ -669,42 +669,43 @@ def compute_fov_mask(map, frustums, map_to_cam,
     return fov_mask
 
 
-def compute_fov_mask_smooth(map, cam_to_map, intrins, eps=1e-6):
+def compute_fov_mask_smooth(map, map_to_cam, intrins, std=10, eps=1e-6):
     t = timer()
     # find points that are observed by the camera (in its FOV)
     assert isinstance(map, torch.Tensor)
-    assert isinstance(cam_to_map, torch.Tensor)
+    assert isinstance(map_to_cam, torch.Tensor)
     assert isinstance(intrins, dict)
     assert isinstance(intrins['Ks'], torch.Tensor)
     assert isinstance(intrins['hw'], torch.Tensor)
     assert map.dim() == 2
-    assert cam_to_map.dim() == 4
+    assert map_to_cam.dim() == 4
     assert intrins['Ks'].dim() == 3
     assert intrins['hw'].dim() == 2
-    assert cam_to_map.shape[1] == intrins['Ks'].shape[0]
-    assert cam_to_map.shape[1] == intrins['hw'].shape[0]
+    assert map_to_cam.shape[1] == intrins['Ks'].shape[0]
+    assert map_to_cam.shape[1] == intrins['hw'].shape[0]
+    assert std > 0.
     # TODO: check this implementation, is it updates rewards only for one camera?
-    n_poses, n_cams = cam_to_map.shape[:2]
+    n_poses, n_cams = map_to_cam.shape[:2]
     # n_pts = map.shape[1]
     # (n_poses, n_cams, 4, 4) x (4, n_pts)
-    pts_cam = cam_to_map.matmul(map)
+    pts_cam = map_to_cam.matmul(map)
     # assert pts_cam.shape == (n_poses, n_cams, 4, n_pts)
     # (n_cams, 4, 4) x (n_poses, n_cams, 4, n_pts)
     pts_homo = intrins['Ks'].matmul(pts_cam)
     # assert pts_homo.shape == (n_poses, n_cams, 4, n_pts)
-    # depth_sigmoid = torch.sigmoid(pts_homo[2])
-    depth_sigmoid = pts_homo[:, :, 2, :].sigmoid()
-    # assert depth_sigmoid.shape == (n_poses, n_cams, n_pts)
+    # depth_constraints = torch.sigmoid(pts_homo[2])
+    depth_constraints = pts_homo[:, :, 2, :].sigmoid()
+    # assert depth_constraints.shape == (n_poses, n_cams, n_pts)
     # (1, n_cams, 1)
     heights, widths = intrins['hw'][:, 0].reshape([1, n_cams, 1]), intrins['hw'][:, 1].reshape([1, n_cams, 1])
     # assert heights.shape == (1, n_cams, 1)
-    width_gaussian = torch.exp(
-        -0.5 * (torch.sub(pts_homo[:, :, 0, :] / (pts_homo[:, :, 2, :] + eps), widths / 2.) / widths) ** 2)
-    # assert width_gaussian.shape == (n_poses, n_cams, n_pts)
-    height_gaussian = torch.exp(
-        -0.5 * (torch.sub(pts_homo[:, :, 1, :] / (pts_homo[:, :, 2, :] + eps), heights / 2.) / heights) ** 2)
-    # assert height_gaussian.shape == (n_poses, n_cams, n_pts)
-    fov_mask = depth_sigmoid * (width_gaussian * height_gaussian)
+    width_constraints = torch.exp(
+        - std * (pts_homo[:, :, 0, :] / (pts_homo[:, :, 2, :] + eps - widths / 2.) / widths) ** 2)
+    # assert width_constraints.shape == (n_poses, n_cams, n_pts)
+    height_constraints = torch.exp(
+        - std * (pts_homo[:, :, 1, :] / (pts_homo[:, :, 2, :] + eps - heights / 2.) / heights) ** 2)
+    # assert height_constraints.shape == (n_poses, n_cams, n_pts)
+    fov_mask = depth_constraints * (width_constraints * height_constraints)
     # assert fov_mask.shape == (n_poses, n_cams, n_pts)
     rospy.logdebug('FOV mask computation time: %.3f s', timer() - t)
     return fov_mask
@@ -1034,9 +1035,8 @@ class RPZPlanner(object):
             if not cam_to_robot:
                 return None, None, None
             frustums = [f for f in self.cam_frustums if f is not None]
-            intrins = {}
-            intrins['Ks'] = [K_from_msg(msg) for msg in self.cam_infos if msg is not None]
-            intrins['hw'] = [torch.tensor([msg.height, msg.width]) for msg in self.cam_infos if msg is not None]
+            intrins = {'Ks': [K_from_msg(msg) for msg in self.cam_infos if msg is not None],
+                       'hw': [torch.tensor([msg.height, msg.width]) for msg in self.cam_infos if msg is not None]}
             assert len(cam_to_robot) == len(frustums)
 
         cam_to_robot = torch.stack(cam_to_robot)
@@ -1263,10 +1263,10 @@ class RPZPlanner(object):
             assert map_to_cam.shape == (n_poses, n_cams, 4, 4)
             rospy.logdebug('Camera to map transforms: %.3f s', timer() - t)
 
-            fov_mask = compute_fov_mask(map, frustums, map_to_cam)
+            # fov_mask = compute_fov_mask(map, frustums, map_to_cam)
 
             # compute smooth version of FOV mask
-            # fov_mask = compute_fov_mask_smooth(map, cam_to_map, intrins)
+            fov_mask = compute_fov_mask_smooth(map, map_to_cam, intrins)
 
             # Compute point to sensor distances.
             t = timer()
