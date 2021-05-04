@@ -14,8 +14,9 @@ from ros_numpy import msgify, numpify
 from rpz_planning import point_visibility
 from sensor_msgs.msg import CameraInfo, PointCloud2
 from std_msgs.msg import ColorRGBA, Header
-from tf.transformations import euler_from_quaternion, quaternion_from_euler
+from tf.transformations import euler_from_quaternion, quaternion_from_euler, euler_matrix
 import tf2_ros
+from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud
 from threading import RLock
 from timeit import default_timer as timer
 import torch
@@ -555,6 +556,7 @@ def isometry_inverse(transform):
     inv = torch.zeros(transform.shape, device=transform.device)
     inv[..., :-1, :-1] = transform[..., :-1, :-1].transpose(-1, -2)
     inv[..., :-1, -1:] = -transform[..., :-1, :-1].transpose(-1, -2).matmul(transform[..., :-1, -1:])
+    inv[..., -1, -1] = 1.0
     return inv
 
 
@@ -609,6 +611,8 @@ def xyzrpy_matrix(xyzrpy):
     # TODO: Set requires grad?
     mat = torch.zeros(xyzrpy.shape[:-1] + (4, 4), dtype=xyzrpy.dtype, device=xyzrpy.device)
     mat[..., :3, :3] = rpy_matrix(xyzrpy[..., 3:])
+    # for i in range(mat.shape[0]):
+    #     mat[i] = torch.from_numpy(euler_matrix(axes='sxyz', *xyzrpy[i, 3:].detach().numpy()))
     mat[..., :3, 3] = xyzrpy[..., :3]
     mat[..., 3, 3] = 1.
     assert mat.shape == xyzrpy.shape[:-1] + (4, 4)
@@ -956,6 +960,18 @@ class RPZPlanner(object):
         t = timer()
         assert isinstance(msg, PointCloud2)
 
+        # This pc transform works slowly (~150 ms).
+        # Consider providing input clouds in one coord frame
+        if self.map_frame != msg.header.frame_id:
+            # Transform the point cloud to global frame
+            try:
+                transform = self.tf.lookup_transform(self.map_frame, msg.header.frame_id, rospy.Time())
+                msg = do_transform_cloud(msg, transform)
+                rospy.loginfo('Transform traversability cloud to global frame: %s', msg.header.frame_id)
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                rospy.logwarn("Transform from %s to %s is not yet available", self.map_frame, msg.header.frame_id)
+                return
+
         # rospy.loginfo('RPZ: %s (%i, %i)' % (msg.header.frame_id, msg.height, msg.width))
         # sz = (8, 250, 248)
         # assert(msg.height * msg.width == sz[1] * sz[2])
@@ -1005,6 +1021,19 @@ class RPZPlanner(object):
         """Process and store map for use in planning."""
         t = timer()
         assert isinstance(msg, PointCloud2)
+
+        # This pc transform works slowly (~150 ms).
+        # Consider provide input clouds in one coord frame
+        if self.map_frame != msg.header.frame_id:
+            # Transform the point cloud to global frame
+            try:
+                transform = self.tf.lookup_transform(self.map_frame, msg.header.frame_id, rospy.Time())
+                msg = do_transform_cloud(msg, transform)
+                rospy.loginfo('Transformed local map to global frame: %s', msg.header.frame_id)
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                rospy.logwarn("Transform from %s to %s is not yet available", self.map_frame, msg.header.frame_id)
+                return
+
         rospy.logdebug('Map with %i points received.', msg.height * msg.width)
         map = numpify(msg).ravel()
         map = np.random.choice(map, map.size // self.map_step)
@@ -1110,7 +1139,8 @@ class RPZPlanner(object):
 
         # Subsample input path to reduce computation.
         if self.path_step > 1:
-            msg.poses = msg.poses[::self.path_step]
+            # msg.poses = msg.poses[::self.path_step]
+            msg.poses = msg.poses[2:4]
 
         # Discard short paths.
         n_poses = len(msg.poses)
@@ -1257,16 +1287,17 @@ class RPZPlanner(object):
             t = timer()
             robot_to_map = xyzrpy_matrix(xyzrpy)
             assert robot_to_map.shape == (n_poses, 4, 4)
+            # cam_to_map = robot_to_map[:, None].matmul(cam_to_robot[None])
             cam_to_map = robot_to_map[:, None].matmul(cam_to_robot[None])
             assert cam_to_map.shape == (n_poses, n_cams, 4, 4)
             map_to_cam = isometry_inverse(cam_to_map)
             assert map_to_cam.shape == (n_poses, n_cams, 4, 4)
             rospy.logdebug('Camera to map transforms: %.3f s', timer() - t)
 
-            # fov_mask = compute_fov_mask(map, frustums, map_to_cam)
+            fov_mask = compute_fov_mask(map, frustums, map_to_cam)
 
             # compute smooth version of FOV mask
-            fov_mask = compute_fov_mask_smooth(map, map_to_cam, intrins)
+            # fov_mask = compute_fov_mask_smooth(map, map_to_cam, intrins)
 
             # Compute point to sensor distances.
             t = timer()
@@ -1300,8 +1331,6 @@ class RPZPlanner(object):
             time_cost = self.path_cost(xyzrpy)
 
             criterion = time_cost / reward
-            criterion.backward()
-            optimizer.step()
 
             # Publish reward cloud for visualization.
             reward_cloud = np.zeros((n_pts,), dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'), ('reward', 'f4')])
@@ -1319,6 +1348,9 @@ class RPZPlanner(object):
             self.visualize_cams(robot_to_map[n_poses // 2].detach(), id=1)
             self.visualize_cams(robot_to_map[-1].detach(), id=2)
             rospy.logdebug('Cameras visualized for %i poses (%.3f s).', 3, timer() - t)
+
+            criterion.backward()
+            optimizer.step()
 
             rospy.loginfo('Iter. %i: time %.1f s, '
                           'reward %.0f, reward/s %.1f '
