@@ -685,7 +685,7 @@ def cam_info_fov_planes(msg):
 
 
 @timing
-def compute_fov_mask(map, frustums, map_to_cam, ramp_size=0.5):
+def compute_fov_mask(map, frustums, map_to_cam, ramp_size=1.0):
     """Compute mask indicating which map points are in field of view."""
 
     assert isinstance(map, torch.Tensor)
