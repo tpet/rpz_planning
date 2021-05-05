@@ -150,16 +150,17 @@ def cloud_msg_to_rpz_tensor(msg, order=DimOrder.X_Y_YAW):
 def transform_cloud_msg(tf, msg):
     assert isinstance(tf, np.ndarray)
     assert isinstance(msg, PointCloud2)
-    shape = msg.header, msg.width
-    cloud = numpify(msg).ravel()
+    shape = msg.height, msg.width
+    cloud = numpify(msg).ravel().copy()
     fields = 'x', 'y', 'z'
     x = np.stack([cloud[f] for f in fields])
     x = transform(tf, x)
     for i, f in enumerate(fields):
         cloud[f] = x[i]
     cloud = cloud.reshape(shape)
-    msg = msgify(PointCloud2, cloud)
-    return msg
+    out = msgify(PointCloud2, cloud)
+    out.header = msg.header
+    return out
 
 
 def yaw_angles(msg):
@@ -1014,8 +1015,10 @@ class RPZPlanner(object):
             # Transform the point cloud to global frame
             try:
                 transform = self.tf.lookup_transform(self.map_frame, msg.header.frame_id, rospy.Time())
-                msg = do_transform_cloud(msg, transform)
-                rospy.loginfo('Transform traversability cloud to global frame: %s', msg.header.frame_id)
+                # msg = do_transform_cloud(msg, transform)
+                msg = transform_cloud_msg(numpify(transform.transform), msg)
+                rospy.loginfo('Transform traversability cloud to global frame: %s',
+                              msg.header.frame_id)
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
                 rospy.logwarn("Transform from %s to %s is not yet available", self.map_frame, msg.header.frame_id)
                 return
@@ -1076,7 +1079,8 @@ class RPZPlanner(object):
             # Transform the point cloud to global frame
             try:
                 transform = self.tf.lookup_transform(self.map_frame, msg.header.frame_id, rospy.Time())
-                msg = do_transform_cloud(msg, transform)
+                # msg = do_transform_cloud(msg, transform)
+                msg = transform_cloud_msg(numpify(transform.transform), msg)
                 rospy.loginfo('Transformed local map to global frame: %s', msg.header.frame_id)
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
                 rospy.logwarn("Transform from %s to %s is not yet available", self.map_frame, msg.header.frame_id)
