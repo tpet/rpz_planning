@@ -670,15 +670,15 @@ def cam_info_fov_planes(msg):
                             [ 1.0,     1.0,     1.0,     1.0]], dtype=torch.float32)
     n_corners = corners.shape[1]
     corner_dirs = k_mat_inv.matmul(corners)
-    assert tuple(corner_dirs.shape) == (3, 4)
+    assert corner_dirs.shape == (3, 4)
     normals = corner_dirs.roll(1, 1).cross(corner_dirs, dim=0)
     # normals = corner_dirs.cross(corner_dirs.roll(1, 1), dim=0)
     # normals = normals / torch.linalg.norm(normals, 2, dim=0, keepdim=True)
     normals = normals / torch.norm(normals, 2, dim=0, keepdim=True)
     # All planes intersect origin (0, 0, 0).
     planes = torch.cat((normals, torch.zeros((1, n_corners))), dim=0)
-    assert tuple(corner_dirs.shape) == (3, 4)
-    assert tuple(planes.shape) == (4, 4)
+    assert corner_dirs.shape == (3, 4)
+    assert planes.shape == (4, 4)
     return corner_dirs, planes
 
 
