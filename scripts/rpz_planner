@@ -334,6 +334,7 @@ def xyzrpy_to_path_msg(xyzrpy):
     assert isinstance(xyzrpy, torch.Tensor)
     assert xyzrpy.dim() == 2
     assert xyzrpy.shape[-1] == 6
+    xyzrpy = xyzrpy.clone()
     msg = Path()
     msg.poses = [PoseStamped(Header(), xyzrpy_to_pose_msg(p)) for p in xyzrpy]
     return msg
@@ -1320,7 +1321,6 @@ class RPZPlanner(object):
                 xyzrpy = torch.cat((xyyaw[:, 1:], rpz[:, 2:], rpz[:, :2], xyyaw[:, :1]), dim=-1)
 
             # Publish current optimized path.
-
             # TODO: Test yaw processing from map to grid and back.
             # TODO: Alternative solution is to recompute yaw from XY again.
             msg_out = xyzrpy_to_path_msg(xyzrpy)
