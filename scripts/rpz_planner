@@ -1389,7 +1389,7 @@ class RPZPlanner(object):
 
             # Visualize cameras (first and last).
             t = timer()
-            self.visualize_cams(robot_to_map[1].detach(), id=0)
+            self.visualize_cams(robot_to_map[0].detach(), id=0)
             self.visualize_cams(robot_to_map[n_poses // 2].detach(), id=1)
             self.visualize_cams(robot_to_map[-1].detach(), id=2)
             rospy.logdebug('Cameras visualized for %i poses (%.3f s).', 3, timer() - t)
