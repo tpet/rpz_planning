@@ -1181,8 +1181,6 @@ class RPZPlanner(object):
 
     @timing
     def path_received(self, msg):
-        t = timer()
-        # http://docs.ros.org/en/melodic/api/nav_msgs/html/msg/Path.html
         assert isinstance(msg, Path)
 
         # Discard old messages.
