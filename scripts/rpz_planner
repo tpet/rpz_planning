@@ -591,6 +591,8 @@ def e2p(x):
 
 
 def isometry_inverse(transform):
+    assert isinstance(transform, torch.Tensor)
+    assert transform.shape[-2:] == (4, 4)
     inv = torch.zeros(transform.shape, device=transform.device)
     inv[..., :-1, :-1] = transform[..., :-1, :-1].transpose(-1, -2)
     inv[..., :-1, -1:] = -transform[..., :-1, :-1].transpose(-1, -2).matmul(transform[..., :-1, -1:])
