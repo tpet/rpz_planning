@@ -794,6 +794,7 @@ class RPZPlanner(object):
         self.num_cameras = rospy.get_param('~num_cameras', 1)
         self.keep_updating_cameras = rospy.get_param('~keep_updating_cameras', False)
         device = rospy.get_param('~device', 'cuda:0' if torch.cuda.is_available() else 'cpu')
+        rospy.loginfo('Using device: %s', device)
         self.device = torch.device(device)
         # self.order = DimOrder.YAW_X_Y
         self.order = DimOrder.X_Y_YAW
