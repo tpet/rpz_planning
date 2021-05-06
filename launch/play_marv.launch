@@ -29,5 +29,5 @@
     </include>
 
     <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
-          args="-d $(dirname)/marv.rviz"/>
+          args="-d $(dirname)/../rviz/marv.rviz"/>
 </launch>

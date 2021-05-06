@@ -52,5 +52,5 @@
 
 
     <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
-          args="-d $(dirname)/tradr.rviz"/>
+          args="-d $(dirname)/../rviz/tradr.rviz"/>
 </launch>
