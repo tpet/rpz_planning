@@ -10,7 +10,7 @@ import torch
 import time
 import cv2
 import numpy as np
-from rpz_planning import hidden_pts_removal
+from rpz_planning import point_visibility
 from ros_numpy import msgify, numpify
 from pyquaternion import Quaternion
 
@@ -153,9 +153,8 @@ class PointsProcessor:
                                 rospy.Time.now(),
                                 cam_frame)
         # remove hidden points from current camera FOV
-        points = torch.as_tensor(hidden_pts_removal(points.T)[0].T,
-                                 dtype=torch.float32,
-                                 device=self.device)
+        vis_mask = point_visibility(points.transpose(1, 0), origin=torch.zeros([1, 3]))
+        points = points[:, torch.tensor(vis_mask.detach(), dtype=torch.bool)]
         assert points.shape[0] == 3
         rospy.loginfo('Number of observed points from %s is: %i', cam_frame, points.shape[1])
 
