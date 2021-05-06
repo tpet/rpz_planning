@@ -1271,15 +1271,6 @@ class RPZPlanner(object):
         # For interpolation we'll have: rpz(to_grid(xyyaw)).
         # Optionally, offset z if needed.
 
-        # optimization loop
-        #   compute yaw from xy steps (torch.diff)
-        #   convert xyyaw to grid
-        #   interpolate rpz at xyyaw (in grid; torch.grid_sample)
-        #   construct xyzrpy (in map)
-        #   compute reward
-        #   backward to xy
-        #   step in xy
-
         opt_i = slice(1 if 'start' in self.fixed_endpoints else None,
                       -1 if 'goal' in self.fixed_endpoints else None)
 
