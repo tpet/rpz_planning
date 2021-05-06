@@ -1341,22 +1341,11 @@ class RPZPlanner(object):
             assert map_to_cam.shape == (n_poses, n_cams, 4, 4)
             rospy.logdebug('Camera to map transforms: %.3f s', timer() - t)
 
-            # compute smooth version of FOV mask
-            # fov_mask = compute_fov_mask_smooth(map, map_to_cam, intrins)
-            fov_mask = compute_fov_mask(map, frustums, map_to_cam)
-            assert fov_mask.shape == (n_poses, n_cams, n_pts)
-
-            # Compute point to sensor distances.
-            # TODO: Optimize, avoid exhaustive distance computation.
-            t = timer()
-            sensor_dist = torch.norm(cam_to_map[..., 3, None] - map, dim=-2)
-            assert sensor_dist.shape == (n_poses, n_cams, n_pts)
-            rospy.logdebug('Distance to sensors: %.3f s', timer() - t)
-
             # TODO: Visibility / occlusion mask.
             if vis_mask is None:
                 t = timer()
-                vis_mask = torch.ones((n_poses, n_cams, n_pts))
+                vis_mask = torch.zeros((n_poses, n_cams, n_pts), device=self.device)
+                assert vis_mask.shape == (n_poses, n_cams, n_pts)
                 for i in range(n_poses):
                     for j in range(n_cams):
                         t_vis1 = timer()
@@ -1365,16 +1354,33 @@ class RPZPlanner(object):
                         origin = cam_to_map[i, j, :3, 3:].transpose(-1, -2)
                         vis_mask[i, j, :] = point_visibility(map[:3, :].transpose(-1, -2), origin)
                         rospy.loginfo('Computing point visibility from pose %i, camera %i at %s: %.3f s',
-                                       i, j, origin.detach().cpu().numpy(), timer() - t_vis1)
+                                      i, j, origin.detach().cpu().numpy(), timer() - t_vis1)
+                with torch.no_grad():
+                    reward_cloud['visibility'] = reduce_rewards(vis_mask).detach().cpu().numpy()
                 rospy.loginfo('Computing point visibility: %.3f s.', timer() - t)
 
-            # Compute rewards
+            # compute smooth version of FOV mask
+            # fov_mask = compute_fov_mask_smooth(map, map_to_cam, intrins)
+            fov_mask = compute_fov_mask(map, frustums, map_to_cam)
+            assert fov_mask.shape == (n_poses, n_cams, n_pts)
+            with torch.no_grad():
+                reward_cloud['fov'] = reduce_rewards(fov_mask).detach().cpu().numpy()
+
+            # Compute point to sensor distances.
+            # TODO: Optimize, avoid exhaustive distance computation.
+            t = timer()
+            sensor_dist = torch.norm(cam_to_map[..., 3, None] - map, dim=-2)
+            assert sensor_dist.shape == (n_poses, n_cams, n_pts)
+            rospy.logdebug('Distance to sensors: %.3f s', timer() - t)
+            # Distance based mask
             dist_mean = 3.0
             dist_std = 1.5
             dist_mask = torch.exp(-(sensor_dist - dist_mean)**2 / dist_std**2)
-            # rewards = vis_mask * fov_mask * dist_mask
-            rewards = fov_mask * dist_mask
-            # rewards = vis_mask
+            with torch.no_grad():
+                reward_cloud['distance'] = reduce_rewards(dist_mask).detach().cpu().numpy()
+
+            # Compute rewards
+            rewards = vis_mask * fov_mask * dist_mask
             assert rewards.shape == (n_poses, n_cams, n_pts)
 
             # share and sum rewards over multiple sensors and view points
