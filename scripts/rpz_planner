@@ -1288,7 +1288,9 @@ class RPZPlanner(object):
         xy_start = xyzrpy[:1, :2].detach()
         xy_goal = xyzrpy[-1:, :2].detach()
 
-        optimizer = torch.optim.Adam([xy_opt], lr=0.01)
+        optimizer = torch.optim.Adam([xy_opt], lr=0.05)
+
+        vis_mask = None
 
         reward_history = []
         for iter in range(self.num_iters):
@@ -1344,19 +1346,37 @@ class RPZPlanner(object):
             # compute smooth version of FOV mask
             # fov_mask = compute_fov_mask_smooth(map, map_to_cam, intrins)
             fov_mask = compute_fov_mask(map, frustums, map_to_cam)
+            assert fov_mask.shape == (n_poses, n_cams, n_pts)
 
             # Compute point to sensor distances.
+            # TODO: Optimize, avoid exhaustive distance computation.
             t = timer()
             sensor_dist = torch.norm(cam_to_map[..., 3, None] - map, dim=-2)
             assert sensor_dist.shape == (n_poses, n_cams, n_pts)
             rospy.logdebug('Distance to sensors: %.3f s', timer() - t)
 
+            # TODO: Visibility / occlusion mask.
+            if vis_mask is None:
+                t = timer()
+                vis_mask = torch.ones((n_poses, n_cams, n_pts))
+                for i in range(n_poses):
+                    for j in range(n_cams):
+                        t_vis1 = timer()
+                        # print(map[:3, :].transpose(-1, -2).shape)
+                        # print(cam_to_map[i, j, :3, 3:].transpose(-1, -2).shape)
+                        origin = cam_to_map[i, j, :3, 3:].transpose(-1, -2)
+                        vis_mask[i, j, :] = point_visibility(map[:3, :].transpose(-1, -2), origin)
+                        rospy.loginfo('Computing point visibility from pose %i, camera %i at %s: %.3f s',
+                                       i, j, origin.detach().numpy(), timer() - t_vis1)
+                rospy.loginfo('Computing point visibility: %.3f s.', timer() - t)
+
             # Compute rewards
             dist_mean = 3.0
             dist_std = 1.5
-            rewards = torch.exp(-(sensor_dist - dist_mean)**2 / dist_std**2)
-            # TODO: Visibility / occlusion mask.
-            rewards = fov_mask * rewards
+            dist_mask = torch.exp(-(sensor_dist - dist_mean)**2 / dist_std**2)
+            # rewards = vis_mask * fov_mask * dist_mask
+            rewards = fov_mask * dist_mask
+            # rewards = vis_mask
             assert rewards.shape == (n_poses, n_cams, n_pts)
 
             # share and sum rewards over multiple sensors and view points
