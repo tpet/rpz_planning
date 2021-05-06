@@ -1281,6 +1281,13 @@ class RPZPlanner(object):
 
         optimizer = torch.optim.Adam([xy_opt], lr=0.05)
 
+        # Prepare reward cloud for visualization.
+        reward_cloud = np.zeros((n_pts,), dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
+                                                 ('visibility', 'f4'), ('fov', 'f4'), ('distance', 'f4'),
+                                                 ('reward', 'f4')])
+        for i, f in enumerate(['x', 'y', 'z']):
+            reward_cloud[f] = map[i].detach().cpu().numpy()
+
         vis_mask = None
 
         reward_history = []
@@ -1390,9 +1397,6 @@ class RPZPlanner(object):
             criterion = time_cost / reward
 
             # Publish reward cloud for visualization.
-            reward_cloud = np.zeros((n_pts,), dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'), ('reward', 'f4')])
-            for i, f in enumerate(['x', 'y', 'z']):
-                reward_cloud[f] = map[i].detach().cpu().numpy()
             reward_cloud['reward'] = rewards.detach().cpu().numpy()
             reward_cloud_msg = msgify(PointCloud2, reward_cloud)
             assert isinstance(reward_cloud_msg, PointCloud2)
