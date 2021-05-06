@@ -12,7 +12,7 @@ def point_visibility(pts, origin, radius=None):
     # assert pts.shape[-1] == 3
     # assert origin[1].shape[-1] == 3
     dir = pts - origin
-    dist = torch.norm(dir, dim=1, keepdim=True)
+    dist = torch.norm(dir, dim=-1, keepdim=True)
     if radius is None:
         radius = torch.max(dist) * 10.**3.
     # Mirror points behind the sphere.
