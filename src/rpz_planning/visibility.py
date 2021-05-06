@@ -17,7 +17,7 @@ def point_visibility(pts, origin, radius=None):
         radius = torch.max(dist) * 10.**3.
     # Mirror points behind the sphere.
     pts_flipped = (1. + 2. * (radius - dist)) * pts
-    conv_hull = ConvexHull(pts_flipped.detach().numpy())
+    conv_hull = ConvexHull(pts_flipped.detach().cpu().numpy())
     # TODO: Use distance from convex hull to smooth the indicator?
     mask = torch.zeros((pts.shape[0]))
     mask[conv_hull.vertices] = 1.
