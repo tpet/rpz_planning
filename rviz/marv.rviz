@@ -568,7 +568,7 @@ Visualization Manager:
       Queue Size: 2
       Selectable: false
       Size (Pixels): 3
-      Size (m): 0.05000000074505806
+      Size (m): 0.10000000149011612
       Style: Flat Squares
       Topic: /X1/reward_cloud
       Unreliable: false
@@ -611,7 +611,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 19.73822784423828
+      Distance: 27.331462860107422
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -626,10 +626,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 7
-      Pitch: 1.175398349761963
+      Pitch: 1.5647963285446167
       Target Frame: X1
       Value: Orbit (rviz)
-      Yaw: 5.998576641082764
+      Yaw: 3.1435792446136475
     Saved:
       - Class: rviz/Orbit
         Distance: 10

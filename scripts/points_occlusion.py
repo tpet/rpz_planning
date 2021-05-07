@@ -152,8 +152,9 @@ class PointsProcessor:
                                 output_pc_topic,
                                 rospy.Time.now(),
                                 cam_frame)
+
         # remove hidden points from current camera FOV
-        vis_mask = point_visibility(points.transpose(1, 0), origin=torch.zeros([1, 3]))
+        vis_mask = point_visibility(points.transpose(1, 0), origin=torch.zeros([1, 3]), param=1.0)
         points = points[:, torch.tensor(vis_mask.detach(), dtype=torch.bool)]
         assert points.shape[0] == 3
         rospy.loginfo('Number of observed points from %s is: %i', cam_frame, points.shape[1])

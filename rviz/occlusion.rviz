@@ -5,6 +5,8 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Status1
+        - /Input Pointcloud1
+        - /Output Pointcloud1
       Splitter Ratio: 0.5295081734657288
     Tree Height: 806
   - Class: rviz/Selection
@@ -225,8 +227,8 @@ Visualization Manager:
       Axis: Z
       Channel Name: z
       Class: rviz/PointCloud2
-      Color: 255; 255; 255
-      Color Transformer: Intensity
+      Color: 138; 226; 52
+      Color Transformer: FlatColor
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
@@ -269,7 +271,7 @@ Visualization Manager:
       Queue Size: 2
       Selectable: false
       Size (Pixels): 3
-      Size (m): 0.20000000298023224
+      Size (m): 0.10000000149011612
       Style: Boxes
       Topic: /output/pointcloud_visible
       Unreliable: false
@@ -331,10 +333,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 8
-      Pitch: 0.3297974467277527
+      Pitch: 0.29979759454727173
       Target Frame: base_link
       Value: Orbit (rviz)
-      Yaw: 2.509671211242676
+      Yaw: 2.459667444229126
     Saved:
       - Class: rviz/ThirdPersonFollower
         Distance: 5
