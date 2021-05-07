@@ -1058,6 +1058,7 @@ class RPZPlanner(object):
                 transform = self.tf.lookup_transform(self.map_frame, msg.header.frame_id, rospy.Time())
                 # msg = do_transform_cloud(msg, transform)
                 msg = transform_cloud_msg(numpify(transform.transform), msg)
+                msg.header.frame_id = self.map_frame
                 rospy.loginfo('Transform traversability cloud to global frame: %s',
                               msg.header.frame_id)
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
@@ -1244,11 +1245,23 @@ class RPZPlanner(object):
             rospy.logwarn_once('Map frame %s will be used instead of empty path frame.',
                                self.map_frame)
             msg.header.frame_id = self.map_frame
-        # elif not self.map_frame:
-        #     self.map_frame = msg.header.frame_id
+        elif not self.map_frame:
+            self.map_frame = msg.header.frame_id
         elif self.map_frame and msg.header.frame_id != self.map_frame:
             rospy.logwarn_once('Map frame %s will be used instead of path frame %s.',
                                self.map_frame, msg.header.frame_id)
+            # This transform works slowly.
+            # Consider providing input path and clouds in one coord frame
+            # Transform the path to global frame
+            # try:
+            #     for pose_stamped in msg:
+            #         pose_stamped = self.tf.transform(pose_stamped, self.map_frame, rospy.Duration(1))
+            #         pose_stamped.header.frame_id = self.map_frame
+            #     msg.header.frame_id = self.map_frame
+            #     print(msg.header.frame_id, self.map_frame, self.rpz_msg.header.frame_id)
+            # except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+            #     rospy.logwarn("Transform from %s to %s is not yet available", self.map_frame, msg.header.frame_id)
+            #     return
 
         # Get frustums and intrinsics of available cameras.
         cam_to_robot, frustums, intrins = self.get_available_cameras()
