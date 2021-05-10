@@ -27,6 +27,8 @@
 
         <remap if="$(eval 'explorer_x1' in robot_type.lower())"
                from="/traversability" to="/$(arg robot)/traversability"/>
+        <remap if="$(eval 'explorer_x1' in robot_type.lower())"
+               from="/$(arg robot)/local_map_slow" to="/$(arg robot)/local_map"/>
 
         <remap if="$(eval 'tradr' in robot_type.lower())"
                from="/traversability" to="/$(arg robot)/traversability"/>

@@ -769,7 +769,7 @@ def compute_fov_mask_smooth(map, map_to_cam, intrins, std=10, eps=1e-6):
     return fov_mask
 
 
-def compute_vis_mask(map, cam_to_map, wps_dist_th=0.5):
+def compute_vis_mask(map, cam_to_map, param=2.0, wps_dist_th=0.5):
     assert isinstance(map, torch.Tensor)
     # (4, n_pts)
     assert map.dim() == 2
@@ -786,19 +786,38 @@ def compute_vis_mask(map, cam_to_map, wps_dist_th=0.5):
 
     vis_mask = torch.zeros((n_poses, n_cams, n_pts), device=cam_to_map.device)
     # choose waypoints to compute visibility at
-    # based on mean waypoints distance in the initial trajectory
+    # based on waypoints distance in the trajectory
     cam_poses = cam_to_map[:, 0, :3, 3:]
-    wps_dists = (cam_poses[1:, ...] - cam_poses[:-1, ...]).norm(dim=1)
-    for i in range(n_poses):
-        for j in range(n_cams):
+    assert cam_poses.shape == (n_poses, 3, 1)
+    traj = cam_poses.squeeze(2)
+    assert traj.shape == (n_poses, 3)
+    x_min, x_max = traj[:, 0].min(), traj[:, 0].max()
+    y_min, y_max = traj[:, 1].min(), traj[:, 1].max()
+    z_min, z_max = traj[:, 2].min(), traj[:, 2].max()
+    visibilities_dict = {}
+    for pose_ind in range(n_poses):
+        for cam_ind in range(n_cams):
             t_vis1 = timer()
-            if i < n_poses-1 and wps_dists[i] >= wps_dist_th:
-                # print(map[:3, :].transpose(-1, -2).shape)
-                # print(cam_to_map[i, j, :3, 3:].transpose(-1, -2).shape)
-                origin = cam_to_map[i, j, :3, 3:].transpose(-1, -2)
-                vis_mask[i, j, :] = point_visibility(map[:3, :].transpose(-1, -2), origin, param=1.0)
+            # if voxel is Free:
+            #     voxel = Occupied
+            #     compute_visibility
+            p = traj[pose_ind, :]
+            i = int((p[0] - x_min) / wps_dist_th)
+            j = int((p[1] - y_min) / wps_dist_th)
+            k = int((p[2] - z_min) / wps_dist_th)
+            key = str(i) + str(j) + str(k)  # ='ijk'
+            if not key in visibilities_dict:
+                # compute visibility at selected pose
+                origin = cam_to_map[pose_ind, cam_ind, :3, 3:].transpose(-1, -2)
+                visibility = point_visibility(map[:3, :].transpose(-1, -2), origin, param=param)
+                # store visibility value in a dictionary
+                visibilities_dict[key] = visibility
+                vis_mask[pose_ind, cam_ind, :] = visibility
                 rospy.loginfo('Computing point visibility from pose %i, camera %i at %s: %.3f s',
-                              i, j, origin.detach().cpu().numpy(), timer() - t_vis1)
+                              pose_ind, cam_ind, origin.detach().cpu().numpy(), timer() - t_vis1)
+            else:
+                vis_mask[pose_ind, cam_ind, :] = visibilities_dict[key]
+    assert len(visibilities_dict.values()) <= n_poses
     assert vis_mask.shape == (n_poses, n_cams, n_pts)
     return vis_mask
 
