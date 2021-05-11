@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<launch>
+    <arg name="robot" default="X1" doc="Robot name, also ROS graph and TF namespace."/>
+    <arg name="robot_type" default="explorer_x1" doc="Robot type, from {absolem, dtr, explorer_x1, marv, x1, x2}."/>
+    <arg name="robots" default="$(arg robot)"/>
+    <arg name="points_min_dist" default="0.125"/>
+    <arg name="cmd_vel" default="cmd_vel"/>
+    <arg name="path" default="optimized_path"/>
+
+    <!-- Navigation and exploration -->
+    <include ns="X1" file="$(find naex)/launch/naex.launch"
+             pass_all_args="true">
+    </include>
+
+</launch>
