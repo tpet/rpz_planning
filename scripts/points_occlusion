@@ -33,7 +33,7 @@ class PointsProcessor:
         self.pc_clip_limits = [rospy.get_param('~frustum_min_dist', min_dist),
                                rospy.get_param('~frustum_max_dist', max_dist)]
         if torch.cuda.is_available():
-            self.device = torch.device("cpu")
+            self.device = torch.device("cuda:0")
             torch.cuda.set_device(self.device)
         else:
             self.device = torch.device("cpu")

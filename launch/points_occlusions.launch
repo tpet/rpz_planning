@@ -7,7 +7,7 @@
 
     <param name="use_sim_time" value="true"/>
 
-    <node name="points_occlusion" pkg="rpz_planning" type="points_occlusion.py" output="screen">
+    <node name="points_occlusion" pkg="rpz_planning" type="points_occlusion" output="screen">
         <param name="pointcloud_topic" value="/final_cost_cloud"/>
         <param name="min_dist" value="1.0"/>
         <param name="max_dist" value="10.0"/>
