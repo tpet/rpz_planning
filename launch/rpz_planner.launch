@@ -16,8 +16,8 @@
             path_step: 2
             linear_speed: 1.0
             angular_speed: 1.0
-<!--            device: cuda:0-->
-            device: cpu
+            device: cuda:0
+            <!-- device: cpu -->
         </rosparam>
 
         <rosparam if="$(eval robot_type == 'marv')">

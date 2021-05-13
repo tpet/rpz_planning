@@ -5,11 +5,43 @@
     <arg name="robots" default="$(arg robot)"/>
     <arg name="points_min_dist" default="0.125"/>
     <arg name="cmd_vel" default="cmd_vel"/>
+    <arg name="follow_opt_path" default="false"/>
+    <arg name="do_recording" default="false"/>
+    <!-- <group>
+        <arg if="$(eval follow_opt_path==false)" name="path" default="path"/>
+        <arg if="$(eval follow_opt_path==true)" name="path" default="optimized_path"/>
+    </group> -->
     <arg name="path" default="optimized_path"/>
+    <arg name="publish_ground_truth" default="true" />
+    <arg name="record_mode" default="none"/>
 
-    <!-- Navigation and exploration -->
-    <include ns="X1" file="$(find naex)/launch/naex.launch"
-             pass_all_args="true">
-    </include>
+    <node name="subt_frame_publisher" pkg="subt_virtual" type="subt_frame_publisher">
+        <param name="robot_name" value="$(arg robot)"/>
+    </node>
 
+    <node if="$(arg publish_ground_truth)" name="ground_truth_publisher" pkg="subt_virtual" type="ground_truth_publisher">
+        <param name="robot_name" value="$(arg robot)" />
+    </node>
+
+    <!-- Navigation and Exploration -->
+    <group ns="$(arg robot)">
+        <include file="$(find naex)/launch/naex.launch" pass_all_args="true"/>
+        <group if="$(arg follow_opt_path)">
+            <include file="$(find rpz_planning)/launch/rpz_predictor_leveller.launch" pass_all_args="true"/>
+            <include file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true"/>
+        </group>
+    </group>
+
+    <!-- Data recording -->
+    <group if="$(arg do_recording)">
+        <arg name="record_topics"
+             value="/$(arg robot)/local_map_slow
+                    /$(arg robot)/updated_map
+                    /$(arg robot)/path
+                    /tf
+                    /tf_static"/>
+
+        <node name="record_data" pkg="rosbag" type="record"
+              args="-o $(find rpz_planning)/$(arg robot_type)_opt_path_$(arg follow_opt_path) $(arg record_topics)"/>
+    </group>
 </launch>
