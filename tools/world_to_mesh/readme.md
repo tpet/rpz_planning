@@ -1,4 +1,4 @@
-Generate a Mesh from a Gazebo world
+Merge meshes from a Gazebo world
 =======================================
 
 [Reference](https://stackoverflow.com/questions/62903784/how-to-convert-a-gazebo-world-to-a-point-cloud)
