@@ -18,7 +18,7 @@
     </node>
 
     <!-- ROSBAG -->
-    <node name="rosbag_play_rpz" pkg="rosbag" type="play"
+    <node name="rosbag_play_rpz" pkg="rosbag" type="play" output="screen"
           args="--clock --pause -k -d 3.0 -s $(arg start) -r $(arg rate) $(arg bag)">
     </node>
 

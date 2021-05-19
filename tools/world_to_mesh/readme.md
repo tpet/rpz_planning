@@ -22,6 +22,5 @@ use the `world2obj.sh` script. For example:
 
 ## Workflow
 
-Combine all DAE files with `world2dae.py` python script
-
-DAE -> OBJ with Blender
+1. Combine all DAE files with `world2dae.py` python script
+2. DAE -> OBJ with Blender

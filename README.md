@@ -61,17 +61,44 @@ in the exploration pipeline:
 roslaunch rpz_planning naex_opt.launch follow_opt_path:=true
 ```
 
-### Mapping evaluation (in progress)
+### Mapping evaluation
 
-Record the localization (`tf`) and point cloud data by adding the arguments to the previous command:
-(here the recorded bag-file duration is given in seconds).
+* **Obtain ground truth**
 
-```bash
-roslaunch rpz_planning naex_opt.launch follow_opt_path:=true do_recording:=true duration:=30
-```
+  Ground truth map from the simulator could be represented as a mesh file.
+  Plaese, follow instructions in
+  [tools/world_to_mesh/readme.md](https://github.com/tpet/rpz_planning/blob/eval/tools/world_to_mesh/readme.md)
+  
+* **Do mapping**
 
-Ones the recording is complete, reconstruct the explored global map:
-
-```bash
-roslaunch rpz_planning map_accumulator.launch bag:=<path to bag file>/<bag file name>.bag
-```
+  Record the localization (`tf`) and point cloud data by adding the arguments to the previous command:
+  (here the recorded bag-file duration is given in seconds).
+  ```bash
+  roslaunch rpz_planning naex_opt.launch follow_opt_path:=true do_recording:=true duration:=30
+  ```
+  
+* **Compare map to mesh**
+  
+  Ones the point cloud mapping is complete, reconstruct the explored global map.
+  It will wait for you to hit `space` button in order to start the bag-file.
+  ```bash
+  roslaunch rpz_planning map_accumulator.launch bag:=<path/to/bag/file/bag_file_name>.bag
+  ```
+  Ones a ground truth mesh is obtained, started the evaluation node.
+  
+  (
+  Note, that this node requires `python3` as an interpreter.
+  Please, follow the
+  [instructions](https://github.com/facebookresearch/pytorch3d/blob/master/INSTALL.md)
+  to install its dependencies
+  )
+  ```bash
+  roslaunch rpz_planning map_accumulator.launch bag:=<path/to/bag/file/bag_file_name>.bag
+  ```
+  It will compare a point cloud to a mesh using the following metrics:
+  - the closest distance from
+    [point to mesh edge](https://pytorch3d.readthedocs.io/en/latest/modules/loss.html#pytorch3d.loss.point_mesh_edge_distance)
+    (averaged across all points in point cloud),
+  - the closes distance from
+    [point to mesh face](https://pytorch3d.readthedocs.io/en/latest/modules/loss.html#pytorch3d.loss.point_mesh_face_distance)
+    (averaged across all points in point cloud). 

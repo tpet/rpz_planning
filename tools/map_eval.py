@@ -31,9 +31,14 @@ class MapEval:
             device = torch.device("cpu")
         self.device = device
         self.map_gt_mesh = None
-        self.normalize = True
+        self.normalize = rospy.get_param('~normalize_mesh_pcl', True)
+        self.subscribe_once = rospy.get_param('~subscribe_once', False)
+        self.do_points_sampling = rospy.get_param('~do_points_sampling', True)
+        self.n_sample_points = rospy.get_param('~n_sample_points', 5000)
 
+        t = timer()
         self.load_gt_mesh(path_to_obj)
+        rospy.logdebug('Loading ground truth mesh took %.3f s', timer() - t)
 
         self.map_sub = rospy.Subscriber(map_topic, PointCloud2, self.pc_callback)
 
@@ -56,7 +61,7 @@ class MapEval:
         # We construct a Meshes structure for the target mesh
         self.map_gt_mesh = Meshes(verts=[verts], faces=[faces_idx])
 
-    def pc_callback(self, pc_msg, n_sample_points=5000):
+    def pc_callback(self, pc_msg):
         t0 = timer()
         assert isinstance(pc_msg, PointCloud2)
         rospy.logdebug('Received point cloud message')
@@ -64,9 +69,9 @@ class MapEval:
         # remove inf points
         mask = np.isfinite(map_np['x']) & np.isfinite(map_np['y']) & np.isfinite(map_np['z'])
         map_np = map_np[mask]
-        if n_sample_points is not None:
-            if n_sample_points < len(map_np):
-                map_np = map_np[np.random.choice(len(map_np), n_sample_points)]
+        if self.do_points_sampling:
+            if self.n_sample_points < len(map_np):
+                map_np = map_np[np.random.choice(len(map_np), self.n_sample_points)]
         assert len(map_np.shape) == 1
         # pull out x, y, and z values
         map = torch.zeros([1] + list(map_np.shape) + [3], dtype=torch.float32)
@@ -90,13 +95,18 @@ class MapEval:
                         Loss Face: {loss_face.detach().cpu().numpy():.6f}')
         rospy.logdebug('Point cloud conversion took: %.3f s', t1 - t0)
         rospy.loginfo('Mapping evaluation took: %.3f s', timer()-t1)
-        # self.map_sub.unregister()
-        # rospy.logwarn('Map topic is unsubscribed.')
+
+        if self.subscribe_once:
+            self.map_sub.unregister()
+            rospy.logwarn('Map topic is unsubscribed.')
 
 
 if __name__ == '__main__':
     rospy.init_node('map_eval', log_level=rospy.INFO)
-    proc = MapEval(map_topic='/X1/map_accumulator/map',
-                   path_to_obj=os.path.join(os.path.dirname(__file__), 'world_to_mesh/meshes/simple_tunnel_01_gz.obj'))
+    path_fo_gt_map_mesh = rospy.get_param('~gt_mesh')
+    assert os.path.exists(path_fo_gt_map_mesh)
+    rospy.loginfo('Using ground truth mesh file: %s', path_fo_gt_map_mesh)
+    proc = MapEval(map_topic=rospy.get_param('~map_frame', 'map_accumulator/map'),
+                   path_to_obj=path_fo_gt_map_mesh)
     rospy.loginfo('Mapping evaluation node is initialized')
     rospy.spin()
