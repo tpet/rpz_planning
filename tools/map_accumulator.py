@@ -49,6 +49,6 @@ class MapAccumulator:
 
 
 if __name__ == '__main__':
-    rospy.init_node('map_accumulator_node')
+    rospy.init_node('map_accumulator')
     proc = MapAccumulator()
     rospy.spin()
