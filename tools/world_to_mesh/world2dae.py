@@ -1,14 +1,22 @@
 import xml.etree.ElementTree as ET
 import collada, time, numpy as np, uuid, sys
 from math import pi
+import json, requests
+import os
+import zipfile
+
 
 # world_path = '/home/rhidra/Firmware/Tools/sitl_gazebo/worlds/'
 models_path = [
     # '/home/ruslan/.gazebo/models/',
-    '/home/ruslan/.gazebo/models/subt_models/',
-    # '/home/ruslan/.ignition/fuel/fuel.ignitionrobotics.org/openrobotics/models/'
+    # '/home/ruslan/.gazebo/models/subt_models/',
+    '/home/ruslan/.ignition/fuel/fuel.ignitionrobotics.org/openrobotics/models/'
 ]
 output = collada.Collada()
+
+
+def find(s, ch):
+    return [i for i, ltr in enumerate(s) if ltr == ch]
 
 
 def generate_geometry(mesh, box, pose):
@@ -56,18 +64,45 @@ def generate_ground_plane():
 
 
 def parse_sdf(model_name):
+    if model_name == 'tunnel_staging_area':
+        model_name = 'subt_tunnel_staging_area'
+    elif model_name == 'Extinguisher':
+        model_name = 'Fire Extinguisher'
+
     root_sdf = None
     for model_path in models_path:
         try:
-            sdf_path = model_path + model_name + '/model.sdf'
+            model_name = model_name.lower()
+            sdf_path = os.path.join(
+                model_path + model_name,
+                os.listdir(model_path + model_name)[0],
+                'model.sdf')
             root_sdf = ET.parse(sdf_path).getroot()
             break
         except FileNotFoundError:
-            continue
+            try:
+                model_name = model_name.lower().replace(' ', '_')
+                sdf_path = os.path.join(
+                    model_path + model_name,
+                    os.listdir(model_path + model_name)[0],
+                    'model.sdf')
+                root_sdf = ET.parse(sdf_path).getroot()
+                break
+            except FileNotFoundError:
+                try:
+                    model_name = model_name.lower().replace('_', ' ')
+                    sdf_path = os.path.join(
+                        model_path + model_name,
+                        os.listdir(model_path + model_name)[0],
+                        'model.sdf')
+                    root_sdf = ET.parse(sdf_path).getroot()
+                    break
+                except:
+                    print('Please download model: ', model_name)
+                    continue
 
     if root_sdf is None:
         return []
-
     root_pose = root_sdf.find('model/link/pose').text if root_sdf.find('model/link/pose') is not None else '0 0 0 0 0 0'
     root_pose = [float(a) for a in filter(lambda a: bool(a), root_pose.split(' '))]
 
@@ -92,8 +127,14 @@ def parse_sdf(model_name):
             meshes.append(mesh)
         else:  # Importing DAE collision mesh
             print('DAE detected !')
-            uri = model_path + model_name + '/' + node.find('geometry/mesh/uri').text
-            # uri = model_path + node.find('geometry/mesh/uri').text[8:]
+            dae_file = node.find('geometry/mesh/uri').text
+            if 'https' in dae_file:
+                dae_file = dae_file[find(dae_file, '/')[-2]+1:]
+
+            uri = os.path.join(
+                os.path.join(model_path, model_name),
+                os.listdir(model_path + model_name)[0],
+                dae_file)
             scale = node.find('geometry/mesh/scale').text if node.find('geometry/mesh/scale') is not None else '1 1 1'
             scale = [float(a) for a in filter(lambda a: bool(a), scale.split(' '))]
 
@@ -129,9 +170,9 @@ def parse_world(world_path):
         # Hardcode exceptions
         if uri in ['model://sun', 'model://ground_plane', 'model://asphalt_plane']:
             continue
-        print()
-        print('*'*30)
-        print(uri, name, pose)
+        # print()
+        # print('*'*30)
+        # print(uri, name, pose)
 
         model_name = uri[8:]
         extracted_meshes = parse_sdf(model_name)
