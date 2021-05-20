@@ -16,7 +16,7 @@ from sensor_msgs.msg import CameraInfo, PointCloud2, PointField
 from std_msgs.msg import ColorRGBA, Header
 from tf.transformations import euler_from_quaternion, quaternion_from_euler, euler_matrix
 import tf2_ros
-from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud
+# from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud
 from threading import RLock
 from timeit import default_timer as timer
 import torch

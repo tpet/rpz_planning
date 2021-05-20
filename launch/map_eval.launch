@@ -2,6 +2,9 @@
 <launch>
     <arg name="robot" default="X1"/>
     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/simple_tunnel_01_gz.obj"/>
+    <arg name="rviz" default="false"/>
+
+    <param name="use_sim_time" value="true"/>
 
     <!-- Mapping evaluation -->
     <node ns="$(arg robot)" name="map_eval" pkg="rpz_planning" type="map_eval.py" output="screen">
@@ -12,7 +15,12 @@
             subscribe_once: False
             do_points_sampling: True
             n_sample_points: 10000
+            max_age: 1
         </rosparam>
     </node>
+
+    <!-- RVIZ -->
+    <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
+          args="-d $(dirname)/../rviz/map_accum.rviz"/>
 
 </launch>

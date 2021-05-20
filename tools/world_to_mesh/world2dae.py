@@ -43,9 +43,9 @@ def generate_geometry(mesh, box, pose):
     input_list.addInput(0, 'VERTEX', '#vsrc' + id)
     input_list.addInput(1, 'NORMAL', '#nsrc' + id)
     indices = np.array([0,0,2,1,3,2,0,0,3,2,1,3,0,4,1,5,5,6,0,
-                           4,5,6,4,7,6,8,7,9,3,10,6,8,3,10,2,11,0,12,
-                           4,13,6,14,0,12,6,14,2,15,3,16,7,17,5,18,3,
-                           16,5,18,1,19,5,20,7,21,6,22,5,20,6,22,4,23])
+                        4,5,6,4,7,6,8,7,9,3,10,6,8,3,10,2,11,0,12,
+                        4,13,6,14,0,12,6,14,2,15,3,16,7,17,5,18,3,
+                        16,5,18,1,19,5,20,7,21,6,22,5,20,6,22,4,23])
     triset = geom.createTriangleSet(indices, input_list, 'mat')
     geom.primitives.append(triset)
     return geom, id

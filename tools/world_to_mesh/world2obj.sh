@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Convert a Gazebo world to an octomap file
-# The .bt file can later be imported in ROS for the Octomap node
+# Convert a Gazebo world to a mesh file
+# The .obj file can later be processed by Pytorch3d library
 
 in=$1
 out=$2
@@ -24,7 +24,7 @@ if [ ! -e $HOME/opt/binvox ]; then
   echo "Unable to locate the binvox executable in the $HOME folder !"
 fi
 
-rm /tmp/file.dae /tmp/file.obj /tmp/file.binvox /tmp/file.binvox.bt
+rm /tmp/file.dae /tmp/file.obj
 
 # Convert from Gazebo world to Collada .dae
 python3 ${__dir}/world2dae.py $in /tmp/file.dae $axis_up
@@ -32,12 +32,3 @@ python3 ${__dir}/world2dae.py $in /tmp/file.dae $axis_up
 # Convert from Collada .dae to .obj using Blender
 blender --background --python ${__dir}/blend_convert_to_obj.py -- /tmp/file.dae $out $axis_up
 
-## Convert from .obj to voxels with binvox
-## Assuming the binvox executable is in $HOME
-#$HOME/opt/binvox -e -fit /tmp/file.obj
-#
-## Convert from .binvox to octomap .binvox.bt
-#binvox2bt --mark-free /tmp/file.binvox
-#
-## Move the file to the expected output
-#mv /tmp/file.binvox.bt $out
