@@ -82,7 +82,7 @@ roslaunch rpz_planning naex_opt.launch follow_opt_path:=true
   Ones the point cloud mapping is complete, reconstruct the explored global map.
   It will wait for you to hit `space` button in order to start the bag-file.
   ```bash
-  roslaunch rpz_planning map_accumulator.launch bag:=<path/to/bag/file/bag_file_name>.bag
+  roslaunch rpz_planning map_eval.launch
   ```
   Ones a ground truth mesh is obtained, started the evaluation node.
   

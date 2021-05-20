@@ -20,6 +20,10 @@ use the `world2obj.sh` script. For example:
 ./world2obj.sh ./worlds/warehouse.world ./meshes/warehouse.obj
 ```
 
+Note, that one can visualize resultant meshes (`.dae` or `.obj`) using software:
+- [Blender](https://www.blender.org/),
+- [CloudCompare](https://www.danielgm.net/cc/).
+
 ## Workflow
 
 1. Combine all DAE files with `world2dae.py` python script

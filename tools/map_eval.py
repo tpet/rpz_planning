@@ -26,10 +26,9 @@ class MapEval:
         self.tl = tf2_ros.TransformListener(self.tf)
         # Set the device
         if torch.cuda.is_available():
-            device = torch.device("cuda:0")
+            self.device = torch.device("cuda:0")
         else:
-            device = torch.device("cpu")
-        self.device = device
+            self.device = torch.device("cpu")
         self.map_gt_mesh = None
         self.map_gt_mesh_norm = None
         self.normalize = rospy.get_param('~normalize_mesh_pcl', False)
