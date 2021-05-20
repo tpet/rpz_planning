@@ -4,9 +4,9 @@ from math import pi
 import json, requests
 import os
 import zipfile
+from tqdm import tqdm
 
 
-# world_path = '/home/rhidra/Firmware/Tools/sitl_gazebo/worlds/'
 models_path = [
     # '/home/ruslan/.gazebo/models/',
     # '/home/ruslan/.gazebo/models/subt_models/',
@@ -15,7 +15,7 @@ models_path = [
 output = collada.Collada()
 
 
-def find(s, ch):
+def find_character_in_string(s, ch):
     return [i for i, ltr in enumerate(s) if ltr == ch]
 
 
@@ -126,10 +126,10 @@ def parse_sdf(model_name):
             mesh.scene = scene
             meshes.append(mesh)
         else:  # Importing DAE collision mesh
-            print('DAE detected !')
+            # print('DAE detected !')
             dae_file = node.find('geometry/mesh/uri').text
-            if 'https' in dae_file:
-                dae_file = dae_file[find(dae_file, '/')[-2]+1:]
+            if 'https://' in dae_file:
+                dae_file = dae_file[find_character_in_string(dae_file, '/')[-2]+1:]
 
             uri = os.path.join(
                 os.path.join(model_path, model_name),
@@ -161,7 +161,7 @@ def parse_world(world_path):
     root = ET.parse(world_path).getroot()
 
     meshes = []
-    for node in root.findall('world/include'):
+    for node in tqdm( root.findall('world/include') ):
         uri = node.find('uri').text
         name = node.find('name').text if node.find('name') is not None else ''
         pose = node.find('pose').text if node.find('pose') is not None else '0 0 0 0 0 0'

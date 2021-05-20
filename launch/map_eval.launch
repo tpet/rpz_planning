@@ -3,17 +3,15 @@
     <arg name="robot" default="X1"/>
     <arg name="gt_mesh_file" default="$(dirname)/../tools/world_to_mesh/meshes/simple_tunnel_01_gz.obj"/>
 
-    <param name="use_sim_time" value="true"/>
-
     <!-- Mapping evaluation -->
     <node ns="$(arg robot)" name="map_eval" pkg="rpz_planning" type="map_eval.py" output="screen">
         <rosparam subst_value="true">
             map_topic: map_accumulator/map
             gt_mesh: $(arg gt_mesh_file)
-            normalize_mesh_pcl: True
+            normalize_mesh_pcl: False
             subscribe_once: False
             do_points_sampling: True
-            n_sample_points: 5000
+            n_sample_points: 10000
         </rosparam>
     </node>
 

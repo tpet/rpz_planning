@@ -6,8 +6,6 @@
     <arg name="start" default="0.0"/>
     <arg name="rate" default="1.0"/>
 
-    <param name="use_sim_time" value="true"/>
-
     <!--
         Workaround for /tf_static problems with rosbag.
         TODO Watch https://github.com/ros/geometry2/issues/181
