@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 
 <launch>
-    <arg name="bag" default="$(find rpz_planning)/data/josef_2019-06-06-13-58-12_proc_0.1m.bag"/>
+    <arg name="bag" default="$(find rpz_planning)/data/bags/josef_2019-06-06-13-58-12_proc_0.1m.bag"/>
     <arg name="rate" default="10.0"/>
     <arg name="rviz" default="true"/>
 
