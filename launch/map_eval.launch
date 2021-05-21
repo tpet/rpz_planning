@@ -2,6 +2,7 @@
 <launch>
     <arg name="robot" default="X1"/>
     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/simple_tunnel_01_gz.obj"/>
+<!--     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/gazebo_cave_world.ply"/> -->
     <arg name="rviz" default="false"/>
 
     <param name="use_sim_time" value="true"/>

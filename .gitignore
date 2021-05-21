@@ -11,3 +11,4 @@ __pycache__
 *.obj
 *.dae
 *.mtl
+*.ply

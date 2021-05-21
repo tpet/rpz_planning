@@ -2,7 +2,7 @@
 
 import os
 import torch
-from pytorch3d.io import load_obj
+from pytorch3d.io import load_obj, load_ply
 from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d.ops import sample_points_from_meshes
 from pytorch3d.loss import point_mesh_edge_distance, point_mesh_face_distance
@@ -87,13 +87,21 @@ class MapEval:
                 rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
                 rate.sleep()
 
-    def load_gt_mesh(self, path_to_obj):
-        gt_mesh_verts, faces, aux = load_obj(path_to_obj)
+    def load_gt_mesh(self, path_to_mesh_file):
+        assert os.path.exists(path_to_mesh_file)
+        if '.obj' in path_to_mesh_file:
+            gt_mesh_verts, faces, _ = load_obj(path_to_mesh_file)
+            gt_mesh_faces_idx = faces.verts_idx
+        elif '.ply' in path_to_mesh_file:
+            gt_mesh_verts, gt_mesh_faces_idx = load_ply(path_to_mesh_file)
+        else:
+            rospy.logerr('Supported mesh formats are *.obj or *.ply')
+            exit()
 
         # verts is a FloatTensor of shape (V, 3) where V is the number of vertices in the mesh
         # faces is an object which contains the following LongTensors: verts_idx, normals_idx and textures_idx
         # For this tutorial, normals and textures are ignored.
-        gt_mesh_faces_idx = faces.verts_idx.to(self.device)
+        gt_mesh_faces_idx = gt_mesh_faces_idx.to(self.device)
         gt_mesh_verts = gt_mesh_verts.to(self.device)
 
         # We construct a Meshes structure for the target mesh
