@@ -106,37 +106,38 @@ def parse_sdf(model_name):
                     root_sdf = ET.parse(sdf_path).getroot()
                     break
                 except:
-                    print('Please download model: ', model_name)
+                    # https://github.com/ignitionrobotics/ign-fuel-tools
+                    print('Use ign-fuel-tools to download model: ', model_name)
+                    print('For example, execute: \
+                    ign fuel download -u  https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Large\ Rock\ Fall -v 4')
                     continue
 
     if root_sdf is None:
         return []
     root_pose = root_sdf.find('model/link/pose').text if root_sdf.find('model/link/pose') is not None else '0 0 0 0 0 0'
     root_pose = [float(a) for a in filter(lambda a: bool(a), root_pose.split(' '))]
-    T_link = pose_to_matrix(root_pose)
+    T = pose_to_matrix(root_pose)
 
     meshes = []
     for node in root_sdf.findall('model/link/collision'):
         pose = node.find('pose').text if node.find('pose') is not None else '0 0 0 0 0 0'
         pose = [float(a) for a in filter(lambda a: bool(a), pose.split(' '))]
-        T_collision = pose_to_matrix(pose)
-        T_link_collision = T_link @ T_collision
+        T = T @ pose_to_matrix(pose)
 
         if node.find('geometry/mesh') is None:  # No DAE collision mesh
-            # box = node.find('geometry/box/size').text
-            # box = [float(a) for a in filter(lambda a: bool(a), box.split(' '))]
-            #
-            # mesh = collada.Collada()
-            # geom, id = generate_geometry(mesh, box, pose)
-            #
-            # mesh.geometries.append(geom)
-            # geomnode = collada.scene.GeometryNode(geom)
-            # node = collada.scene.Node('node' + id, children=[geomnode])
-            # scene = collada.scene.Scene('scene' + id, [node])
-            # mesh.scenes.append(scene)
-            # mesh.scene = scene
-            # meshes.append(mesh)
-            pass
+            box = node.find('geometry/box/size').text
+            box = [float(a) for a in filter(lambda a: bool(a), box.split(' '))]
+
+            mesh = collada.Collada()
+            geom, id = generate_geometry(mesh, box, T[:3, 3])
+
+            mesh.geometries.append(geom)
+            geomnode = collada.scene.GeometryNode(geom)
+            node = collada.scene.Node('node' + id, children=[geomnode])
+            scene = collada.scene.Scene('scene' + id, [node])
+            mesh.scenes.append(scene)
+            mesh.scene = scene
+            meshes.append(mesh)
         else:  # Importing DAE collision mesh
             # print('DAE detected !')
             dae_file = node.find('geometry/mesh/uri').text
@@ -155,8 +156,8 @@ def parse_sdf(model_name):
             nodes = []
             for i, child in enumerate(mesh.scene.nodes):
                 if len(child.transforms) != 0 and isinstance(child.transforms[0], collada.scene.MatrixTransform):
-                    T_link_collision_mesh = T_link_collision @ child.transforms[0].matrix
-                    child.transforms.append(collada.scene.MatrixTransform(T_link_collision_mesh.flatten()))
+                    T = T @ child.transforms[0].matrix
+                    child.transforms.append(collada.scene.MatrixTransform(T.flatten()))
                     parent = collada.scene.Node('parent_' + child.id, children=[child])
                 else:
                     parent = child
@@ -172,6 +173,7 @@ def parse_world(world_path):
     root = ET.parse(world_path).getroot()
 
     meshes = []
+    model_names = []
     for node in tqdm(root.findall('world/include')):
         uri = node.find('uri').text
         name = node.find('name').text if node.find('name') is not None else ''
@@ -193,24 +195,28 @@ def parse_world(world_path):
         if model_name[-1] == ' ':
             model_name = model_name[:-1]
 
-        if model_name == 'Tunnel Tile 5':
-            extracted_meshes = parse_sdf(model_name)
+        model_names.append(model_name)
 
-            for mesh in extracted_meshes:
-                for i, node in enumerate(mesh.scene.nodes):
-                    if node.id is not None:
-                        parent = collada.scene.Node('parent__' + node.id, children=[node])
-                        T = pose_to_matrix(pose)
-                        parent.transforms.append(collada.scene.MatrixTransform(T.flatten()))
-                        # scale
-                        parent.transforms.append(collada.scene.ScaleTransform(scale[0], scale[1], scale[2]))
-                        mesh.scene.nodes[i] = parent
-                    else:
-                        print("Couldn't find transform between parent and child nodes")
+        # if model_name == 'Rescue Randy Sitting':
+        extracted_meshes = parse_sdf(model_name)
 
-            meshes.extend(extracted_meshes)
+        for mesh in extracted_meshes:
+            for i, node in enumerate(mesh.scene.nodes):
+                if node.id is not None:
+                    parent = collada.scene.Node('parent__' + node.id, children=[node])
+                    # transformations
+                    T = pose_to_matrix(pose)
+                    parent.transforms.append(collada.scene.MatrixTransform(T.flatten()))
+                    # scale
+                    parent.transforms.append(collada.scene.ScaleTransform(scale[0], scale[1], scale[2]))
+                    mesh.scene.nodes[i] = parent
+                else:
+                    print("Couldn't find transform between parent and child nodes")
+
+        meshes.extend(extracted_meshes)
 
     # meshes.extend(generate_ground_plane())
+    print('Model names:', np.unique(model_names).tolist())
     return merge_meshes(meshes)
 
 

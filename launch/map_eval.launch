@@ -17,6 +17,7 @@
             n_sample_points: 10000
             max_age: 1
             map_frame: $(arg world_name)
+            eval_rate: 0.25 <!-- how often do mapping evaluation -->
         </rosparam>
     </node>
 

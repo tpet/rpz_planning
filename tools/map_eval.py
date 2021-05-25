@@ -36,16 +36,18 @@ class MapEval:
         self.do_points_sampling = rospy.get_param('~do_points_sampling', True)
         self.n_sample_points = rospy.get_param('~n_sample_points', 5000)
         self.max_age = rospy.get_param('~max_age', 1.0)
+        self.rate = rospy.Rate(rospy.get_param('~eval_rate', 1.0))
 
         t = timer()
         self.load_gt_mesh(path_to_obj)
         rospy.loginfo('Loading ground truth mesh took %.3f s', timer() - t)
 
         self.map_frame = rospy.get_param('~map_frame', 'subt')
+        self.pc_msg = None
         # TODO: rewrite it as a server-client
         rospy.loginfo('Subscribing to map topic: %s', map_topic)
         self.map_sub = rospy.Subscriber(map_topic, PointCloud2, self.pc_callback)
-        self.publish_ground_truth(n_points=self.n_sample_points)
+        self.run(n_points=self.n_sample_points)
 
     @staticmethod
     def publish_pointcloud(points, topic_name, stamp, frame_id):
@@ -66,11 +68,14 @@ class MapEval:
         pub = rospy.Publisher(topic_name, PointCloud2, queue_size=1)
         pub.publish(pc_msg)
 
-    def publish_ground_truth(self, n_points=5000, rate=1):
+    def run(self, n_points=5000):
         if self.map_gt_mesh is not None:
             assert isinstance(self.map_gt_mesh, Meshes)
-            rate = rospy.Rate(rate)
             while not rospy.is_shutdown():
+                # compare subscribed map point cloud to ground truth mesh
+                self.eval()
+
+                # publish point cloud from ground truth mesh
                 sampled_points = sample_points_from_meshes(self.map_gt_mesh, n_points)
                 points_to_pub = sampled_points.squeeze().cpu().numpy().transpose(1, 0)
                 # TODO: find coordinates mismatch (swap here X and Y)
@@ -86,7 +91,7 @@ class MapEval:
                                         frame_id=map_frame)
                 rospy.logdebug(f'Ground truth mesh frame: {map_frame}')
                 rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
-                rate.sleep()
+                self.rate.sleep()
 
     def load_gt_mesh(self, path_to_mesh_file):
         assert os.path.exists(path_to_mesh_file)
@@ -119,17 +124,26 @@ class MapEval:
 
     def pc_callback(self, pc_msg):
         assert isinstance(pc_msg, PointCloud2)
+        rospy.logdebug('Received point cloud message')
+        self.pc_msg = pc_msg
+        if self.subscribe_once:
+            self.map_sub.unregister()
+            rospy.logwarn('Map topic is unsubscribed.')
 
+    def eval(self):
+        if self.pc_msg is None:
+            rospy.logwarn('No points received')
+            return
+        assert isinstance(self.pc_msg, PointCloud2)
         # Discard old messages.
-        age = (rospy.Time.now() - pc_msg.header.stamp).to_sec()
+        age = (rospy.Time.now() - self.pc_msg.header.stamp).to_sec()
         if age > self.max_age:
             rospy.logwarn('Discarding points %.1f s > %.1f s old.', age, self.max_age)
             return
 
-        rospy.logdebug('Received point cloud message')
         t0 = timer()
         # self.map_frame = pc_msg.header.frame_id
-        map_np = numpify(pc_msg)
+        map_np = numpify(self.pc_msg)
         # remove inf points
         mask = np.isfinite(map_np['x']) & np.isfinite(map_np['y']) & np.isfinite(map_np['z'])
         map_np = map_np[mask]
@@ -153,13 +167,6 @@ class MapEval:
         rospy.logdebug('Point cloud conversion took: %.3f s', timer() - t0)
 
         # calculate mapping metrics
-        self.compare_points_to_mesh(map)
-
-        if self.subscribe_once:
-            self.map_sub.unregister()
-            rospy.logwarn('Map topic is unsubscribed.')
-
-    def compare_points_to_mesh(self, map):
         assert map.dim() == 3
         assert map.size()[2] == 3
         point_cloud = Pointclouds(map).to(self.device)
@@ -173,7 +180,7 @@ class MapEval:
 
 
 if __name__ == '__main__':
-    rospy.init_node('map_eval', log_level=rospy.DEBUG)
+    rospy.init_node('map_eval', log_level=rospy.INFO)
     path_fo_gt_map_mesh = rospy.get_param('~gt_mesh')
     assert os.path.exists(path_fo_gt_map_mesh)
     rospy.loginfo('Using ground truth mesh file: %s', path_fo_gt_map_mesh)
