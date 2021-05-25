@@ -30,7 +30,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: Ground truth
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -125,7 +125,15 @@ Visualization Manager:
           Value: true
         X1/map:
           Value: true
-        simple_tunnel_01:
+        drill_1:
+          Value: true
+        extinguisher_1:
+          Value: true
+        phone_1:
+          Value: true
+        rescue_randy_1:
+          Value: true
+        simple_tunnel_02:
           Value: true
         subt:
           Value: true
@@ -138,7 +146,15 @@ Visualization Manager:
       Show Names: true
       Tree:
         world:
-          simple_tunnel_01:
+          drill_1:
+            {}
+          extinguisher_1:
+            {}
+          phone_1:
+            {}
+          rescue_randy_1:
+            {}
+          simple_tunnel_02:
             {}
           subt:
             X1/map:
@@ -231,14 +247,14 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
+        Max Value: 21.012399673461914
+        Min Value: -2.8597970008850098
         Value: true
       Axis: Z
       Channel Name: intensity
       Class: rviz/PointCloud2
       Color: 255; 255; 255
-      Color Transformer: ""
+      Color Transformer: FlatColor
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
@@ -247,12 +263,12 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Min Intensity: 0
       Name: Ground truth
-      Position Transformer: ""
+      Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.10000000149011612
-      Style: Flat Squares
+      Size (m): 0.20000000298023224
+      Style: Spheres
       Topic: /X1/map_eval/cloud_from_gt_mesh
       Unreliable: false
       Use Fixed Frame: true
@@ -286,25 +302,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 36.320011138916016
+      Distance: 156.19998168945312
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 1.9274002313613892
-        Y: -0.7629756331443787
-        Z: -2.0581092834472656
+        X: 19.07318687438965
+        Y: -0.838947057723999
+        Z: 2.052635908126831
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 7
-      Pitch: 1.3397961854934692
+      Pitch: 1.3947961330413818
       Target Frame: X1
       Value: Orbit (rviz)
-      Yaw: 3.1535913944244385
+      Yaw: 3.1335909366607666
     Saved:
       - Class: rviz/Orbit
         Distance: 10

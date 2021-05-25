@@ -11,7 +11,7 @@
     <arg if="$(eval follow_opt_path==true)" name="path" default="optimized_path"/>
     <arg name="publish_ground_truth" default="true" />
     <arg name="record_mode" default="none"/>
-    <arg name="record_duration" default="1m"/>
+    <arg name="record_duration" default="120"/>
 
     <!-- Subt frame publisher-->
     <node name="subt_frame_publisher" pkg="subt_virtual" type="subt_frame_publisher">

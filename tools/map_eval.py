@@ -41,8 +41,9 @@ class MapEval:
         self.load_gt_mesh(path_to_obj)
         rospy.loginfo('Loading ground truth mesh took %.3f s', timer() - t)
 
-        self.map_frame = None
+        self.map_frame = rospy.get_param('~map_frame', 'subt')
         # TODO: rewrite it as a server-client
+        rospy.loginfo('Subscribing to map topic: %s', map_topic)
         self.map_sub = rospy.Subscriber(map_topic, PointCloud2, self.pc_callback)
         self.publish_ground_truth(n_points=self.n_sample_points)
 
@@ -127,7 +128,7 @@ class MapEval:
 
         rospy.logdebug('Received point cloud message')
         t0 = timer()
-        self.map_frame = pc_msg.header.frame_id
+        # self.map_frame = pc_msg.header.frame_id
         map_np = numpify(pc_msg)
         # remove inf points
         mask = np.isfinite(map_np['x']) & np.isfinite(map_np['y']) & np.isfinite(map_np['z'])
@@ -176,7 +177,7 @@ if __name__ == '__main__':
     path_fo_gt_map_mesh = rospy.get_param('~gt_mesh')
     assert os.path.exists(path_fo_gt_map_mesh)
     rospy.loginfo('Using ground truth mesh file: %s', path_fo_gt_map_mesh)
-    proc = MapEval(map_topic=rospy.get_param('~map_frame', 'map_accumulator/map'),
+    proc = MapEval(map_topic=rospy.get_param('~map_topic', 'map_accumulator/map'),
                    path_to_obj=path_fo_gt_map_mesh)
     rospy.loginfo('Mapping evaluation node is initialized')
     rospy.spin()

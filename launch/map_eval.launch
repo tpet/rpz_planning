@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <launch>
     <arg name="robot" default="X1"/>
-    <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/simple_tunnel_01_gz.obj"/>
-<!--     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/gazebo_cave_world.ply"/> -->
+    <arg name="world_name" default="simple_tunnel_02"/>
+<!--     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/simple_tunnel_01_gz.obj"/> -->
+    <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/simple_tunnel_02.obj"/>
     <arg name="rviz" default="false"/>
-
-    <param name="use_sim_time" value="true"/>
 
     <!-- Mapping evaluation -->
     <node ns="$(arg robot)" name="map_eval" pkg="rpz_planning" type="map_eval.py" output="screen">
@@ -17,6 +16,7 @@
             do_points_sampling: True
             n_sample_points: 10000
             max_age: 1
+            map_frame: $(arg world_name)
         </rosparam>
     </node>
 
