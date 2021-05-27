@@ -7,13 +7,7 @@ import zipfile
 from tqdm import tqdm
 from scipy.spatial.transform import Rotation as R
 import numpy as np
-
-
-models_path = [
-    # '/home/ruslan/.gazebo/models/',
-    '/home/ruslan/.ignition/fuel/fuel.ignitionrobotics.org/openrobotics/models/'
-]
-output = collada.Collada()
+from copy import deepcopy
 
 
 def pose_to_matrix(pose):
@@ -26,6 +20,14 @@ def pose_to_matrix(pose):
 
 def find_character_in_string(s, ch):
     return [i for i, ltr in enumerate(s) if ltr == ch]
+
+
+def get_sdf_path(model_path, model_name):
+    sdf_path = os.path.join(
+        model_path + model_name,
+        os.listdir(model_path + model_name)[0],
+        'model.sdf')
+    return sdf_path
 
 
 def generate_geometry(mesh, box, pose):
@@ -52,13 +54,12 @@ def generate_geometry(mesh, box, pose):
     input_list.addInput(0, 'VERTEX', '#vsrc' + id)
     input_list.addInput(1, 'NORMAL', '#nsrc' + id)
     indices = np.array([0,0,2,1,3,2,0,0,3,2,1,3,0,4,1,5,5,6,0,
-                        4,5,6,4,7,6,8,7,9,3,10,6,8,3,10,2,11,0,12,
-                        4,13,6,14,0,12,6,14,2,15,3,16,7,17,5,18,3,
-                        16,5,18,1,19,5,20,7,21,6,22,5,20,6,22,4,23])
+                           4,5,6,4,7,6,8,7,9,3,10,6,8,3,10,2,11,0,12,
+                           4,13,6,14,0,12,6,14,2,15,3,16,7,17,5,18,3,
+                           16,5,18,1,19,5,20,7,21,6,22,5,20,6,22,4,23])
     triset = geom.createTriangleSet(indices, input_list, 'mat')
     geom.primitives.append(triset)
     return geom, id
-
 
 def generate_ground_plane():
     mesh = collada.Collada()
@@ -70,14 +71,6 @@ def generate_ground_plane():
     mesh.scenes.append(scene)
     mesh.scene = scene
     return [mesh]
-
-
-def get_sdf_path(model_path, model_name):
-    sdf_path = os.path.join(
-        model_path + model_name,
-        os.listdir(model_path + model_name)[0],
-        'model.sdf')
-    return sdf_path
 
 
 def parse_sdf(model_name):
@@ -109,7 +102,7 @@ def parse_sdf(model_name):
                     # https://github.com/ignitionrobotics/ign-fuel-tools
                     print('Use ign-fuel-tools to download model: ', model_name)
                     print('For example, execute: \
-                    ign fuel download -u  https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Large\ Rock\ Fall -v 4')
+                        ign fuel download -u  https://fuel.ignitionrobotics.org/1.0/OpenRobotics/models/Large\ Rock\ Fall -v 4')
                     continue
 
     if root_sdf is None:
@@ -124,39 +117,46 @@ def parse_sdf(model_name):
         pose = [float(a) for a in filter(lambda a: bool(a), pose.split(' '))]
         T = T @ pose_to_matrix(pose)
 
-        if node.find('geometry/mesh') is None:  # No DAE collision mesh
-            box = node.find('geometry/box/size').text
-            box = [float(a) for a in filter(lambda a: bool(a), box.split(' '))]
-
-            mesh = collada.Collada()
-            geom, id = generate_geometry(mesh, box, T[:3, 3])
-
-            mesh.geometries.append(geom)
-            geomnode = collada.scene.GeometryNode(geom)
-            node = collada.scene.Node('node' + id, children=[geomnode])
-            scene = collada.scene.Scene('scene' + id, [node])
-            mesh.scenes.append(scene)
-            mesh.scene = scene
-            meshes.append(mesh)
+        if node.find('geometry/mesh') is None:
+            # box = node.find('geometry/box/size').text
+            # box = [float(a) for a in filter(lambda a: bool(a), box.split(' '))]
+            #
+            # mesh = collada.Collada()
+            # geom, id = generate_geometry(mesh, box, pose)
+            #
+            # mesh.geometries.append(geom)
+            # geomnode = collada.scene.GeometryNode(geom)
+            # node = collada.scene.Node('node' + id, children=[geomnode])
+            # scene = collada.scene.Scene('scene' + id, [node])
+            # mesh.scenes.append(scene)
+            # mesh.scene = scene
+            # meshes.append(mesh)
+            pass
         else:  # Importing DAE collision mesh
             # print('DAE detected !')
             dae_file = node.find('geometry/mesh/uri').text
             if 'https://' in dae_file:
-                dae_file = dae_file[find_character_in_string(dae_file, '/')[-2]+1:]
+                dae_file = dae_file[find_character_in_string(dae_file, '/')[-2] + 1:]
 
-            uri = os.path.join(
+            dae_path = os.path.join(
                 os.path.join(model_path, model_name),
                 os.listdir(model_path + model_name)[0],
                 dae_file)
-            scale = node.find('geometry/mesh/scale').text if node.find('geometry/mesh/scale') is not None else '1 1 1'
+
+            scale = node.find('geometry/mesh/scale').text \
+                if node.find('geometry/mesh/scale') is not None else '1 1 1'
             scale = [float(a) for a in filter(lambda a: bool(a), scale.split(' '))]
 
-            mesh = collada.Collada(uri)
+            mesh = collada.Collada(dae_path)
 
             nodes = []
-            for i, child in enumerate(mesh.scene.nodes):
+            for child in mesh.scene.nodes:
                 if len(child.transforms) != 0 and isinstance(child.transforms[0], collada.scene.MatrixTransform):
                     T = T @ child.transforms[0].matrix
+                    if (len(child.transforms)) > 1:
+                        scale = np.asarray(scale) * np.asarray(
+                            [child.transforms.x, child.transforms.y, child.transforms.z])
+                    child.transforms = []
                     child.transforms.append(collada.scene.MatrixTransform(T.flatten()))
                     parent = collada.scene.Node('parent_' + child.id, children=[child])
                 else:
@@ -185,9 +185,6 @@ def parse_world(world_path):
         # Hardcode exceptions
         if uri in ['model://sun', 'model://ground_plane', 'model://asphalt_plane']:
             continue
-        # print()
-        # print('*'*30)
-        # print(uri, name, pose)
 
         model_name = uri[8:]
         if 'fuel' in uri:
@@ -197,26 +194,35 @@ def parse_world(world_path):
 
         model_names.append(model_name)
 
-        # if model_name == 'Rescue Randy Sitting':
+    # print(np.unique(model_names).tolist())
+    # return
+
+        # if sys.argv[2] in model_name:
         extracted_meshes = parse_sdf(model_name)
 
         for mesh in extracted_meshes:
             for i, node in enumerate(mesh.scene.nodes):
                 if node.id is not None:
                     parent = collada.scene.Node('parent__' + node.id, children=[node])
-                    # transformations
-                    T = pose_to_matrix(pose)
+                    # # TODO: remove this stupid code
+                    new_pose = deepcopy(pose)
+                    new_pose[:3] = np.asarray(new_pose)[:3] * 100.
+                    T = pose_to_matrix(new_pose)
+                    # T = pose_to_matrix(pose)
+                    # print()
+                    # print('*' * 30)
+                    # print(model_name, new_pose[:3])
                     parent.transforms.append(collada.scene.MatrixTransform(T.flatten()))
-                    # scale
                     parent.transforms.append(collada.scene.ScaleTransform(scale[0], scale[1], scale[2]))
                     mesh.scene.nodes[i] = parent
                 else:
-                    print("Couldn't find transform between parent and child nodes")
+                    print("Couldn't find transform between parent and child nodes:", model_name)
 
         meshes.extend(extracted_meshes)
 
-    # meshes.extend(generate_ground_plane())
-    print('Model names:', np.unique(model_names).tolist())
+        # meshes.extend(generate_ground_plane())
+        # output = merge_meshes(meshes)
+        # output.write(f'./meshes/{sys.argv[2]}.dae')
     return merge_meshes(meshes)
 
 
@@ -245,6 +251,13 @@ if __name__ == '__main__':
     if len(sys.argv) < 3:
         print('Usage: python merge_dae.py <input.world> <output.dae>')
         exit()
+
+    models_path = [
+        # '/home/ruslan/.gazebo/models/',
+        '/home/ruslan/.ignition/fuel/fuel.ignitionrobotics.org/openrobotics/models/'
+    ]
+
+    # parse_world(sys.argv[1])
 
     output = parse_world(sys.argv[1])
     output.write(sys.argv[2])

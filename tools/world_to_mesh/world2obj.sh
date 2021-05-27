@@ -16,7 +16,7 @@ __dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ -z "$out" ] || [ -z "$in" ]; then
   echo 'Convert a Gazebo world to an octomap file compatible with the octomap ROS node\n'
-  echo 'Usage: world2oct.sh <input_file.world> <output_file.bt> [axis_up "Z"|"Y"]'
+  echo 'Usage: world2oct.sh <input_file.world> <output_file.obj> [axis_up "Z"|"Y"]'
   exit
 fi
 

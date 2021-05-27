@@ -34,6 +34,7 @@ class MapEval:
         self.normalize = rospy.get_param('~normalize_mesh_pcl', False)
         self.subscribe_once = rospy.get_param('~subscribe_once', False)
         self.do_points_sampling = rospy.get_param('~do_points_sampling', True)
+        self.do_eval = rospy.get_param('~do_eval', True)
         self.n_sample_points = rospy.get_param('~n_sample_points', 5000)
         self.max_age = rospy.get_param('~max_age', 1.0)
         self.rate = rospy.Rate(rospy.get_param('~eval_rate', 1.0))
@@ -73,7 +74,8 @@ class MapEval:
             assert isinstance(self.map_gt_mesh, Meshes)
             while not rospy.is_shutdown():
                 # compare subscribed map point cloud to ground truth mesh
-                self.eval()
+                if self.do_eval:
+                    self.eval()
 
                 # publish point cloud from ground truth mesh
                 sampled_points = sample_points_from_meshes(self.map_gt_mesh, n_points)
@@ -121,6 +123,7 @@ class MapEval:
         gt_mesh_verts = gt_mesh_verts / scale
 
         self.map_gt_mesh_norm = Meshes(verts=[gt_mesh_verts], faces=[gt_mesh_faces_idx])
+        rospy.logdebug(f'Loaded mesh with verts shape: {gt_mesh_verts.size()}')
 
     def pc_callback(self, pc_msg):
         assert isinstance(pc_msg, PointCloud2)
@@ -180,7 +183,7 @@ class MapEval:
 
 
 if __name__ == '__main__':
-    rospy.init_node('map_eval', log_level=rospy.INFO)
+    rospy.init_node('map_eval', log_level=rospy.DEBUG)
     path_fo_gt_map_mesh = rospy.get_param('~gt_mesh')
     assert os.path.exists(path_fo_gt_map_mesh)
     rospy.loginfo('Using ground truth mesh file: %s', path_fo_gt_map_mesh)

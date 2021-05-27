@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <launch>
     <arg name="robot" default="X1"/>
-    <arg name="world_name" default="simple_tunnel_02"/>
-<!--     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/simple_tunnel_01_gz.obj"/> -->
-    <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/simple_tunnel_02.obj"/>
+    <arg name="world_name" default="simple_cave_01"/>
+    <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/$(arg world_name).obj"/>
     <arg name="rviz" default="false"/>
+    <arg name="do_eval" default="true"/>
+    <arg name="rate" default="0.1"/> <!-- how often do mapping evaluation -->
 
     <!-- Mapping evaluation -->
     <node ns="$(arg robot)" name="map_eval" pkg="rpz_planning" type="map_eval.py" output="screen">
@@ -14,10 +15,12 @@
             normalize_mesh_pcl: False
             subscribe_once: False
             do_points_sampling: True
+            do_eval: $(arg do_eval)
             n_sample_points: 10000
             max_age: 1
             map_frame: $(arg world_name)
-            eval_rate: 0.25 <!-- how often do mapping evaluation -->
+<!--            map_frame: subt-->
+            eval_rate: $(arg rate)
         </rosparam>
     </node>
 
