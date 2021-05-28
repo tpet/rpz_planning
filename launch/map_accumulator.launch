@@ -4,8 +4,8 @@
     <arg name="robot_type" default="explorer_x1" doc="Robot type, from {absolem, dtr, explorer_x1, marv, x1, x2}."/>
     <arg name="world_name" default="simple_cave_01"/>
     <arg name="trajopt" default="false"/>
-    <arg name="bag" default="$(find rpz_planning)/data/bags/$(arg robot_type)_opt_path_$(arg trajopt)_$(arg world_name).bag"/>
-<!--    <arg name="bag" default="$(find rpz_planning)/data/bags/explorer_x1_opt_path_true_2021-05-25-08-49-53.bag"/>-->
+<!--    <arg name="bag" default="$(find rpz_planning)/data/bags/$(arg robot_type)_opt_path_$(arg trajopt)_$(arg world_name).bag"/>-->
+    <arg name="bag" default="$(find rpz_planning)/data/bags/explorer_x1_opt_path_false_simple_cave_02_2021-05-28-14-01-15.bag"/>
     <arg name="rviz" default="true"/>
     <arg name="start" default="0.0"/>
     <arg name="rate" default="1.0"/>

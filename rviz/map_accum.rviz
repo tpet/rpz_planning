@@ -123,17 +123,45 @@ Visualization Manager:
           Value: false
         X1/base_link/right_realsense_optical:
           Value: true
+        X1/front_left_wheel_link:
+          Value: true
+        X1/front_right_wheel_link:
+          Value: true
         X1/map:
           Value: true
-        drill_1:
+        X1/odom:
           Value: true
-        extinguisher_1:
+        X1/rear_left_wheel_link:
+          Value: true
+        X1/rear_right_wheel_link:
+          Value: true
+        X1_ground_truth:
+          Value: true
+        backpack_1:
+          Value: true
+        backpack_2:
+          Value: true
+        backpack_3:
+          Value: true
+        backpack_4:
           Value: true
         phone_1:
           Value: true
+        phone_2:
+          Value: true
+        phone_3:
+          Value: true
+        phone_4:
+          Value: true
         rescue_randy_1:
           Value: true
-        simple_tunnel_02:
+        rescue_randy_2:
+          Value: true
+        rescue_randy_3:
+          Value: true
+        rescue_randy_4:
+          Value: true
+        simple_cave_02:
           Value: true
         subt:
           Value: true
@@ -146,19 +174,65 @@ Visualization Manager:
       Show Names: true
       Tree:
         world:
-          drill_1:
+          X1_ground_truth:
             {}
-          extinguisher_1:
+          backpack_1:
+            {}
+          backpack_2:
+            {}
+          backpack_3:
+            {}
+          backpack_4:
             {}
           phone_1:
             {}
+          phone_2:
+            {}
+          phone_3:
+            {}
+          phone_4:
+            {}
           rescue_randy_1:
             {}
-          simple_tunnel_02:
+          rescue_randy_2:
+            {}
+          rescue_randy_3:
+            {}
+          rescue_randy_4:
+            {}
+          simple_cave_02:
             {}
           subt:
             X1/map:
-              {}
+              X1/odom:
+                X1:
+                  X1/base_link:
+                    X1/base_footprint:
+                      {}
+                    X1/base_link/front_laser:
+                      {}
+                    X1/base_link/front_realsense:
+                      X1/base_link/front_realsense_optical:
+                        {}
+                    X1/base_link/imu_sensor:
+                      {}
+                    X1/base_link/left_realsense:
+                      X1/base_link/left_realsense_optical:
+                        {}
+                    X1/base_link/rear_realsense:
+                      X1/base_link/rear_realsense_optical:
+                        {}
+                    X1/base_link/right_realsense:
+                      X1/base_link/right_realsense_optical:
+                        {}
+                  X1/front_left_wheel_link:
+                    {}
+                  X1/front_right_wheel_link:
+                    {}
+                  X1/rear_left_wheel_link:
+                    {}
+                  X1/rear_right_wheel_link:
+                    {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -267,7 +341,7 @@ Visualization Manager:
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.20000000298023224
+      Size (m): 0.4000000059604645
       Style: Spheres
       Topic: /X1/map_eval/cloud_from_gt_mesh
       Unreliable: false
@@ -276,7 +350,7 @@ Visualization Manager:
       Value: true
   Enabled: true
   Global Options:
-    Background Color: 48; 48; 48
+    Background Color: 0; 0; 0
     Default Light: true
     Fixed Frame: subt
     Frame Rate: 30

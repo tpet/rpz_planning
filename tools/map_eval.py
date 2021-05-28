@@ -6,6 +6,7 @@ from pytorch3d.io import load_obj, load_ply
 from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d.ops import sample_points_from_meshes
 from pytorch3d.loss import point_mesh_edge_distance, point_mesh_face_distance
+from pcl_mesh_metrics import face_point_distance_weighted, edge_point_distance_weighted
 import rospy
 from sensor_msgs.msg import PointCloud2
 import numpy as np
@@ -32,12 +33,11 @@ class MapEval:
         self.map_gt_mesh = None
         self.map_gt_mesh_norm = None
         self.normalize = rospy.get_param('~normalize_mesh_pcl', False)
-        self.subscribe_once = rospy.get_param('~subscribe_once', False)
-        self.do_points_sampling = rospy.get_param('~do_points_sampling', True)
+        self.do_points_sampling = rospy.get_param('~do_points_sampling', False)
         self.do_eval = rospy.get_param('~do_eval', True)
         self.n_sample_points = rospy.get_param('~n_sample_points', 5000)
         self.max_age = rospy.get_param('~max_age', 1.0)
-        self.rate = rospy.Rate(rospy.get_param('~eval_rate', 1.0))
+        self.rate = rospy.get_param('~eval_rate', 1.0)
 
         t = timer()
         self.load_gt_mesh(path_to_obj)
@@ -72,6 +72,7 @@ class MapEval:
     def run(self, n_points=5000):
         if self.map_gt_mesh is not None:
             assert isinstance(self.map_gt_mesh, Meshes)
+            rate = rospy.Rate(self.rate)
             while not rospy.is_shutdown():
                 # compare subscribed map point cloud to ground truth mesh
                 if self.do_eval:
@@ -93,7 +94,7 @@ class MapEval:
                                         frame_id=map_frame)
                 rospy.logdebug(f'Ground truth mesh frame: {map_frame}')
                 rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
-                self.rate.sleep()
+                rate.sleep()
 
     def load_gt_mesh(self, path_to_mesh_file):
         assert os.path.exists(path_to_mesh_file)
@@ -105,7 +106,6 @@ class MapEval:
         else:
             rospy.logerr('Supported mesh formats are *.obj or *.ply')
             exit()
-
         # verts is a FloatTensor of shape (V, 3) where V is the number of vertices in the mesh
         # faces is an object which contains the following LongTensors: verts_idx, normals_idx and textures_idx
         # For this tutorial, normals and textures are ignored.
@@ -114,24 +114,12 @@ class MapEval:
 
         # We construct a Meshes structure for the target mesh
         self.map_gt_mesh = Meshes(verts=[gt_mesh_verts], faces=[gt_mesh_faces_idx])
-
-        # We scale normalize and center the target mesh
-        # to fit in a sphere of radius 1 centered at (0,0,0).
-        center = gt_mesh_verts.mean(0)
-        gt_mesh_verts = gt_mesh_verts - center
-        scale = max(gt_mesh_verts.abs().max(0)[0])
-        gt_mesh_verts = gt_mesh_verts / scale
-
-        self.map_gt_mesh_norm = Meshes(verts=[gt_mesh_verts], faces=[gt_mesh_faces_idx])
         rospy.logdebug(f'Loaded mesh with verts shape: {gt_mesh_verts.size()}')
 
     def pc_callback(self, pc_msg):
         assert isinstance(pc_msg, PointCloud2)
         rospy.logdebug('Received point cloud message')
         self.pc_msg = pc_msg
-        if self.subscribe_once:
-            self.map_sub.unregister()
-            rospy.logwarn('Map topic is unsubscribed.')
 
     def eval(self):
         if self.pc_msg is None:
@@ -159,12 +147,6 @@ class MapEval:
         map[..., 0] = torch.tensor(map_np['x'])
         map[..., 1] = torch.tensor(map_np['y'])
         map[..., 2] = torch.tensor(map_np['z'])
-        # We scale normalize and center the point cloud
-        # to fit in a sphere of radius 1 centered at (0,0,0).
-        center = map.mean(1)
-        map = map - center
-        scale = max(map.abs().max(1)[0])
-        map = map / scale
         assert map.dim() == 3
         assert map.size()[2] == 3
         rospy.logdebug('Point cloud conversion took: %.3f s', timer() - t0)
@@ -175,15 +157,19 @@ class MapEval:
         point_cloud = Pointclouds(map).to(self.device)
         # compare point cloud to mesh here
         t1 = timer()
-        loss_edge = point_mesh_edge_distance(meshes=self.map_gt_mesh_norm, pcls=point_cloud)
-        loss_face = point_mesh_face_distance(meshes=self.map_gt_mesh_norm, pcls=point_cloud)
-        rospy.loginfo(f'Loss Edge: {loss_edge.detach().cpu().numpy():.6f}, \
-                                Loss Face: {loss_face.detach().cpu().numpy():.6f}')
-        rospy.loginfo('Mapping evaluation took: %.3f s', timer() - t1)
+        with torch.no_grad():
+            # loss_edge = point_mesh_edge_distance(meshes=self.map_gt_mesh, pcls=point_cloud)
+            # loss_face = point_mesh_face_distance(meshes=self.map_gt_mesh, pcls=point_cloud)
+            loss_edge = edge_point_distance_weighted(meshes=self.map_gt_mesh, pcls=point_cloud)
+            loss_face = face_point_distance_weighted(meshes=self.map_gt_mesh, pcls=point_cloud)
+        rospy.loginfo('\n')
+        rospy.loginfo(f'Loss Edge: {loss_edge.detach().cpu().numpy():.3f}')
+        rospy.loginfo(f'Loss Face: {loss_face.detach().cpu().numpy():.3f}')
+        rospy.loginfo('Mapping evaluation took: %.3f s\n', timer() - t1)
 
 
 if __name__ == '__main__':
-    rospy.init_node('map_eval', log_level=rospy.DEBUG)
+    rospy.init_node('map_eval', log_level=rospy.INFO)
     path_fo_gt_map_mesh = rospy.get_param('~gt_mesh')
     assert os.path.exists(path_fo_gt_map_mesh)
     rospy.loginfo('Using ground truth mesh file: %s', path_fo_gt_map_mesh)

@@ -13,8 +13,7 @@
             map_topic: map_accumulator/map
             gt_mesh: $(arg gt_mesh_file)
             normalize_mesh_pcl: False
-            subscribe_once: False
-            do_points_sampling: True
+            do_points_sampling: False
             do_eval: $(arg do_eval)
             n_sample_points: 10000
             max_age: 1
