@@ -84,24 +84,18 @@ roslaunch rpz_planning naex_opt.launch follow_opt_path:=true
   
 * **Compare map to mesh**
   
+  (Note, that this node requires `python3` as an interpreter.
+  Please, follow the
+  [instructions](https://github.com/facebookresearch/pytorch3d/blob/master/INSTALL.md)
+  to install its dependencies)
+
   Ones the point cloud mapping is complete, reconstruct the explored global map.
   It will wait for you to hit `space` button in order to start the bag-file.
   ```bash
-  roslaunch rpz_planning map_accumulator.launch bag:=<path/to/bag/file/bag_file_name>.bag
+  roslaunch rpz_planning map_eval.launch world_name:=simple_cave_03 bag:=<path/to/bag/file/bag_file_name>.bag
   ```
-  Ones a ground truth mesh is obtained, start the evaluation node
+  Ones a ground truth mesh is loaded, start the playing the bag file (press `space` button)
   (specify the `world_name` argument to match the name of downloaded or created ground truth mesh).
-  
-  (
-  Note, that this node requires `python3` as an interpreter.
-  Please, follow the
-  [instructions](https://github.com/facebookresearch/pytorch3d/blob/master/INSTALL.md)
-  to install its dependencies
-  )
-  
-  ```bash
-  roslaunch rpz_planning map_eval.launch world_name:=simple_cave_03
-  ```
   
   It will compare a point cloud to a mesh using the following metrics:
   - the closest distance from

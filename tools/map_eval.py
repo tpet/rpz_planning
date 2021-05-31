@@ -5,14 +5,19 @@ import torch
 from pytorch3d.io import load_obj, load_ply
 from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d.ops import sample_points_from_meshes
-from pytorch3d.loss import point_mesh_edge_distance, point_mesh_face_distance
-from pcl_mesh_metrics import face_point_distance_weighted, edge_point_distance_weighted
+from pytorch3d.loss import point_mesh_edge_distance
+from pytorch3d.loss import point_mesh_face_distance
+from pytorch3d.loss import chamfer_distance
+from pcl_mesh_metrics import face_point_distance_weighted
+from pcl_mesh_metrics import edge_point_distance_weighted
 import rospy
 from sensor_msgs.msg import PointCloud2
 import numpy as np
 from ros_numpy import msgify, numpify
 import tf2_ros
 from timeit import default_timer as timer
+# problems with Cryptodome: pip install pycryptodomex
+# https://github.com/DP-3T/reference_implementation/issues/1
 
 
 class MapEval:
@@ -42,6 +47,7 @@ class MapEval:
         t = timer()
         self.load_gt_mesh(path_to_obj)
         rospy.loginfo('Loading ground truth mesh took %.3f s', timer() - t)
+        rospy.loginfo('Mapping evaluation node is ready')
 
         self.map_frame = rospy.get_param('~map_frame', 'subt')
         self.pc_msg = None
@@ -81,11 +87,7 @@ class MapEval:
                 # publish point cloud from ground truth mesh
                 sampled_points = sample_points_from_meshes(self.map_gt_mesh, n_points)
                 points_to_pub = sampled_points.squeeze().cpu().numpy().transpose(1, 0)
-                # TODO: find coordinates mismatch (swap here X and Y)
-                R = np.array([[ 0., 1., 0.],
-                              [-1., 0., 0.],
-                              [ 0., 0., 1.]])
-                points_to_pub = np.dot(R, points_to_pub)
+
                 # selecting default map frame if it is not available in ROS
                 map_frame = self.map_frame if self.map_frame is not None else 'subt'
                 self.publish_pointcloud(points_to_pub,
@@ -111,9 +113,15 @@ class MapEval:
         # For this tutorial, normals and textures are ignored.
         gt_mesh_faces_idx = gt_mesh_faces_idx.to(self.device)
         gt_mesh_verts = gt_mesh_verts.to(self.device)
+        # TODO: correct coordinates mismatch in Blender (swap here X and Y)
+        R = torch.tensor([[ 0., 1., 0.],
+                          [-1., 0., 0.],
+                          [ 0., 0., 1.]]).to(self.device)
+        gt_mesh_verts = torch.matmul(R, gt_mesh_verts.transpose(1, 0)).transpose(1, 0)
+        assert gt_mesh_verts.shape[1] == 3
 
         # We construct a Meshes structure for the target mesh
-        self.map_gt_mesh = Meshes(verts=[gt_mesh_verts], faces=[gt_mesh_faces_idx])
+        self.map_gt_mesh = Meshes(verts=[gt_mesh_verts], faces=[gt_mesh_faces_idx]).to(self.device)
         rospy.logdebug(f'Loaded mesh with verts shape: {gt_mesh_verts.size()}')
 
     def pc_callback(self, pc_msg):
@@ -131,7 +139,6 @@ class MapEval:
         if age > self.max_age:
             rospy.logwarn('Discarding points %.1f s > %.1f s old.', age, self.max_age)
             return
-
         t0 = timer()
         # self.map_frame = pc_msg.header.frame_id
         map_np = numpify(self.pc_msg)
@@ -143,7 +150,7 @@ class MapEval:
                 map_np = map_np[np.random.choice(len(map_np), self.n_sample_points)]
         assert len(map_np.shape) == 1
         # pull out x, y, and z values
-        map = torch.zeros([1] + list(map_np.shape) + [3], dtype=torch.float32)
+        map = torch.zeros([1] + list(map_np.shape) + [3], dtype=torch.float32).to(self.device)
         map[..., 0] = torch.tensor(map_np['x'])
         map[..., 1] = torch.tensor(map_np['y'])
         map[..., 2] = torch.tensor(map_np['z'])
@@ -162,10 +169,16 @@ class MapEval:
             # loss_face = point_mesh_face_distance(meshes=self.map_gt_mesh, pcls=point_cloud)
             loss_edge = edge_point_distance_weighted(meshes=self.map_gt_mesh, pcls=point_cloud)
             loss_face = face_point_distance_weighted(meshes=self.map_gt_mesh, pcls=point_cloud)
-        rospy.loginfo('\n')
-        rospy.loginfo(f'Loss Edge: {loss_edge.detach().cpu().numpy():.3f}')
-        rospy.loginfo(f'Loss Face: {loss_face.detach().cpu().numpy():.3f}')
-        rospy.loginfo('Mapping evaluation took: %.3f s\n', timer() - t1)
+            # for debugging comparing mesh to points sampled from itself
+            # in this case the metrics are ~1.5
+            map_gt = sample_points_from_meshes(self.map_gt_mesh, self.n_sample_points).to(self.device)
+            loss_icp, _ = chamfer_distance(map, map_gt)
+
+            rospy.loginfo('\n')
+            rospy.loginfo(f'Edge loss: {loss_edge.detach().cpu().numpy():.3f}')
+            rospy.loginfo(f'Face loss: {loss_face.detach().cpu().numpy():.3f}')
+            rospy.loginfo(f'Chamfer loss: {loss_icp.detach().cpu().numpy():.3f}')
+            rospy.loginfo('Mapping evaluation took: %.3f s\n', timer() - t1)
 
 
 if __name__ == '__main__':

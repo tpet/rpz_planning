@@ -6,11 +6,8 @@
     <arg name="trajopt" default="false"/>
 <!--    <arg name="bag" default="$(find rpz_planning)/data/bags/$(arg robot_type)_opt_path_$(arg trajopt)_$(arg world_name).bag"/>-->
     <arg name="bag" default="$(find rpz_planning)/data/bags/explorer_x1_opt_path_false_simple_cave_02_2021-05-28-14-01-15.bag"/>
-    <arg name="rviz" default="true"/>
     <arg name="start" default="0.0"/>
     <arg name="rate" default="1.0"/>
-
-    <param name="use_sim_time" value="true" />
 
     <!--
         Workaround for /tf_static problems with rosbag.
@@ -22,8 +19,8 @@
     </node>
 
     <!-- ROSBAG -->
-    <node name="rosbag_play_rpz" pkg="rosbag" type="play" output="screen"
-          args="--clock --pause -k -d 3.0 -s $(arg start) -r $(arg rate) $(arg bag)">
+    <node name="rosbag_play_rpz" pkg="rosbag" type="play"
+          args="--clock --pause -k -s $(arg start) -r $(arg rate) $(arg bag)">
     </node>
 
     <!-- MAP accumulator -->
@@ -31,7 +28,4 @@
         <remap from="local_map" to="updated_map"/>
     </node>
 
-    <!-- RVIZ -->
-    <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
-          args="-d $(dirname)/../rviz/map_accum.rviz"/>
 </launch>
