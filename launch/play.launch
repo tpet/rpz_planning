@@ -58,5 +58,5 @@
 
     <!-- RVIZ -->
     <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
-          args="-d $(dirname)/../rviz/$(arg robot_type).rviz"/>
+          args="-d $(dirname)/../config/$(arg robot_type).rviz"/>
 </launch>

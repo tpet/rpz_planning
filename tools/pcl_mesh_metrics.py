@@ -29,7 +29,6 @@ def face_point_distance_weighted(meshes: Meshes, pcls: Pointclouds):
     # packed representation for pointclouds
     points = pcls.points_packed()  # (P, 3)
     points_first_idx = pcls.cloud_to_packed_first_idx()
-    max_points = pcls.num_points_per_cloud().max().item()
 
     # packed representation for faces
     verts_packed = meshes.verts_packed()
@@ -77,7 +76,6 @@ def edge_point_distance_weighted(meshes: Meshes, pcls: Pointclouds):
     # packed representation for pointclouds
     points = pcls.points_packed()  # (P, 3)
     points_first_idx = pcls.cloud_to_packed_first_idx()
-    max_points = pcls.num_points_per_cloud().max().item()
 
     # packed representation for edges
     verts_packed = meshes.verts_packed()

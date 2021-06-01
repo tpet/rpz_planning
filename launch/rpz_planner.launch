@@ -11,7 +11,7 @@
             robot_frame: $(arg robot)/base_footprint
             max_age: 1.0
             num_cameras: 1
-            num_iters: 25
+            num_iters: 50
             map_step: 2
             path_step: 2
             linear_speed: 1.0

@@ -12,6 +12,7 @@ from pcl_mesh_metrics import face_point_distance_weighted
 from pcl_mesh_metrics import edge_point_distance_weighted
 import rospy
 from sensor_msgs.msg import PointCloud2
+from std_msgs.msg import Float64
 import numpy as np
 from ros_numpy import msgify, numpify
 import tf2_ros
@@ -36,7 +37,7 @@ class MapEval:
         else:
             self.device = torch.device("cpu")
         self.map_gt_mesh = None
-        self.map_gt_mesh_norm = None
+        self.map_gt = None
         self.normalize = rospy.get_param('~normalize_mesh_pcl', False)
         self.do_points_sampling = rospy.get_param('~do_points_sampling', False)
         self.do_eval = rospy.get_param('~do_eval', True)
@@ -54,6 +55,9 @@ class MapEval:
         # TODO: rewrite it as a server-client
         rospy.loginfo('Subscribing to map topic: %s', map_topic)
         self.map_sub = rospy.Subscriber(map_topic, PointCloud2, self.pc_callback)
+        self.face_loss_pub = rospy.Publisher('~face_loss', Float64, queue_size=1)
+        self.edge_loss_pub = rospy.Publisher('~edge_loss', Float64, queue_size=1)
+        self.chamfer_loss_pub = rospy.Publisher('~chamfer_loss', Float64, queue_size=1)
         self.run(n_points=self.n_sample_points)
 
     @staticmethod
@@ -85,17 +89,17 @@ class MapEval:
                     self.eval()
 
                 # publish point cloud from ground truth mesh
-                sampled_points = sample_points_from_meshes(self.map_gt_mesh, n_points)
-                points_to_pub = sampled_points.squeeze().cpu().numpy().transpose(1, 0)
+                if self.map_gt is not None:
+                    points_to_pub = self.map_gt.squeeze().cpu().numpy().transpose(1, 0)
 
-                # selecting default map frame if it is not available in ROS
-                map_frame = self.map_frame if self.map_frame is not None else 'subt'
-                self.publish_pointcloud(points_to_pub,
-                                        topic_name='~cloud_from_gt_mesh',
-                                        stamp=rospy.Time.now(),
-                                        frame_id=map_frame)
-                rospy.logdebug(f'Ground truth mesh frame: {map_frame}')
-                rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
+                    # selecting default map frame if it is not available in ROS
+                    map_frame = self.map_frame if self.map_frame is not None else 'subt'
+                    self.publish_pointcloud(points_to_pub,
+                                            topic_name='~cloud_from_gt_mesh',
+                                            stamp=rospy.Time.now(),
+                                            frame_id=map_frame)
+                    rospy.logdebug(f'Ground truth mesh frame: {map_frame}')
+                    rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
                 rate.sleep()
 
     def load_gt_mesh(self, path_to_mesh_file):
@@ -107,7 +111,7 @@ class MapEval:
             gt_mesh_verts, gt_mesh_faces_idx = load_ply(path_to_mesh_file)
         else:
             rospy.logerr('Supported mesh formats are *.obj or *.ply')
-            exit()
+            return
         # verts is a FloatTensor of shape (V, 3) where V is the number of vertices in the mesh
         # faces is an object which contains the following LongTensors: verts_idx, normals_idx and textures_idx
         # For this tutorial, normals and textures are ignored.
@@ -122,6 +126,7 @@ class MapEval:
 
         # We construct a Meshes structure for the target mesh
         self.map_gt_mesh = Meshes(verts=[gt_mesh_verts], faces=[gt_mesh_faces_idx]).to(self.device)
+        self.map_gt = sample_points_from_meshes(self.map_gt_mesh, self.n_sample_points).to(self.device)
         rospy.logdebug(f'Loaded mesh with verts shape: {gt_mesh_verts.size()}')
 
     def pc_callback(self, pc_msg):
@@ -140,7 +145,6 @@ class MapEval:
             rospy.logwarn('Discarding points %.1f s > %.1f s old.', age, self.max_age)
             return
         t0 = timer()
-        # self.map_frame = pc_msg.header.frame_id
         map_np = numpify(self.pc_msg)
         # remove inf points
         mask = np.isfinite(map_np['x']) & np.isfinite(map_np['y']) & np.isfinite(map_np['z'])
@@ -168,16 +172,21 @@ class MapEval:
             # loss_edge = point_mesh_edge_distance(meshes=self.map_gt_mesh, pcls=point_cloud)
             # loss_face = point_mesh_face_distance(meshes=self.map_gt_mesh, pcls=point_cloud)
             loss_edge = edge_point_distance_weighted(meshes=self.map_gt_mesh, pcls=point_cloud)
+            # distance between mesh and points is computed as a distance from point to triangle
+            # if point's projection is inside triangle, then the distance is computed as along
+            # a normal to triangular plane. Otherwise as a distance to closest edge of the triangle:
+            # https://github.com/facebookresearch/pytorch3d/blob/fe39cc7b806afeabe64593e154bfee7b4153f76f/pytorch3d/csrc/utils/geometry_utils.h#L635
             loss_face = face_point_distance_weighted(meshes=self.map_gt_mesh, pcls=point_cloud)
-            # for debugging comparing mesh to points sampled from itself
-            # in this case the metrics are ~1.5
-            map_gt = sample_points_from_meshes(self.map_gt_mesh, self.n_sample_points).to(self.device)
-            loss_icp, _ = chamfer_distance(map, map_gt)
+            loss_icp, _ = chamfer_distance(map, self.map_gt)
 
             rospy.loginfo('\n')
             rospy.loginfo(f'Edge loss: {loss_edge.detach().cpu().numpy():.3f}')
             rospy.loginfo(f'Face loss: {loss_face.detach().cpu().numpy():.3f}')
             rospy.loginfo(f'Chamfer loss: {loss_icp.detach().cpu().numpy():.3f}')
+            # publish losses
+            self.face_loss_pub.publish(Float64(loss_face.detach().cpu().numpy()))
+            self.edge_loss_pub.publish(Float64(loss_edge.detach().cpu().numpy()))
+            self.chamfer_loss_pub.publish(Float64(loss_icp.detach().cpu().numpy()))
             rospy.loginfo('Mapping evaluation took: %.3f s\n', timer() - t1)
 
 

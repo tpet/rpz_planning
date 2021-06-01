@@ -1225,7 +1225,9 @@ class RPZPlanner(object):
         rp = rp * edges
         trav_cost = rp.abs().mean()
 
-        cost = dist_cost + turn_cost + trav_cost
+        # TODO: experiment with trajectory costs
+        # cost = dist_cost + turn_cost + trav_cost
+        cost = trav_cost
         rospy.logdebug('Path cost %.1f (dist. %.1f, turning %.1f, trav.: %.1f).',
                        cost.item(), dist_cost.item(), turn_cost.item(), trav_cost.item())
         return cost
