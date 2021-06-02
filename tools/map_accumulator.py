@@ -14,9 +14,11 @@ import torch
 from pytorch3d.io import load_obj, load_ply
 from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d.ops import sample_points_from_meshes
-from pytorch3d.loss import chamfer_distance
+from pcl_mesh_metrics import point_face_distance_truncated
+from pcl_mesh_metrics import point_edge_distance_truncated
 from pcl_mesh_metrics import face_point_distance_truncated
 from pcl_mesh_metrics import edge_point_distance_truncated
+from pcl_mesh_metrics import chamfer_distance_truncated
 import os
 
 
@@ -157,25 +159,45 @@ class MapAccumulator:
         except tf2_ros.LookupException:
             rospy.logwarn('No transform between estimated robot pose and its ground truth')
 
-    def eval(self, map, map_gt_mesh, map_gt_pcl):
-        assert isinstance(map, torch.Tensor)
-        assert map.dim() == 3
-        assert map.size()[2] == 3
-        point_cloud = Pointclouds(map).to(self.device)
+    def eval(self, map_pcl, map_gt_mesh, map_gt_pcl):
+        assert isinstance(map_pcl, torch.Tensor)
+        assert map_pcl.dim() == 3
+        assert map_pcl.size()[2] == 3
+        point_cloud = Pointclouds(map_pcl).to(self.device)
         # compare point cloud to mesh here
         with torch.no_grad():
-            loss_edge = edge_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
-            # distance between mesh and points is computed as a distance from point to triangle
+            t1 = timer()
+            # https://github.com/facebookresearch/pytorch3d/blob/280fed3c7623b6fac7446cb46aae21f0f6a43d29/pytorch3d/csrc/utils/geometry_utils.h#L386
+            exp_loss_edge = edge_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
+            # distance between mesh face and points is computed as a distance from point to triangle
             # if point's projection is inside triangle, then the distance is computed as along
             # a normal to triangular plane. Otherwise as a distance to closest edge of the triangle:
             # https://github.com/facebookresearch/pytorch3d/blob/fe39cc7b806afeabe64593e154bfee7b4153f76f/pytorch3d/csrc/utils/geometry_utils.h#L635
-            loss_face = face_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
-            loss_icp, _ = chamfer_distance(map, map_gt_pcl)
+            exp_loss_face = face_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
+            exp_loss_chamfer = chamfer_distance_truncated(x=map_gt_pcl, y=map_pcl)
+            t2 = timer()
+            rospy.loginfo('Explored space evaluation took: %.3f s\n', t2 - t1)
 
-        rospy.loginfo('\n')
-        rospy.loginfo(f'Edge loss: {loss_edge.detach().cpu().numpy():.3f}')
-        rospy.loginfo(f'Face loss: {loss_face.detach().cpu().numpy():.3f}')
-        rospy.loginfo(f'Chamfer loss: {loss_icp.detach().cpu().numpy():.3f}')
+            # `exp_loss_face`, `exp_loss_edge` and `exp_loss_chamfer` describe exploration progress
+            # current map accuracy could be evaluated by computing vice versa distances:
+            # - from points in cloud to mesh faces/edges:
+            map_loss_edge = point_edge_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
+            map_loss_face = point_face_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
+            # - from points in cloud to nearest neighbours of points sampled from mesh:
+            map_loss_chamfer = chamfer_distance_truncated(x=map_pcl, y=map_gt_pcl)
+            rospy.loginfo('Mapping accuracy evaluation took: %.3f s\n', timer() - t2)
+
+        print('\n')
+        rospy.loginfo(f'Exploration Edge loss: {exp_loss_edge.detach().cpu().numpy():.3f}')
+        rospy.loginfo(f'Exploration Face loss: {exp_loss_face.detach().cpu().numpy():.3f}')
+        rospy.loginfo(f'Exploration Chamfer loss: {exp_loss_chamfer.squeeze().detach().cpu().numpy():.3f}')
+        print('-' * 30)
+
+        print('\n')
+        rospy.loginfo(f'Map Edge loss: {map_loss_edge.detach().cpu().numpy():.3f}')
+        rospy.loginfo(f'Map Face loss: {map_loss_face.detach().cpu().numpy():.3f}')
+        rospy.loginfo(f'Map Chamfer loss: {map_loss_chamfer.squeeze().detach().cpu().numpy():.3f}')
+        print('-' * 30)
 
 
 if __name__ == '__main__':
