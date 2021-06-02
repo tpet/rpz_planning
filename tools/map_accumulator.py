@@ -15,8 +15,8 @@ from pytorch3d.io import load_obj, load_ply
 from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d.ops import sample_points_from_meshes
 from pytorch3d.loss import chamfer_distance
-from pcl_mesh_metrics import face_point_distance_weighted
-from pcl_mesh_metrics import edge_point_distance_weighted
+from pcl_mesh_metrics import face_point_distance_truncated
+from pcl_mesh_metrics import edge_point_distance_truncated
 import os
 
 
@@ -164,18 +164,18 @@ class MapAccumulator:
         point_cloud = Pointclouds(map).to(self.device)
         # compare point cloud to mesh here
         with torch.no_grad():
-            loss_edge = edge_point_distance_weighted(meshes=map_gt_mesh, pcls=point_cloud)
+            loss_edge = edge_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
             # distance between mesh and points is computed as a distance from point to triangle
             # if point's projection is inside triangle, then the distance is computed as along
             # a normal to triangular plane. Otherwise as a distance to closest edge of the triangle:
             # https://github.com/facebookresearch/pytorch3d/blob/fe39cc7b806afeabe64593e154bfee7b4153f76f/pytorch3d/csrc/utils/geometry_utils.h#L635
-            loss_face = face_point_distance_weighted(meshes=map_gt_mesh, pcls=point_cloud)
+            loss_face = face_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
             loss_icp, _ = chamfer_distance(map, map_gt_pcl)
 
-            rospy.loginfo('\n')
-            rospy.loginfo(f'Edge loss: {loss_edge.detach().cpu().numpy():.3f}')
-            rospy.loginfo(f'Face loss: {loss_face.detach().cpu().numpy():.3f}')
-            rospy.loginfo(f'Chamfer loss: {loss_icp.detach().cpu().numpy():.3f}')
+        rospy.loginfo('\n')
+        rospy.loginfo(f'Edge loss: {loss_edge.detach().cpu().numpy():.3f}')
+        rospy.loginfo(f'Face loss: {loss_face.detach().cpu().numpy():.3f}')
+        rospy.loginfo(f'Chamfer loss: {loss_icp.detach().cpu().numpy():.3f}')
 
 
 if __name__ == '__main__':

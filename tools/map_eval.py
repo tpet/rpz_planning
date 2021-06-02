@@ -5,11 +5,11 @@ import torch
 from pytorch3d.io import load_obj, load_ply
 from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d.ops import sample_points_from_meshes
-from pytorch3d.loss import point_mesh_edge_distance
-from pytorch3d.loss import point_mesh_face_distance
-from pytorch3d.loss import chamfer_distance
-from pcl_mesh_metrics import face_point_distance_weighted
-from pcl_mesh_metrics import edge_point_distance_weighted
+from pcl_mesh_metrics import point_face_distance_truncated
+from pcl_mesh_metrics import point_edge_distance_truncated
+from pcl_mesh_metrics import face_point_distance_truncated
+from pcl_mesh_metrics import edge_point_distance_truncated
+from pcl_mesh_metrics import chamfer_distance_truncated
 import rospy
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Float64
@@ -44,10 +44,19 @@ class MapEval:
         self.n_sample_points = rospy.get_param('~n_sample_points', 5000)
         self.max_age = rospy.get_param('~max_age', 1.0)
         self.rate = rospy.get_param('~eval_rate', 1.0)
+        # exploration losses publishers
+        self.face_loss_pub = rospy.Publisher('~face_loss', Float64, queue_size=1)
+        self.edge_loss_pub = rospy.Publisher('~edge_loss', Float64, queue_size=1)
+        self.chamfer_loss_pub = rospy.Publisher('~chamfer_loss', Float64, queue_size=1)
+        # mapping accuracy publishers
+        self.map_face_acc_pub = rospy.Publisher('~map_accuracy_face', Float64, queue_size=1)
+        self.map_edge_acc_pub = rospy.Publisher('~map_accuracy_edge', Float64, queue_size=1)
+        self.map_chamfer_acc_pub = rospy.Publisher('~map_accuracy_chamfer', Float64, queue_size=1)
 
         t = timer()
-        self.load_gt_mesh(path_to_obj)
-        rospy.loginfo('Loading ground truth mesh took %.3f s', timer() - t)
+        if self.do_eval:
+            self.load_gt_mesh(path_to_obj)
+            rospy.loginfo('Loading ground truth mesh took %.3f s', timer() - t)
         rospy.loginfo('Mapping evaluation node is ready')
 
         self.map_frame = rospy.get_param('~map_frame', 'subt')
@@ -55,9 +64,6 @@ class MapEval:
         # TODO: rewrite it as a server-client
         rospy.loginfo('Subscribing to map topic: %s', map_topic)
         self.map_sub = rospy.Subscriber(map_topic, PointCloud2, self.pc_callback)
-        self.face_loss_pub = rospy.Publisher('~face_loss', Float64, queue_size=1)
-        self.edge_loss_pub = rospy.Publisher('~edge_loss', Float64, queue_size=1)
-        self.chamfer_loss_pub = rospy.Publisher('~chamfer_loss', Float64, queue_size=1)
         self.run(n_points=self.n_sample_points)
 
     @staticmethod
@@ -169,25 +175,43 @@ class MapEval:
         # compare point cloud to mesh here
         t1 = timer()
         with torch.no_grad():
-            # loss_edge = point_mesh_edge_distance(meshes=self.map_gt_mesh, pcls=point_cloud)
-            # loss_face = point_mesh_face_distance(meshes=self.map_gt_mesh, pcls=point_cloud)
-            loss_edge = edge_point_distance_weighted(meshes=self.map_gt_mesh, pcls=point_cloud)
+            loss_edge = edge_point_distance_truncated(meshes=self.map_gt_mesh, pcls=point_cloud)
             # distance between mesh and points is computed as a distance from point to triangle
             # if point's projection is inside triangle, then the distance is computed as along
             # a normal to triangular plane. Otherwise as a distance to closest edge of the triangle:
             # https://github.com/facebookresearch/pytorch3d/blob/fe39cc7b806afeabe64593e154bfee7b4153f76f/pytorch3d/csrc/utils/geometry_utils.h#L635
-            loss_face = face_point_distance_weighted(meshes=self.map_gt_mesh, pcls=point_cloud)
-            loss_icp, _ = chamfer_distance(map, self.map_gt)
+            loss_face = face_point_distance_truncated(meshes=self.map_gt_mesh, pcls=point_cloud)
+            loss_chamfer = chamfer_distance_truncated(x=self.map_gt, y=map)
 
-            rospy.loginfo('\n')
-            rospy.loginfo(f'Edge loss: {loss_edge.detach().cpu().numpy():.3f}')
-            rospy.loginfo(f'Face loss: {loss_face.detach().cpu().numpy():.3f}')
-            rospy.loginfo(f'Chamfer loss: {loss_icp.detach().cpu().numpy():.3f}')
-            # publish losses
-            self.face_loss_pub.publish(Float64(loss_face.detach().cpu().numpy()))
-            self.edge_loss_pub.publish(Float64(loss_edge.detach().cpu().numpy()))
-            self.chamfer_loss_pub.publish(Float64(loss_icp.detach().cpu().numpy()))
-            rospy.loginfo('Mapping evaluation took: %.3f s\n', timer() - t1)
+            # `loss_face`, `loss_edge` and `loss_chamfer` describe exploration progress
+            # current map accuracy could be evaluated by computing vice versa distances:
+            # - from points in cloud to mesh faces/edges:
+            map_accuracy_edge = point_edge_distance_truncated(meshes=self.map_gt_mesh, pcls=point_cloud)
+            map_accuracy_face = point_face_distance_truncated(meshes=self.map_gt_mesh, pcls=point_cloud)
+            # - from points in cloud to nearest neighbours of points sampled from mesh:
+            map_accuracy_chamfer = chamfer_distance_truncated(x=map, y=self.map_gt)
+
+        print('\n')
+        rospy.loginfo(f'Edge loss: {loss_edge.detach().cpu().numpy():.3f}')
+        rospy.loginfo(f'Face loss: {loss_face.detach().cpu().numpy():.3f}')
+        rospy.loginfo(f'Chamfer loss: {loss_chamfer.squeeze().detach().cpu().numpy():.3f}')
+        print('-'*30)
+
+        print('\n')
+        rospy.loginfo(f'Map Edge accuracy: {map_accuracy_edge.detach().cpu().numpy():.3f}')
+        rospy.loginfo(f'Map Face accuracy: {map_accuracy_face.detach().cpu().numpy():.3f}')
+        rospy.loginfo(f'Map Chamfer accuracy: {map_accuracy_chamfer.squeeze().detach().cpu().numpy():.3f}')
+        print('-' * 30)
+
+        # publish losses and metrics
+        self.face_loss_pub.publish(Float64(loss_face.detach().cpu().numpy()))
+        self.edge_loss_pub.publish(Float64(loss_edge.detach().cpu().numpy()))
+        self.chamfer_loss_pub.publish(Float64(loss_chamfer.detach().cpu().numpy()))
+
+        self.map_face_acc_pub.publish(Float64(map_accuracy_face.detach().cpu().numpy()))
+        self.map_edge_acc_pub.publish(Float64(map_accuracy_edge.detach().cpu().numpy()))
+        self.map_chamfer_acc_pub.publish(Float64(map_accuracy_chamfer.squeeze().detach().cpu().numpy()))
+        rospy.loginfo('Mapping evaluation took: %.3f s\n', timer() - t1)
 
 
 if __name__ == '__main__':
