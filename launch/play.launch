@@ -2,10 +2,12 @@
 <launch>
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="marv"/>
-    <arg name="bag" default="$(find rpz_planning)/data/bags/marv_2021-04-29-12-48-13.bag"/>
+<!--    <arg name="bag" default="$(find rpz_planning)/data/bags/trajopt_input/marv_2021-04-29-12-48-13.bag"/>-->
+    <arg name="bag" default="$(find rpz_planning)/data/bags/trajopt_input/explorer_x1_opt_path_false_2021-06-03-09-59-43.bag"/>
     <arg name="rviz" default="true"/>
     <arg name="start" default="0.0"/>
     <arg name="rate" default="1.0"/>
+    <arg name="debug_trajopt" default="true"/>
 
     <param name="use_sim_time" value="true"/>
 
@@ -25,8 +27,6 @@
         <remap if="$(eval 'marv' in robot_type.lower())"
                from="/$(arg robot)/local_map_slow" to="/$(arg robot)/local_map"/>
 
-        <remap if="$(eval 'explorer_x1' in robot_type.lower())"
-               from="/traversability" to="/$(arg robot)/traversability"/>
         <remap if="$(eval 'explorer_x1' in robot_type.lower())"
                from="/$(arg robot)/local_map_slow" to="/$(arg robot)/local_map"/>
 

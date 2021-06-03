@@ -7,7 +7,7 @@
     <arg name="rqt_plot" default="false"/>
     <arg name="do_eval" default="true"/>
     <arg name="eval_rate" default="0.05"/> <!-- how often do mapping evaluation -->
-    <arg name="bag" default="$(find rpz_planning)/data/bags/explorer_x1_opt_path_true_simple_cave_01_2021-06-01-11-30-55.bag"/>
+    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_true_simple_cave_01_2021-06-03-13-37-10.bag"/>
     <arg name="bag_rate" default="4.0"/>
     <arg name="bag_start" default="0.0"/>
     <arg name="pcl_msg_max_age" default="5.0"/>
@@ -44,9 +44,13 @@
     <!-- RQT plot -->
     <group if="$(arg rqt_plot)">
         <node name="rqt_plot_explor_losses" pkg="rqt_plot" type="rqt_plot"
-          args="$(arg robot)/map_eval/face_loss/data $(arg robot)/map_eval/edge_loss/data $(arg robot)/map_eval/chamfer_loss/data"/>
+          args="$(arg robot)/map_eval/exp_loss_face/data
+                $(arg robot)/map_eval/exp_loss_edge/data
+                $(arg robot)/map_eval/exp_loss_chamfer/data"/>
         <node name="rqt_plot_map_acc" pkg="rqt_plot" type="rqt_plot"
-          args="$(arg robot)/map_eval/map_accuracy_face/data $(arg robot)/map_eval/map_accuracy_edge/data $(arg robot)/map_eval/map_accuracy_chamfer/data"/>
+          args="$(arg robot)/map_eval/map_loss_face/data
+                $(arg robot)/map_eval/map_loss_edge/data
+                $(arg robot)/map_eval/map_loss_chamfer/data"/>
     </group>
 <!--    <node if="$(arg rqt_plot)" name="rqt_multiplot" pkg="rqt_multiplot" type="rqt_multiplot"-->
 <!--          args="&#45;&#45;multiplot-config $(dirname)/../config/rqt_multiplot_map_eval.xml"/>-->

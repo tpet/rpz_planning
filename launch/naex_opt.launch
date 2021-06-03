@@ -11,7 +11,9 @@
     <arg if="$(eval follow_opt_path==true)" name="path" default="optimized_path"/>
     <arg name="publish_ground_truth" default="true" />
     <arg name="record_mode" default="none"/>
-    <arg name="record_duration" default="120"/>
+    <arg name="record_duration" default="30m"/>
+    <arg name="debug_trajopt" default="false"/>
+    <arg name="trajopt_iters" default="25"/>
 
     <!-- Subt frame publisher-->
     <node name="subt_frame_publisher" pkg="subt_virtual" type="subt_frame_publisher">
@@ -26,10 +28,8 @@
     <!-- Navigation and Exploration with Trajectory Optimization -->
     <group ns="$(arg robot)">
         <include file="$(find naex)/launch/naex.launch" pass_all_args="true"/>
-        <group if="$(arg follow_opt_path)">
-            <include file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
-            <include file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true"/>
-        </group>
+        <include if="$(arg follow_opt_path)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
+        <include if="$(arg follow_opt_path)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true"/>
     </group>
 
     <!-- Data recording -->
@@ -40,6 +40,17 @@
                     /$(arg robot)/$(arg path)
                     /tf
                     /tf_static"/>
+
+<!--        <arg name="record_topics"-->
+<!--             value="/$(arg robot)/front_rgbd/optical/camera_info-->
+<!--                    /$(arg robot)/left_rgbd/optical/camera_info-->
+<!--                    /$(arg robot)/local_map_slow-->
+<!--                    /$(arg robot)/path-->
+<!--                    /$(arg robot)/rear_rgbd/optical/camera_info-->
+<!--                    /$(arg robot)/right_rgbd/optical/camera_info-->
+<!--                    /tf-->
+<!--                    /tf_static-->
+<!--                    /$(arg robot)/traversability"/>-->
 
         <node name="record_data" pkg="rosbag" type="record"
               args="-o $(find rpz_planning)/$(arg robot_type)_opt_path_$(arg follow_opt_path)

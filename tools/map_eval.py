@@ -45,13 +45,13 @@ class MapEval:
         self.max_age = rospy.get_param('~max_age', 1.0)
         self.rate = rospy.get_param('~eval_rate', 1.0)
         # exploration losses publishers
-        self.face_loss_pub = rospy.Publisher('~face_loss', Float64, queue_size=1)
-        self.edge_loss_pub = rospy.Publisher('~edge_loss', Float64, queue_size=1)
-        self.chamfer_loss_pub = rospy.Publisher('~chamfer_loss', Float64, queue_size=1)
+        self.face_loss_pub = rospy.Publisher('~exp_loss_face', Float64, queue_size=1)
+        self.edge_loss_pub = rospy.Publisher('~exp_loss_edge', Float64, queue_size=1)
+        self.chamfer_loss_pub = rospy.Publisher('~exp_loss_chamfer', Float64, queue_size=1)
         # mapping accuracy publishers
-        self.map_face_acc_pub = rospy.Publisher('~map_accuracy_face', Float64, queue_size=1)
-        self.map_edge_acc_pub = rospy.Publisher('~map_accuracy_edge', Float64, queue_size=1)
-        self.map_chamfer_acc_pub = rospy.Publisher('~map_accuracy_chamfer', Float64, queue_size=1)
+        self.map_face_acc_pub = rospy.Publisher('~map_loss_face', Float64, queue_size=1)
+        self.map_edge_acc_pub = rospy.Publisher('~map_loss_edge', Float64, queue_size=1)
+        self.map_chamfer_acc_pub = rospy.Publisher('~map_loss_chamfer', Float64, queue_size=1)
 
         t = timer()
         if self.do_eval:
