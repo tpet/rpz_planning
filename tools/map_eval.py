@@ -5,11 +5,11 @@ import torch
 from pytorch3d.io import load_obj, load_ply
 from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d.ops import sample_points_from_meshes
-from pcl_mesh_metrics import point_face_distance_truncated
-from pcl_mesh_metrics import point_edge_distance_truncated
-from pcl_mesh_metrics import face_point_distance_truncated
-from pcl_mesh_metrics import edge_point_distance_truncated
-from pcl_mesh_metrics import chamfer_distance_truncated
+from rpz_planning import point_face_distance_truncated
+from rpz_planning import point_edge_distance_truncated
+from rpz_planning import face_point_distance_truncated
+from rpz_planning import edge_point_distance_truncated
+from rpz_planning import chamfer_distance_truncated
 import rospy
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Float64
@@ -191,7 +191,9 @@ class MapEval:
             map_loss_edge = point_edge_distance_truncated(meshes=self.map_gt_mesh, pcls=point_cloud)
             map_loss_face = point_face_distance_truncated(meshes=self.map_gt_mesh, pcls=point_cloud)
             # - from points in cloud to nearest neighbours of points sampled from mesh:
-            map_loss_chamfer = chamfer_distance_truncated(x=map, y=self.map_gt)
+            map_loss_chamfer = chamfer_distance_truncated(x=map, y=self.map_gt,
+                                                          apply_point_reduction=True,
+                                                          batch_reduction='mean', point_reduction='mean')
             rospy.loginfo('Mapping accuracy evaluation took: %.3f s\n', timer() - t2)
 
         print('\n')

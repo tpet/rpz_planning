@@ -19,6 +19,7 @@
             path_step: 2
             linear_speed: 1.0
             angular_speed: 1.0
+            fixed_endpoints: ['start']
             device: cuda:0
             <!-- device: cpu -->
         </rosparam>

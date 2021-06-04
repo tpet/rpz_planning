@@ -4,10 +4,10 @@
     <arg name="world_name" default="simple_cave_01"/>
     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/$(arg world_name).obj"/>
     <arg name="rviz" default="true"/>
-    <arg name="rqt_plot" default="false"/>
+    <arg name="rqt_plot" default="true"/>
     <arg name="do_eval" default="true"/>
     <arg name="eval_rate" default="0.05"/> <!-- how often do mapping evaluation -->
-    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_true_simple_cave_01_2021-06-03-13-37-10.bag"/>
+    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_false_simple_cave_01_2021-05-28-08-28-28.bag"/>
     <arg name="bag_rate" default="4.0"/>
     <arg name="bag_start" default="0.0"/>
     <arg name="pcl_msg_max_age" default="5.0"/>

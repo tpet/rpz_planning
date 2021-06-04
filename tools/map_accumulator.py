@@ -14,11 +14,11 @@ import torch
 from pytorch3d.io import load_obj, load_ply
 from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d.ops import sample_points_from_meshes
-from pcl_mesh_metrics import point_face_distance_truncated
-from pcl_mesh_metrics import point_edge_distance_truncated
-from pcl_mesh_metrics import face_point_distance_truncated
-from pcl_mesh_metrics import edge_point_distance_truncated
-from pcl_mesh_metrics import chamfer_distance_truncated
+from rpz_planning import point_face_distance_truncated
+from rpz_planning import point_edge_distance_truncated
+from rpz_planning import face_point_distance_truncated
+from rpz_planning import edge_point_distance_truncated
+from rpz_planning import chamfer_distance_truncated
 import os
 
 

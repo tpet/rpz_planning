@@ -260,6 +260,7 @@ def chamfer_distance_truncated(
     y,
     x_lengths=None,
     y_lengths=None,
+    apply_point_reduction=True,
     batch_reduction: Union[str, None] = "mean",
     point_reduction: str = "mean",
 ):
@@ -277,14 +278,14 @@ def chamfer_distance_truncated(
             cloud in x.
         y_lengths: Optional LongTensor of shape (N,) giving the number of points in each
             cloud in x.
+        apply_point_reduction: Whether to apply points reduction. If set to True returns
+            one distance per batch (of shape (N, 1)). Otherwise, result size is equal to (N, P1).
         batch_reduction: Reduction operation to apply for the loss across the
             batch, can be one of ["mean", "sum"] or None.
         point_reduction: Reduction operation to apply for the loss across the
             points, can be one of ["mean", "sum"].
 
     Returns:
-        2-element tuple containing
-
         - **loss**: Tensor giving the reduced distance between the pointclouds
           in x and the pointclouds in y.
     """
@@ -309,17 +310,18 @@ def chamfer_distance_truncated(
     if is_x_heterogeneous:
         cham_x[x_mask] = 0.0
 
-    # Apply point reduction
-    cham_x = cham_x.sum(1)  # (N,)
+    if apply_point_reduction:
+        # Apply point reduction
+        cham_x = cham_x.sum(1)  # (N,)
 
-    if point_reduction == "mean":
-        cham_x /= x_lengths
+        if point_reduction == "mean":
+            cham_x /= x_lengths
 
-    if batch_reduction is not None:
-        # batch_reduction == "sum"
-        cham_x = cham_x.sum()
+        if batch_reduction is not None:
+            # batch_reduction == "sum"
+            cham_x = cham_x.sum()
 
-        if batch_reduction == "mean":
-            cham_x /= N
+            if batch_reduction == "mean":
+                cham_x /= N
 
     return cham_x

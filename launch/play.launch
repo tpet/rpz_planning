@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <launch>
     <arg name="robot" default="X1"/>
-    <arg name="robot_type" default="marv"/>
+    <arg name="robot_type" default="explorer_x1"/>
 <!--    <arg name="bag" default="$(find rpz_planning)/data/bags/trajopt_input/marv_2021-04-29-12-48-13.bag"/>-->
-    <arg name="bag" default="$(find rpz_planning)/data/bags/trajopt_input/explorer_x1_opt_path_false_2021-06-03-09-59-43.bag"/>
+    <arg name="bag" default="$(find rpz_planning)/data/bags/trajopt_input/explorer_x1_2021-06-03-09-59-43.bag"/>
     <arg name="rviz" default="true"/>
     <arg name="start" default="0.0"/>
     <arg name="rate" default="1.0"/>

@@ -12,6 +12,12 @@ import numpy as np
 import rospy
 from ros_numpy import msgify, numpify
 from rpz_planning import point_visibility
+try:
+    from rpz_planning import chamfer_distance_truncated
+    USE_PYTORCH3D = True
+except:
+    print('Pytorch3d is probably not installed')
+    USE_PYTORCH3D = False
 from sensor_msgs.msg import CameraInfo, PointCloud2, PointField
 from std_msgs.msg import ColorRGBA, Header
 from tf.transformations import euler_from_quaternion, quaternion_from_euler, euler_matrix
@@ -24,7 +30,6 @@ import torch.nn.functional as fun
 from visualization_msgs.msg import Marker, MarkerArray
 from collections import OrderedDict
 # from yacs.config import CfgNode
-
 
 # https://github.com/rbgirshick/yacs
 # cfg = CfgNode()
@@ -449,7 +454,7 @@ def smooth_rpz(rpz, sigma):
 @timing
 def interpolate_rpz(rpz_all, xyyaw, order=DimOrder.YAW_X_Y, wrap_yaw=True):
     # TODO: Interpolate roll, pitch, z for given x, y, yaw.
-    # TODO: https://pytorch.org/docs/master/nn.functional.html#grid-sampl
+    # TODO: https://pytorch.org/docs/master/generated/torch.nn.functional.grid_sample.html#torch.nn.functional.grid_sample
     # mode = 'bilinear' | 'nearest' | 'bicubic'
     # padding_mode = 'zeros' | 'border' | 'reflection'
     # Circular padding mode not supported.
@@ -512,6 +517,7 @@ def interpolate_rpz(rpz_all, xyyaw, order=DimOrder.YAW_X_Y, wrap_yaw=True):
 
     rpz_wrapped = rpz_wrapped[None]
     xyyaw_grid = xyyaw_grid[None, None, None]
+    assert torch.isnan(xyyaw_grid).any() == False
     rpz = fun.grid_sample(rpz_wrapped, xyyaw_grid,
                           padding_mode='border', align_corners=False)
     rpz = rpz[0, :, 0, 0, :].transpose(1, 0)
@@ -815,6 +821,36 @@ def compute_vis_mask(map, cam_to_map, param=2.0, voxel_size=0.6):
     assert len(visibilities_dict) <= n_poses
     assert vis_mask.shape == (n_poses, n_cams, n_pts)
     return vis_mask
+
+
+def select_pts_to_optimize(path_pts, rpz_cloud, map, dist_th=0.1):
+    assert isinstance(path_pts, torch.Tensor)
+    assert isinstance(map, torch.Tensor)
+    assert path_pts.ndim == 2
+    assert path_pts.shape[1] >= 3  # (P1, >=3)
+    assert map.ndim == 2
+    assert map.shape[1] >= 3  # (P2, >=3)
+    t0 = timer()
+    # check if path points are inside available rectangular traversability area
+    trav_mask = (path_pts[:, 0] > np.min(rpz_cloud['x'])) & (path_pts[:, 0] < np.max(rpz_cloud['x'])) & \
+                (path_pts[:, 1] > np.min(rpz_cloud['y'])) & (path_pts[:, 1] < np.max(rpz_cloud['y']))
+    if torch.sum(trav_mask) > 2:  # if there are at least two points of the path lying in traversable area
+        path_pts = path_pts[trav_mask, :]
+
+    # keep only points from the path that are reasonably close to local map points
+    path_pcl = path_pts[:, :3].unsqueeze(0)
+    map_pcl = map[:, :3].unsqueeze(0)
+    assert path_pcl.dim() == 3
+    assert map_pcl.dim() == 3
+    assert path_pcl.shape[0] == map_pcl.shape[0]
+    assert path_pcl.shape[2] == map_pcl.shape[2]  # (N, P1, D) and (N, P2, D)
+    path_map_dists = chamfer_distance_truncated(path_pcl, map_pcl, apply_point_reduction=False).squeeze()
+    map_mask = path_map_dists < dist_th
+    if torch.sum(map_mask) > 2:  # if there are at least two points that are close to local map
+        path_pts = path_pts[map_mask, :]
+
+    rospy.logdebug('Points to optimize selection took %s:.3f sec', timer() - t0)
+    return path_pts
 
 
 class RPZPlanner(object):
@@ -1315,7 +1351,6 @@ class RPZPlanner(object):
         n_pts = map.shape[-1]
 
         xyzrpy = path_msg_to_xyzrpy(msg)
-        assert torch.isnan(xyzrpy).sum() == 0
         assert xyzrpy.shape == (n_poses, 6)
 
         # TODO: Remove it from here.
@@ -1340,13 +1375,17 @@ class RPZPlanner(object):
         # For interpolation we'll have: rpz(to_grid(xyyaw)).
         # Optionally, offset z if needed.
 
+        if USE_PYTORCH3D:
+            xyzrpy = select_pts_to_optimize(xyzrpy, self.rpz_cloud, map.transpose(1, 0), dist_th=0.1)
+        n_poses = xyzrpy.shape[0]
+
         opt_i = slice(1 if 'start' in self.fixed_endpoints else None,
                       -1 if 'goal' in self.fixed_endpoints else None)
 
-        xy_opt = xyzrpy[opt_i, :2].detach()
-        xy_opt.requires_grad = True
         xy_start = xyzrpy[:1, :2].detach()
         xy_goal = xyzrpy[-1:, :2].detach()
+        xy_opt = xyzrpy[opt_i, :2].detach()
+        xy_opt.requires_grad = True
 
         optimizer = torch.optim.Adam([xy_opt], lr=0.05)
 
@@ -1379,11 +1418,30 @@ class RPZPlanner(object):
             elif self.order == DimOrder.YAW_X_Y:
                 xyyaw = torch.cat((yaw, xy), dim=-1)
 
+            assert xyyaw.shape == (n_poses, 3)
             xyyaw_grid = transform_xyyaw_tensor(map_to_grid, xyyaw, order=self.order)
             rpz = interpolate_rpz(rpz_all, xyyaw_grid, order=self.order)
 
+            # TODO: optimize only path part in available traversability area
+            if torch.isnan(rpz).any():
+                rospy.logwarn("Path contains NANs")
+                # nonan_mask = ~torch.isnan(rpz).view(-1, 3)
+                # rpz = rpz[nonan_mask].view(-1, 3)
+                # xyyaw = xyyaw[nonan_mask].view(-1, 3)
+                # n_poses = rpz.shape[0]
+
+                # msg_out = xyzrpy_to_path_msg(xyzrpy[:n_poses, :])
+                # msg_out.header = msg.header
+                # for p in msg_out.poses:
+                #     assert isinstance(p, PoseStamped)
+                #     p.header = msg.header
+                msg_out = msg
+                self.path_pub.publish(msg_out)
+                break
+
             # Transform z?
             assert rpz.shape == (n_poses, 3)
+            assert xyyaw.shape == (n_poses, 3)
             if self.order == DimOrder.X_Y_YAW:
                 # Fix yaw from XY.
                 xyzrpy = torch.cat((xyyaw[:, :2], rpz[:, 2:], rpz[:, :2], xyyaw[:, 2:]), dim=-1)
@@ -1392,12 +1450,6 @@ class RPZPlanner(object):
 
             # Get camera to map transforms.
             t = timer()
-            # TODO: find out why there are NANs in the path
-            if torch.isnan(xyzrpy).sum():
-                rospy.logwarn('Invalid optimized path, publishing initial one.')
-                self.path_pub.publish(msg)
-                continue
-            # assert torch.isnan(xyzrpy).sum() == 0
             robot_to_map = xyzrpy_matrix(xyzrpy)
             assert robot_to_map.shape == (n_poses, 4, 4)
             cam_to_map = robot_to_map[:, None].matmul(cam_to_robot[None])
