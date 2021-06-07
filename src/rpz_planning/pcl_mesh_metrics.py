@@ -9,7 +9,7 @@ from pytorch3d._C import point_face_dist_forward as point_face_distance
 from pytorch3d._C import point_edge_dist_forward as point_edge_distance
 import torch
 import torch.nn.functional as F
-from pytorch3d.ops.knn import knn_gather, knn_points
+from pytorch3d.ops.knn import knn_points
 
 
 def face_point_distance_truncated(meshes: Meshes, pcls: Pointclouds):
@@ -45,9 +45,9 @@ def face_point_distance_truncated(meshes: Meshes, pcls: Pointclouds):
     max_tris = meshes.num_faces_per_mesh().max().item()
 
     # face to point distance: shape (T,)
-    face_to_point, _ = face_point_distance(
+    face_to_point = face_point_distance(
         points, points_first_idx, tris, tris_first_idx, max_tris
-    )
+    )[0].sqrt()
 
     # weight each example by the inverse of number of faces in the example
     tri_to_mesh_idx = meshes.faces_packed_to_mesh_idx()  # (sum(T_n),)
@@ -94,9 +94,9 @@ def point_face_distance_truncated(meshes: Meshes, pcls: Pointclouds):
     tris_first_idx = meshes.mesh_to_faces_packed_first_idx()
 
     # point to face distance: shape (P,)
-    point_to_face, _ = point_face_distance(
+    point_to_face = point_face_distance(
         points, points_first_idx, tris, tris_first_idx, max_points
-    )
+    )[0].sqrt()
 
     # weight each example by the inverse of number of points in the example
     point_to_cloud_idx = pcls.packed_to_cloud_idx()  # (sum(P_i),)
@@ -141,9 +141,9 @@ def edge_point_distance_truncated(meshes: Meshes, pcls: Pointclouds):
     max_segms = meshes.num_edges_per_mesh().max().item()
 
     # edge to edge distance: shape (S,)
-    edge_to_point, _ = edge_point_distance(
+    edge_to_point = edge_point_distance(
         points, points_first_idx, segms, segms_first_idx, max_segms
-    )
+    )[0].sqrt()
 
     # weight each example by the inverse of number of edges in the example
     segm_to_mesh_idx = meshes.edges_packed_to_mesh_idx()  # (sum(S_n),)
@@ -189,9 +189,9 @@ def point_edge_distance_truncated(meshes: Meshes, pcls: Pointclouds):
     segms_first_idx = meshes.mesh_to_edges_packed_first_idx()
 
     # point to edge distance: shape (P,)
-    point_to_edge, _ = point_edge_distance(
+    point_to_edge = point_edge_distance(
         points, points_first_idx, segms, segms_first_idx, max_points
-    )
+    )[0].sqrt()
 
     # weight each example by the inverse of number of points in the example
     point_to_cloud_idx = pcls.packed_to_cloud_idx()  # (sum(P_i), )
@@ -305,7 +305,8 @@ def chamfer_distance_truncated(
 
     x_nn = knn_points(x, y, lengths1=x_lengths, lengths2=y_lengths, K=1)
 
-    cham_x = x_nn.dists[..., 0]  # (N, P1)
+    # knn_points returns squared distances
+    cham_x = x_nn.dists[..., 0].sqrt()  # (N, P1)
 
     if is_x_heterogeneous:
         cham_x[x_mask] = 0.0

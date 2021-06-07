@@ -41,6 +41,7 @@ class MapEval:
         self.normalize = rospy.get_param('~normalize_mesh_pcl', False)
         self.do_points_sampling = rospy.get_param('~do_points_sampling', False)
         self.do_eval = rospy.get_param('~do_eval', True)
+        self.load_gt = rospy.get_param('~load_gt', True)
         self.n_sample_points = rospy.get_param('~n_sample_points', 5000)
         self.max_age = rospy.get_param('~max_age', 1.0)
         self.rate = rospy.get_param('~eval_rate', 1.0)
@@ -54,7 +55,7 @@ class MapEval:
         self.map_chamfer_acc_pub = rospy.Publisher('~map_loss_chamfer', Float64, queue_size=1)
 
         t = timer()
-        if self.do_eval:
+        if self.load_gt:
             self.load_gt_mesh(path_to_obj)
             rospy.loginfo('Loading ground truth mesh took %.3f s', timer() - t)
         rospy.loginfo('Mapping evaluation node is ready')
@@ -64,7 +65,7 @@ class MapEval:
         # TODO: rewrite it as a server-client
         rospy.loginfo('Subscribing to map topic: %s', map_topic)
         self.map_sub = rospy.Subscriber(map_topic, PointCloud2, self.pc_callback)
-        self.run(n_points=self.n_sample_points)
+        self.run()
 
     @staticmethod
     def publish_pointcloud(points, topic_name, stamp, frame_id):
@@ -72,10 +73,9 @@ class MapEval:
         assert len(points.shape) == 2
         assert points.shape[0] == 3
         # create PointCloud2 msg
-        data = np.zeros(points.shape[1],
-                        dtype=[('x', np.float32),
-                               ('y', np.float32),
-                               ('z', np.float32)])
+        data = np.zeros(points.shape[1], dtype=[('x', np.float32),
+                                                ('y', np.float32),
+                                                ('z', np.float32)])
         data['x'] = points[0, ...]
         data['y'] = points[1, ...]
         data['z'] = points[2, ...]
@@ -85,7 +85,7 @@ class MapEval:
         pub = rospy.Publisher(topic_name, PointCloud2, queue_size=1)
         pub.publish(pc_msg)
 
-    def run(self, n_points=5000):
+    def run(self):
         if self.map_gt_mesh is not None:
             assert isinstance(self.map_gt_mesh, Meshes)
             rate = rospy.Rate(self.rate)
@@ -132,7 +132,10 @@ class MapEval:
 
         # We construct a Meshes structure for the target mesh
         self.map_gt_mesh = Meshes(verts=[gt_mesh_verts], faces=[gt_mesh_faces_idx]).to(self.device)
-        self.map_gt = sample_points_from_meshes(self.map_gt_mesh, self.n_sample_points).to(self.device)
+        if self.do_points_sampling:
+            self.map_gt = sample_points_from_meshes(self.map_gt_mesh, self.n_sample_points).to(self.device)
+        else:
+            self.map_gt = self.map_gt_mesh.verts_packed().to(self.device)
         rospy.logdebug(f'Loaded mesh with verts shape: {gt_mesh_verts.size()}')
 
     def pc_callback(self, pc_msg):
