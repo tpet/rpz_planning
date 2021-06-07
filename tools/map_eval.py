@@ -17,6 +17,7 @@ import numpy as np
 from ros_numpy import msgify, numpify
 import tf2_ros
 from timeit import default_timer as timer
+import xlwt
 # problems with Cryptodome: pip install pycryptodomex
 # https://github.com/DP-3T/reference_implementation/issues/1
 
@@ -42,6 +43,8 @@ class MapEval:
         self.do_points_sampling = rospy.get_param('~do_points_sampling', False)
         self.do_eval = rospy.get_param('~do_eval', True)
         self.load_gt = rospy.get_param('~load_gt', True)
+        self.record_metrics = rospy.get_param('~record_metrics', True)
+        self.xls_file = rospy.get_param('~metrics_xls_file', f'/tmp/mapping-eval_{timer()}.xls')
         self.n_sample_points = rospy.get_param('~n_sample_points', 5000)
         self.max_age = rospy.get_param('~max_age', 1.0)
         self.rate = rospy.get_param('~eval_rate', 1.0)
@@ -60,12 +63,26 @@ class MapEval:
             rospy.loginfo('Loading ground truth mesh took %.3f s', timer() - t)
         rospy.loginfo('Mapping evaluation node is ready')
 
+        # record and publish the metrics
+        if self.record_metrics:
+            self.wb = xlwt.Workbook()
+            self.ws_writer = self.wb.add_sheet(f"Exp_{timer()}".replace('.', '_'))
+            self.ws_writer.write(0, 0, 'Exploration Face loss')
+            self.ws_writer.write(0, 1, 'Exploration Edge loss')
+            self.ws_writer.write(0, 2, 'Exploration Chamfer loss')
+            self.ws_writer.write(0, 3, 'Map Face loss')
+            self.ws_writer.write(0, 4, 'Map Edge loss')
+            self.ws_writer.write(0, 5, 'Map Chamfer loss')
+            self.ws_writer.write(0, 6, 'Time stamp')
+            self.row_number = 1
+
         self.map_frame = rospy.get_param('~map_frame', 'subt')
         self.pc_msg = None
         # TODO: rewrite it as a server-client
         rospy.loginfo('Subscribing to map topic: %s', map_topic)
         self.map_sub = rospy.Subscriber(map_topic, PointCloud2, self.pc_callback)
         self.run()
+
 
     @staticmethod
     def publish_pointcloud(points, topic_name, stamp, frame_id):
@@ -149,7 +166,8 @@ class MapEval:
             return
         assert isinstance(self.pc_msg, PointCloud2)
         # Discard old messages.
-        age = (rospy.Time.now() - self.pc_msg.header.stamp).to_sec()
+        msg_stamp = rospy.Time.now()
+        age = (msg_stamp - self.pc_msg.header.stamp).to_sec()
         if age > self.max_age:
             rospy.logwarn('Discarding points %.1f s > %.1f s old.', age, self.max_age)
             return
@@ -198,6 +216,18 @@ class MapEval:
                                                           apply_point_reduction=True,
                                                           batch_reduction='mean', point_reduction='mean')
             rospy.loginfo('Mapping accuracy evaluation took: %.3f s\n', timer() - t2)
+
+        # record data
+        if self.record_metrics:
+            self.ws_writer.write(self.row_number, 0, f'{exp_loss_face.detach().cpu().numpy():.3f}')
+            self.ws_writer.write(self.row_number, 1, f'{exp_loss_edge.detach().cpu().numpy():.3f}')
+            self.ws_writer.write(self.row_number, 2, f'{exp_loss_chamfer.detach().cpu().numpy():.3f}')
+            self.ws_writer.write(self.row_number, 3, f'{map_loss_face.detach().cpu().numpy():.3f}')
+            self.ws_writer.write(self.row_number, 4, f'{map_loss_edge.detach().cpu().numpy():.3f}')
+            self.ws_writer.write(self.row_number, 5, f'{map_loss_chamfer.detach().cpu().numpy():.3f}')
+            self.ws_writer.write(self.row_number, 6, msg_stamp.to_sec())
+            self.row_number += 1
+            self.wb.save(self.xls_file)
 
         print('\n')
         rospy.loginfo(f'Exploration Edge loss: {exp_loss_edge.detach().cpu().numpy():.3f}')
