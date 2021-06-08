@@ -33,7 +33,8 @@
             do_points_sampling: True
             do_eval: $(arg do_eval)
             load_gt: $(arg load_gt)
-            n_sample_points: 1000
+            n_sample_points: 100000
+            coverage_dist_th: 1.0
             max_age: $(arg pcl_msg_max_age)
             map_frame: $(arg world_name)
 <!--            map_frame: subt-->

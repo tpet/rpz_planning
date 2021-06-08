@@ -5,6 +5,7 @@ import torch
 from pytorch3d.io import load_obj, load_ply
 from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d.ops import sample_points_from_meshes
+from pytorch3d.ops.knn import knn_points
 from rpz_planning import point_face_distance_truncated
 from rpz_planning import point_edge_distance_truncated
 from rpz_planning import face_point_distance_truncated
@@ -24,7 +25,7 @@ import xlwt
 
 class MapEval:
     """
-    This ROS node is simply subscribes to global map topic with PointCloud2 msgs
+    This ROS node subscribes to global map topic with PointCloud2 msgs
     and compares it to ground truth mesh of the simulated environment.
     Metrics for comparison are taken from here:
     https://pytorch3d.readthedocs.io/en/latest/modules/loss.html#pytorch3d.loss.point_mesh_edge_distance
@@ -45,13 +46,15 @@ class MapEval:
         self.load_gt = rospy.get_param('~load_gt', True)
         self.record_metrics = rospy.get_param('~record_metrics', True)
         self.xls_file = rospy.get_param('~metrics_xls_file', f'/tmp/mapping-eval_{timer()}.xls')
-        self.n_sample_points = rospy.get_param('~n_sample_points', 5000)
+        self.n_sample_points = rospy.get_param('~n_sample_points', 10000)
+        self.coverage_dist_th = rospy.get_param('~coverage_dist_th', 2.0)
         self.max_age = rospy.get_param('~max_age', 1.0)
         self.rate = rospy.get_param('~eval_rate', 1.0)
-        # exploration losses publishers
+        # exploration metrics publishers
         self.face_loss_pub = rospy.Publisher('~exp_loss_face', Float64, queue_size=1)
         self.edge_loss_pub = rospy.Publisher('~exp_loss_edge', Float64, queue_size=1)
         self.chamfer_loss_pub = rospy.Publisher('~exp_loss_chamfer', Float64, queue_size=1)
+        self.exp_compl_pub = rospy.Publisher('~exp_completeness', Float64, queue_size=1)
         # mapping accuracy publishers
         self.map_face_acc_pub = rospy.Publisher('~map_loss_face', Float64, queue_size=1)
         self.map_edge_acc_pub = rospy.Publisher('~map_loss_edge', Float64, queue_size=1)
@@ -76,6 +79,7 @@ class MapEval:
             self.ws_writer.write(0, 6, 'Time stamp')
             self.row_number = 1
 
+        # running the evaluation
         self.map_frame = rospy.get_param('~map_frame', 'subt')
         self.pc_msg = None
         # TODO: rewrite it as a server-client
@@ -88,14 +92,17 @@ class MapEval:
     def publish_pointcloud(points, topic_name, stamp, frame_id):
         assert isinstance(points, np.ndarray)
         assert len(points.shape) == 2
-        assert points.shape[0] == 3
+        assert points.shape[0] >= 3
         # create PointCloud2 msg
         data = np.zeros(points.shape[1], dtype=[('x', np.float32),
                                                 ('y', np.float32),
-                                                ('z', np.float32)])
+                                                ('z', np.float32),
+                                                ('coverage', np.float32)])
         data['x'] = points[0, ...]
         data['y'] = points[1, ...]
         data['z'] = points[2, ...]
+        if points.shape[0] > 3:
+            data['coverage'] = points[3, ...]
         pc_msg = msgify(PointCloud2, data)
         pc_msg.header.stamp = stamp
         pc_msg.header.frame_id = frame_id
@@ -108,15 +115,20 @@ class MapEval:
             rate = rospy.Rate(self.rate)
             while not rospy.is_shutdown():
                 # compare subscribed map point cloud to ground truth mesh
+                coverage_mask = None
                 if self.do_eval:
-                    self.eval()
+                    coverage_mask = self.eval(coverage_dist_th=self.coverage_dist_th)
 
                 # publish point cloud from ground truth mesh
-                if self.map_gt is not None:
-                    points_to_pub = self.map_gt.squeeze().cpu().numpy().transpose(1, 0)
+                if self.map_gt is not None:  # (1, N, 3)
+                    points = self.map_gt
+                    if coverage_mask is not None:
+                        assert coverage_mask.shape[:2] == self.map_gt.shape[:2]
+                        points = torch.cat([points, coverage_mask], dim=2)
 
                     # selecting default map frame if it is not available in ROS
                     map_frame = self.map_frame if self.map_frame is not None else 'subt'
+                    points_to_pub = points.squeeze().cpu().numpy().transpose(1, 0)
                     self.publish_pointcloud(points_to_pub,
                                             topic_name='~cloud_from_gt_mesh',
                                             stamp=rospy.Time.now(),
@@ -160,7 +172,7 @@ class MapEval:
         rospy.logdebug('Received point cloud message')
         self.pc_msg = pc_msg
 
-    def eval(self):
+    def eval(self, coverage_dist_th=1.0):
         if self.pc_msg is None:
             rospy.logwarn('No points received')
             return
@@ -203,6 +215,17 @@ class MapEval:
             # https://github.com/facebookresearch/pytorch3d/blob/fe39cc7b806afeabe64593e154bfee7b4153f76f/pytorch3d/csrc/utils/geometry_utils.h#L635
             exp_loss_face = face_point_distance_truncated(meshes=self.map_gt_mesh, pcls=point_cloud)
             exp_loss_chamfer = chamfer_distance_truncated(x=self.map_gt, y=map)
+            # coverage metric (exploration completeness)
+            # The metric is evaluated as the fraction of ground truth points considered as covered.
+            # A ground truth point is considered as covered if the nearest neighbour
+            map_nn = knn_points(p1=self.map_gt, p2=map,
+                                lengths1=torch.tensor(self.map_gt.shape[1])[None].to(self.device),
+                                lengths2=torch.tensor(map.shape[1])[None].to(self.device), K=1)
+            coverage_mask = torch.zeros_like(map_nn.dists).to(self.device)
+            coverage_mask[map_nn.dists.sqrt() < coverage_dist_th] = 1
+            assert coverage_mask.shape[:2] == self.map_gt.shape[:2]
+            exp_completeness = coverage_mask.sum() / self.map_gt.size()[1]
+            rospy.loginfo(f'Num covered points: {int(coverage_mask.sum())}/{self.map_gt.size()[1]}')
             t2 = timer()
             rospy.loginfo('Explored space evaluation took: %.3f s\n', t2 - t1)
 
@@ -233,6 +256,7 @@ class MapEval:
         rospy.loginfo(f'Exploration Edge loss: {exp_loss_edge.detach().cpu().numpy():.3f}')
         rospy.loginfo(f'Exploration Face loss: {exp_loss_face.detach().cpu().numpy():.3f}')
         rospy.loginfo(f'Exploration Chamfer loss: {exp_loss_chamfer.squeeze().detach().cpu().numpy():.3f}')
+        rospy.loginfo(f'Exploration completeness: {exp_completeness.detach().cpu().numpy()}')
         print('-'*30)
 
         print('\n')
@@ -245,10 +269,12 @@ class MapEval:
         self.face_loss_pub.publish(Float64(exp_loss_face.detach().cpu().numpy()))
         self.edge_loss_pub.publish(Float64(exp_loss_edge.detach().cpu().numpy()))
         self.chamfer_loss_pub.publish(Float64(exp_loss_chamfer.detach().cpu().numpy()))
+        self.exp_compl_pub.publish(Float64(exp_completeness.detach().cpu().numpy()))
 
         self.map_face_acc_pub.publish(Float64(map_loss_face.detach().cpu().numpy()))
         self.map_edge_acc_pub.publish(Float64(map_loss_edge.detach().cpu().numpy()))
         self.map_chamfer_acc_pub.publish(Float64(map_loss_chamfer.squeeze().detach().cpu().numpy()))
+        return coverage_mask
 
 
 if __name__ == '__main__':

@@ -327,10 +327,10 @@ Visualization Manager:
         Min Value: -2.8597970008850098
         Value: true
       Axis: Z
-      Channel Name: intensity
+      Channel Name: coverage
       Class: rviz/PointCloud2
       Color: 255; 255; 255
-      Color Transformer: FlatColor
+      Color Transformer: Intensity
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
