@@ -33,10 +33,10 @@
             do_points_sampling: True
             do_eval: $(arg do_eval)
             load_gt: $(arg load_gt)
-            n_sample_points: 100000
-            coverage_dist_th: 1.0
+            n_sample_points: 10000
+            coverage_dist_th: 0.5
             max_age: $(arg pcl_msg_max_age)
-            map_frame: $(arg world_name)
+            map_gt_frame: $(arg world_name)
 <!--            map_frame: subt-->
             eval_rate: $(arg eval_rate)
             record_metrics: False
@@ -57,6 +57,8 @@
           args="$(arg robot)/map_eval/map_loss_face/data
                 $(arg robot)/map_eval/map_loss_edge/data
                 $(arg robot)/map_eval/map_loss_chamfer/data"/>
+        <node name="rqt_plot_coverage" pkg="rqt_plot" type="rqt_plot"
+          args="$(arg robot)/map_eval/exp_completeness/data"/>
     </group>
 <!--    <node if="$(arg rqt_plot)" name="rqt_multiplot" pkg="rqt_multiplot" type="rqt_multiplot"-->
 <!--          args="&#45;&#45;multiplot-config $(dirname)/../config/rqt_multiplot_map_eval.xml"/>-->

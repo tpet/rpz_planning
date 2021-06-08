@@ -48,7 +48,7 @@ class MapAccumulator:
         self.do_eval = rospy.get_param('~do_eval', None)
         self.path_to_gt_mesh = rospy.get_param('~gt_mesh', None)
         rospy.Subscriber('local_map', PointCloud2, self.pc_callback)
-        rospy.loginfo('Map accumulator node is ready. You may need to heat Space for bagfile to start.')
+        rospy.loginfo('Map accumulator node is ready.')
 
     @staticmethod
     def load_ground_truth(path_to_mesh_file, n_sample_points=5000, device=torch.device("cuda:0")):
