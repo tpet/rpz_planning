@@ -7,6 +7,7 @@
     <arg name="rviz" default="true"/>
     <arg name="rqt_plot" default="false"/>
     <arg name="do_eval" default="true"/>
+    <arg name="do_metrics_record" default="false"/>
     <arg name="load_gt" default="true"/>
     <arg name="eval_rate" default="0.05"/> <!-- how often do mapping evaluation -->
     <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_false_simple_cave_02_2021-06-07-09-08-22.bag"/>
@@ -34,12 +35,12 @@
             do_eval: $(arg do_eval)
             load_gt: $(arg load_gt)
             n_sample_points: 10000
-            coverage_dist_th: 0.5
+            coverage_dist_th: 0.2
             max_age: $(arg pcl_msg_max_age)
             map_gt_frame: $(arg world_name)
 <!--            map_frame: subt-->
             eval_rate: $(arg eval_rate)
-            record_metrics: False
+            record_metrics: $(arg do_metrics_record)
             metrics_xls_file: $(arg metrics_xls_file)
         </rosparam>
     </node>

@@ -77,13 +77,14 @@ class MapEval:
         if self.record_metrics:
             self.wb = xlwt.Workbook()
             self.ws_writer = self.wb.add_sheet(f"Exp_{timer()}".replace('.', '_'))
-            self.ws_writer.write(0, 0, 'Exploration Face loss')
-            self.ws_writer.write(0, 1, 'Exploration Edge loss')
-            self.ws_writer.write(0, 2, 'Exploration Chamfer loss')
-            self.ws_writer.write(0, 3, 'Map Face loss')
-            self.ws_writer.write(0, 4, 'Map Edge loss')
-            self.ws_writer.write(0, 5, 'Map Chamfer loss')
-            self.ws_writer.write(0, 6, 'Time stamp')
+            self.ws_writer.write(0, 0, 'Time stamp')
+            self.ws_writer.write(0, 1, 'Exploration Face loss')
+            self.ws_writer.write(0, 2, 'Exploration Edge loss')
+            self.ws_writer.write(0, 3, 'Exploration Chamfer loss')
+            self.ws_writer.write(0, 4, 'Exploration completeness')
+            self.ws_writer.write(0, 5, 'Map Face loss')
+            self.ws_writer.write(0, 6, 'Map Edge loss')
+            self.ws_writer.write(0, 7, 'Map Chamfer loss')
             self.row_number = 1
 
         # running the evaluation
@@ -111,7 +112,6 @@ class MapEval:
         pub = rospy.Publisher(topic_name, PointCloud2, queue_size=1)
         pub.publish(pc_msg)
 
-    # TODO: rewrite it as a server-client
     def run(self):
         rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
@@ -119,14 +119,6 @@ class MapEval:
                 continue
 
             if self.map_gt is not None and self.map is not None:
-                # map = self.map.detach().cpu().numpy().squeeze(0).transpose(1, 0)
-                # assert len(map.shape) == 2
-                # assert map.shape[0] >= 3
-                # self.publish_pointcloud(map,
-                #                         topic_name='~map_in_gt_word_frame',
-                #                         stamp=rospy.Time.now(),
-                #                         frame_id=self.map_gt_frame)
-
                 # compare subscribed map point cloud to ground truth mesh
                 if self.do_eval:
                     self.coverage_mask = self.eval(map=self.map,
@@ -140,17 +132,17 @@ class MapEval:
                     assert self.coverage_mask.shape[:2] == self.map_gt.shape[:2]
                     points = torch.cat([points, self.coverage_mask], dim=2)
 
-                # selecting default map frame if it is not available in ROS
-                map_gt_frame = self.map_gt_frame if self.map_gt_frame is not None else 'subt'
-                points_to_pub = points.squeeze().cpu().numpy().transpose(1, 0)
-                assert len(points_to_pub.shape) == 2
-                assert points_to_pub.shape[0] >= 3
-                self.publish_pointcloud(points_to_pub,
-                                        topic_name='~cloud_from_gt_mesh',
-                                        stamp=rospy.Time.now(),
-                                        frame_id=map_gt_frame)
-                rospy.logdebug(f'Ground truth mesh frame: {map_gt_frame}')
-                rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
+                    # selecting default map frame if it is not available in ROS
+                    map_gt_frame = self.map_gt_frame if self.map_gt_frame is not None else 'subt'
+                    points_to_pub = points.squeeze().cpu().numpy().transpose(1, 0)
+                    assert len(points_to_pub.shape) == 2
+                    assert points_to_pub.shape[0] >= 3
+                    self.publish_pointcloud(points_to_pub,
+                                            topic_name='~cloud_from_gt_mesh',
+                                            stamp=rospy.Time.now(),
+                                            frame_id=map_gt_frame)
+                    rospy.logdebug(f'Ground truth mesh frame: {map_gt_frame}')
+                    rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
             rate.sleep()
 
     def load_gt_mesh(self, path_to_mesh_file):
@@ -246,7 +238,7 @@ class MapEval:
         # compare point cloud to mesh here
         with torch.no_grad():
             t1 = timer()
-            map_sampled = map
+            map_sampled = map.clone()
             if self.do_points_sampling:
                 if self.n_sample_points < map.shape[1]:
                     map_sampled = map[:, torch.randint(map.shape[1], (self.n_sample_points,)), :]
@@ -254,7 +246,7 @@ class MapEval:
 
             exp_loss_edge = edge_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
             # distance between mesh and points is computed as a distance from point to triangle
-            # if point's projection is inside triangle, then the distance is computed as along
+            # if point's projection is inside triangle, then the distance is computed along
             # a normal to triangular plane. Otherwise as a distance to closest edge of the triangle:
             # https://github.com/facebookresearch/pytorch3d/blob/fe39cc7b806afeabe64593e154bfee7b4153f76f/pytorch3d/csrc/utils/geometry_utils.h#L635
             exp_loss_face = face_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
@@ -290,13 +282,14 @@ class MapEval:
 
         # record data
         if self.record_metrics:
-            self.ws_writer.write(self.row_number, 0, f'{exp_loss_face.detach().cpu().numpy():.3f}')
-            self.ws_writer.write(self.row_number, 1, f'{exp_loss_edge.detach().cpu().numpy():.3f}')
-            self.ws_writer.write(self.row_number, 2, f'{exp_loss_chamfer.detach().cpu().numpy():.3f}')
-            self.ws_writer.write(self.row_number, 3, f'{map_loss_face.detach().cpu().numpy():.3f}')
-            self.ws_writer.write(self.row_number, 4, f'{map_loss_edge.detach().cpu().numpy():.3f}')
-            self.ws_writer.write(self.row_number, 5, f'{map_loss_chamfer.detach().cpu().numpy():.3f}')
-            self.ws_writer.write(self.row_number, 6, msg_stamp.to_sec())
+            self.ws_writer.write(self.row_number, 0, msg_stamp.to_sec())
+            self.ws_writer.write(self.row_number, 1, f'{exp_loss_face.detach().cpu().numpy():.3f}')
+            self.ws_writer.write(self.row_number, 2, f'{exp_loss_edge.detach().cpu().numpy():.3f}')
+            self.ws_writer.write(self.row_number, 3, f'{exp_loss_chamfer.detach().cpu().numpy():.3f}')
+            self.ws_writer.write(self.row_number, 4, f'{exp_completeness.detach().cpu().numpy():.3f}')
+            self.ws_writer.write(self.row_number, 5, f'{map_loss_face.detach().cpu().numpy():.3f}')
+            self.ws_writer.write(self.row_number, 6, f'{map_loss_edge.detach().cpu().numpy():.3f}')
+            self.ws_writer.write(self.row_number, 7, f'{map_loss_chamfer.detach().cpu().numpy():.3f}')
             self.row_number += 1
             self.wb.save(self.xls_file)
 
