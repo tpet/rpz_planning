@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <launch>
     <arg name="robot" default="X1"/>
-    <arg name="world_name" default="simple_cave_02"/>
+    <arg name="world_name" default="simple_cave_03"/>
     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/$(arg world_name).obj"/>
-    <arg name="metrics_xls_file" default="$(find rpz_planning)/data/results/$(arg world_name).xls"/>
+    <arg name="metrics_xls_file" default="$(find rpz_planning)/data/results/$(arg world_name)"/>
     <arg name="rviz" default="true"/>
     <arg name="rqt_plot" default="false"/>
     <arg name="do_eval" default="true"/>
     <arg name="do_metrics_record" default="false"/>
     <arg name="load_gt" default="true"/>
     <arg name="eval_rate" default="0.05"/> <!-- how often do mapping evaluation -->
-    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_false_simple_cave_02_2021-06-07-09-08-22.bag"/>
+    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_false_simple_cave_03_2021-06-10-12-57-23.bag"/>
     <arg name="bag_rate" default="4.0"/>
     <arg name="bag_start" default="0.0"/>
     <arg name="pcl_msg_max_age" default="5.0"/>

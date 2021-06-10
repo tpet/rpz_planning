@@ -45,7 +45,8 @@ class MapEval:
         self.do_eval = rospy.get_param('~do_eval', True)
         self.load_gt = rospy.get_param('~load_gt', True)
         self.record_metrics = rospy.get_param('~record_metrics', True)
-        self.xls_file = rospy.get_param('~metrics_xls_file', f'/tmp/mapping-eval_{timer()}.xls')
+        self.xls_file = rospy.get_param('~metrics_xls_file', f'/tmp/mapping-eval')
+        self.xls_file = f'{self.xls_file}_{timer()}.xls'
         self.n_sample_points = rospy.get_param('~n_sample_points', 10000)
         self.coverage_dist_th = rospy.get_param('~coverage_dist_th', 1.0)
         self.max_age = rospy.get_param('~max_age', 1.0)
