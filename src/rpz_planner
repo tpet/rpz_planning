@@ -1235,7 +1235,7 @@ class RPZPlanner(object):
 
     # def reward(self, xyzrpy, cam_to_robot, frustums):
 
-    def path_cost(self, xyzrpy, dist_weight=1.0, trav_weight=10.0, turn_weight=0.5):
+    def path_cost(self, xyzrpy, dist_weight=0.1, trav_weight=100.0, turn_weight=0.5):
         assert isinstance(xyzrpy, torch.Tensor)
         # (..., N, 6)
         assert xyzrpy.shape[-1] == 6

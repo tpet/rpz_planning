@@ -6,7 +6,7 @@ __pycache__
 
 data/
 # ROS bags
-*.bag
+*.bag*
 
 # meshes
 *.obj

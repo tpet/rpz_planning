@@ -31,32 +31,10 @@
         <include if="$(arg follow_opt_path)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
         <include if="$(arg follow_opt_path)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true"/>
     </group>
+
     <!-- Artifacts detector -->
     <include if="$(arg run_detector)" file="$(find rpz_planning)/launch/detector_x1.launch"/>
 
     <!-- Data recording -->
-    <group if="$(arg do_recording)">
-        <arg name="record_topics"
-             value="/$(arg robot)/local_map_slow
-                    /$(arg robot)/updated_map
-                    /$(arg robot)/$(arg path)
-                    /tf
-                    /tf_static"/>
-
-<!--        <arg name="record_topics"-->
-<!--             value="/$(arg robot)/front_rgbd/optical/camera_info-->
-<!--                    /$(arg robot)/left_rgbd/optical/camera_info-->
-<!--                    /$(arg robot)/local_map_slow-->
-<!--                    /$(arg robot)/path-->
-<!--                    /$(arg robot)/rear_rgbd/optical/camera_info-->
-<!--                    /$(arg robot)/right_rgbd/optical/camera_info-->
-<!--                    /tf-->
-<!--                    /tf_static-->
-<!--                    /$(arg robot)/traversability"/>-->
-
-        <node name="record_data" pkg="rosbag" type="record"
-              args="-o $(find rpz_planning)/$(arg robot_type)_opt_path_$(arg follow_opt_path)
-                    $(arg record_topics)
-                    --duration $(arg record_duration)"/>
-    </group>
+    <include if="$(arg do_recording)" file="$(find rpz_planning)/launch/record.launch" pass_all_args="true"/>
 </launch>
