@@ -5,7 +5,8 @@
     <arg name="robots" default="$(arg robot)"/>
     <arg name="points_min_dist" default="0.125"/>
     <arg name="cmd_vel" default="cmd_vel"/>
-    <arg name="follow_opt_path" default="true"/>
+    <arg name="follow_opt_path" default="false"/>
+    <arg name="run_detector" default="false"/>
     <arg name="do_recording" default="false"/>
     <arg if="$(eval follow_opt_path==false)" name="path" default="path"/>
     <arg if="$(eval follow_opt_path==true)" name="path" default="optimized_path"/>
@@ -30,6 +31,8 @@
         <include if="$(arg follow_opt_path)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
         <include if="$(arg follow_opt_path)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true"/>
     </group>
+    <!-- Artifacts detector -->
+    <include if="$(arg run_detector)" file="$(find rpz_planning)/launch/detector_x1.launch"/>
 
     <!-- Data recording -->
     <group if="$(arg do_recording)">

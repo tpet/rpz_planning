@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<launch>
+    <arg name="robot"/>
+    <arg name="robots" default="$(arg robot)"/>
+
+    <arg name="pc_topic" default="points_clean"/>
+    <arg name="pc_buffer_size" default="20"/>
+
+    <arg name="detector_config_path" default="$(find artifact_detection)/scripts/cfg/yolov3_9class.cfg" />
+    <arg name="detector_weights_path" default="$(find artifact_detection)/scripts/weights/best.pt" />
+
+    <arg name="num_cameras" default="0" />
+    <arg name="camera_0" default="" />
+    <arg name="camera_1" default="" />
+    <arg name="camera_2" default="" />
+    <arg name="camera_3" default="" />
+    <arg name="camera_4" default="" />
+    <arg name="camera_5" default="" />
+    <arg name="camera_6" default="" />
+    <arg name="camera_7" default="" />
+    <arg name="camera_8" default="" />
+    <arg name="camera_9" default="" />
+
+    <group ns="$(arg robot)">
+        <node name="artifact_detection" pkg="artifact_detection" type="detector_ugv.py" output="screen" respawn="true">
+            <param name="odom_frame" value="$(arg robot)/odom"/>
+            <param name="map_fast_frame" value="$(arg robot)/map"/>
+
+            <param name="cfg_path" value="$(arg detector_config_path)"/>
+            <param name="weights_path" value="$(arg detector_weights_path)"/>
+            <param name="conf_thres" value="0.30"/>
+            <param name="pc_buffer_size" value="$(arg pc_buffer_size)"/>
+
+            <param name="start_immediately" value="true"/>
+            <param name="max_image_age" value="1.0"/>
+
+            <param name="num_cameras" value="$(arg num_cameras)"/>
+            
+            <param name="camera_topic0"      if="$(eval 0 &lt; num_cameras)" value="$(arg camera_0)/image_raw/compressed"/>
+            <param name="camera_info_topic0" if="$(eval 0 &lt; num_cameras)" value="$(arg camera_0)/camera_info"/>
+            <param name="camera_topic1"      if="$(eval 1 &lt; num_cameras)" value="$(arg camera_1)/image_raw/compressed"/>
+            <param name="camera_info_topic1" if="$(eval 1 &lt; num_cameras)" value="$(arg camera_1)/camera_info"/>
+            <param name="camera_topic2"      if="$(eval 2 &lt; num_cameras)" value="$(arg camera_2)/image_raw/compressed"/>
+            <param name="camera_info_topic2" if="$(eval 2 &lt; num_cameras)" value="$(arg camera_2)/camera_info"/>
+            <param name="camera_topic3"      if="$(eval 3 &lt; num_cameras)" value="$(arg camera_3)/image_raw/compressed"/>
+            <param name="camera_info_topic3" if="$(eval 3 &lt; num_cameras)" value="$(arg camera_3)/camera_info"/>
+            <param name="camera_topic4"      if="$(eval 4 &lt; num_cameras)" value="$(arg camera_4)/image_raw/compressed"/>
+            <param name="camera_info_topic4" if="$(eval 4 &lt; num_cameras)" value="$(arg camera_4)/camera_info"/>
+            <param name="camera_topic5"      if="$(eval 5 &lt; num_cameras)" value="$(arg camera_5)/image_raw/compressed"/>
+            <param name="camera_info_topic5" if="$(eval 5 &lt; num_cameras)" value="$(arg camera_5)/camera_info"/>
+            <param name="camera_topic6"      if="$(eval 6 &lt; num_cameras)" value="$(arg camera_6)/image_raw/compressed"/>
+            <param name="camera_info_topic6" if="$(eval 6 &lt; num_cameras)" value="$(arg camera_6)/camera_info"/>
+            <param name="camera_topic7"      if="$(eval 7 &lt; num_cameras)" value="$(arg camera_7)/image_raw/compressed"/>
+            <param name="camera_info_topic7" if="$(eval 7 &lt; num_cameras)" value="$(arg camera_7)/camera_info"/>
+            <param name="camera_topic8"      if="$(eval 8 &lt; num_cameras)" value="$(arg camera_8)/image_raw/compressed"/>
+            <param name="camera_info_topic8" if="$(eval 8 &lt; num_cameras)" value="$(arg camera_8)/camera_info"/>
+            <param name="camera_topic9"      if="$(eval 9 &lt; num_cameras)" value="$(arg camera_9)/image_raw/compressed"/>
+            <param name="camera_info_topic9" if="$(eval 9 &lt; num_cameras)" value="$(arg camera_9)/camera_info"/>
+
+            <param name="pc_topic" value="$(arg pc_topic)"/>
+
+            <remap from="artifact_detections3D" to="artifact_detections3D"/>
+            <remap from="artifact_detections" to="artifact_detections"/>
+            <remap from="det_vec" to="~det_vec"/>
+            <remap from="artifact_detections_image" to="~artifact_detections_image"/>
+
+            <param name="robot" value="$(arg robot)" />
+            <param name="robots" value="$(arg robots)" />
+        </node>
+
+        <node name="detection_localization" pkg="nodelet" type="nodelet"
+              args="standalone detection_localize/LocalizeObjects" output="screen">
+            <param name="num_worker_threads" value="16"/>
+            <rosparam file="$(find detection_localize)/config/localization_params_common.yaml"/>
+            <rosparam file="$(find detection_localize)/config/localization_params_UGV.yaml"/>
+
+            <remap from="~detections" to="artifact_detections3D"/>
+            <remap from="~confirmed_hypotheses" to="confirmed_hypotheses"/>
+        </node>
+    </group>
+</launch>

@@ -61,6 +61,5 @@
         <node name="rqt_plot_coverage" pkg="rqt_plot" type="rqt_plot"
           args="$(arg robot)/map_eval/exp_completeness/data"/>
     </group>
-<!--    <node if="$(arg rqt_plot)" name="rqt_multiplot" pkg="rqt_multiplot" type="rqt_multiplot"-->
-<!--          args="&#45;&#45;multiplot-config $(dirname)/../config/rqt_multiplot_map_eval.xml"/>-->
+
 </launch>

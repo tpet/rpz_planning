@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<launch>
+
+    <arg name="robot" default="X1"/>
+    <arg name="robot_type" default="explorer_x1"/>
+    <arg name="robots" default="$(arg robot)"/>
+
+    <!-- remap cameras to compressed -->
+    <group ns="$(arg robot)">
+        <node name="camera_0_compressed" pkg="image_transport" type="republish" args="raw compressed">
+            <remap from="in" to="front_rgbd/optical/image_raw"/>
+            <remap from="out" to="front_rgbd/optical/image_raw"/>
+        </node>
+        <node name="camera_1_compressed" pkg="image_transport" type="republish" args="raw compressed">
+            <remap from="in" to="left_rgbd/optical/image_raw"/>
+            <remap from="out" to="left_rgbd/optical/image_raw"/>
+        </node>
+        <node name="camera_2_compressed" pkg="image_transport" type="republish" args="raw compressed">
+            <remap from="in" to="right_rgbd/optical/image_raw"/>
+            <remap from="out" to="right_rgbd/optical/image_raw"/>
+        </node>
+        <node name="camera_3_compressed" pkg="image_transport" type="republish" args="raw compressed">
+            <remap from="in" to="rear_rgbd/optical/image_raw"/>
+            <remap from="out" to="rear_rgbd/optical/image_raw"/>
+        </node>
+    </group>
+
+    <include file="$(dirname)/detector.launch">
+        <arg name="robot" value="$(arg robot)"/>
+        <arg name="robots" value="$(arg robots)"/>
+        <arg name="num_cameras" value="4" />
+        <arg name="camera_0" value="front_rgbd/optical" />
+        <arg name="camera_1" value="left_rgbd/optical" />
+        <arg name="camera_2" value="right_rgbd/optical" />
+        <arg name="camera_3" value="rear_rgbd/optical" />
+        <arg name="pc_topic" value="points_slow_filtered" />
+    </include>
+
+</launch>
