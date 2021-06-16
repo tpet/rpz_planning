@@ -102,7 +102,10 @@ class MapEval:
         self.map_sub = rospy.Subscriber(map_topic, PointCloud2, self.pc_callback)
 
     @staticmethod
-    def publish_pointcloud(points, topic_name, stamp, frame_id):
+    def publish_pointcloud(points, topic_name, stamp, frame_id, intensity='i'):
+        if points is None:
+            rospy.logwarn('Point cloud is None, not published')
+            return
         assert isinstance(points, np.ndarray)
         assert len(points.shape) == 2
         assert points.shape[0] >= 3
@@ -110,12 +113,12 @@ class MapEval:
         data = np.zeros(points.shape[1], dtype=[('x', np.float32),
                                                 ('y', np.float32),
                                                 ('z', np.float32),
-                                                ('coverage', np.float32)])
+                                                (intensity, np.float32)])
         data['x'] = points[0, ...]
         data['y'] = points[1, ...]
         data['z'] = points[2, ...]
         if points.shape[0] > 3:
-            data['coverage'] = points[3, ...]
+            data[intensity] = points[3, ...]
         pc_msg = msgify(PointCloud2, data)
         pc_msg.header.stamp = stamp
         pc_msg.header.frame_id = frame_id
@@ -214,11 +217,21 @@ class MapEval:
             T = numpify(transform.transform)
             R, t = T[:3, :3], T[:3, 3]
             cloud = np.matmul(R, cloud) + t.reshape([3, 1])
+            # add intensity value based on the artifact type
+            if 'backpack' in artifact_name:
+                intensity = 1
+            elif 'phone' in artifact_name:
+                intensity = 2
+            elif 'rescue_randy' in artifact_name:
+                intensity = 3
+            else:
+                intensity = -1
+            cloud = np.concatenate([cloud, intensity * np.ones([1, cloud.shape[1]])], axis=0)
             artifacts_cloud.append(cloud)
         artifacts_cloud_np = artifacts_cloud[0]
         for cloud in artifacts_cloud[1:]:
             artifacts_cloud_np = np.concatenate([artifacts_cloud_np, cloud], axis=1)
-        assert artifacts_cloud_np.shape[0] == 3
+        assert artifacts_cloud_np.shape[0] == 4
         return artifacts_cloud_np
 
     def pc_callback(self, pc_msg):
@@ -250,7 +263,7 @@ class MapEval:
         except tf2_ros.LookupException:
             rospy.logwarn('No transform between constructed map frame and its ground truth')
 
-    def eval(self, map, map_gt, map_gt_mesh, coverage_dist_th=1.0):
+    def evaluation(self, map, map_gt_cloud, map_gt_mesh, artifacts_gt_map, coverage_dist_th=1.0):
         # Discard old messages.
         msg_stamp = rospy.Time.now()
         age = (msg_stamp - self.pc_msg.header.stamp).to_sec()
@@ -259,7 +272,13 @@ class MapEval:
             return None
         assert isinstance(map, torch.Tensor)
         assert map.dim() == 3
-        assert map.size()[2] == 3  # (1, N, 3)
+        assert map.size()[2] == 3  # (1, N1, 3)
+        assert isinstance(map_gt_cloud, torch.Tensor)
+        assert map_gt_cloud.dim() == 3
+        assert map_gt_cloud.size()[2] == 3  # (1, N2, 3)
+        assert isinstance(artifacts_gt_map, torch.Tensor)
+        assert artifacts_gt_map.dim() == 3
+        assert artifacts_gt_map.size()[2] == 3  # (1, N3, 3)
         # compare point cloud to mesh here
         with torch.no_grad():
             t1 = timer()
@@ -275,19 +294,32 @@ class MapEval:
             # a normal to triangular plane. Otherwise as a distance to closest edge of the triangle:
             # https://github.com/facebookresearch/pytorch3d/blob/fe39cc7b806afeabe64593e154bfee7b4153f76f/pytorch3d/csrc/utils/geometry_utils.h#L635
             exp_loss_face = face_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
-            exp_loss_chamfer = chamfer_distance_truncated(x=map_gt, y=map)
+            exp_loss_chamfer = chamfer_distance_truncated(x=map_gt_cloud, y=map)
 
             # coverage metric (exploration completeness)
             # The metric is evaluated as the fraction of ground truth points considered as covered.
-            # A ground truth point is considered as covered if the nearest neighbour
-            map_nn = knn_points(p1=map_gt, p2=map,
-                                lengths1=torch.tensor(map_gt.shape[1])[None].to(self.device),
+            # A ground truth point is considered as covered if its nearest neighbour
+            # there is a point from the constructed map that is located within a distance threshold
+            # from the ground truth point.
+            map_nn = knn_points(p1=map_gt_cloud, p2=map,
+                                lengths1=torch.tensor(map_gt_cloud.shape[1])[None].to(self.device),
                                 lengths2=torch.tensor(map.shape[1])[None].to(self.device), K=1)
             coverage_mask = torch.zeros_like(map_nn.dists).to(self.device)
             coverage_mask[map_nn.dists.sqrt() < coverage_dist_th] = 1
             # print(map_nn.dists.sqrt().min(), map_nn.dists.sqrt().mean(), map_nn.dists.sqrt().max())
-            assert coverage_mask.shape[:2] == map_gt.shape[:2]
-            exp_completeness = coverage_mask.sum() / map_gt.size()[1]
+            assert coverage_mask.shape[:2] == map_gt_cloud.shape[:2]
+            exp_completeness = coverage_mask.sum() / map_gt_cloud.size()[1]
+
+            # number of artifacts points that are covered
+            map_nn = knn_points(p1=artifacts_gt_map, p2=map,
+                                lengths1=torch.tensor(artifacts_gt_map.shape[1])[None].to(self.device),
+                                lengths2=torch.tensor(map.shape[1])[None].to(self.device), K=1)
+            artifacts_coverage_mask = torch.zeros_like(map_nn.dists).to(self.device)
+            artifacts_coverage_mask[map_nn.dists.sqrt() < coverage_dist_th] = 1
+            # print(map_nn.dists.sqrt().min(), map_nn.dists.sqrt().mean(), map_nn.dists.sqrt().max())
+            assert artifacts_coverage_mask.shape[:2] == artifacts_gt_map.shape[:2]
+            artifacts_exp_completeness = artifacts_coverage_mask.sum() / artifacts_gt_map.size()[1]
+
             t2 = timer()
 
             rospy.logdebug('Explored space evaluation took: %.3f s\n', t2 - t1)
@@ -298,7 +330,7 @@ class MapEval:
             map_loss_edge = point_edge_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
             map_loss_face = point_face_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
             # - from points in cloud to nearest neighbours of points sampled from mesh:
-            map_loss_chamfer = chamfer_distance_truncated(x=map, y=map_gt,
+            map_loss_chamfer = chamfer_distance_truncated(x=map, y=map_gt_cloud,
                                                           apply_point_reduction=True,
                                                           batch_reduction='mean', point_reduction='mean')
             rospy.logdebug('Mapping accuracy evaluation took: %.3f s\n', timer() - t2)
@@ -322,7 +354,9 @@ class MapEval:
         rospy.loginfo(f'Exploration Face loss: {exp_loss_face.detach().cpu().numpy():.3f}')
         rospy.loginfo(f'Exploration Chamfer loss: {exp_loss_chamfer.squeeze().detach().cpu().numpy():.3f}')
         rospy.loginfo(f'Exploration completeness: {exp_completeness.detach().cpu().numpy()}')
-        rospy.loginfo(f'Num covered points: {int(coverage_mask.sum())}/{map_gt.size()[1]}')
+        rospy.loginfo(f'Num covered points: {int(coverage_mask.sum())}/{map_gt_cloud.size()[1]}')
+        rospy.loginfo(f'Artifacts exploration completeness: {artifacts_exp_completeness.detach().cpu().numpy()}')
+        rospy.loginfo(f'Num covered artifacts points: {int(artifacts_coverage_mask.sum())}/{artifacts_gt_map.size()[1]}')
         print('-'*30)
 
         print('\n')
@@ -347,18 +381,21 @@ class MapEval:
         while not rospy.is_shutdown():
             self.map_gt_mesh_marker.header.stamp = rospy.Time.now()
             self.world_mesh_pub.publish(self.map_gt_mesh_marker)
-            if self.artifacts_cloud is not None:
-                self.publish_pointcloud(self.artifacts_cloud, 'artifacts_cloud', rospy.Time(0), self.map_gt_frame)
+            self.publish_pointcloud(self.artifacts_cloud, 'artifacts_cloud', rospy.Time(0), self.map_gt_frame)
             if self.pc_msg is None:
+                rate.sleep()
                 continue
 
-            if self.map_gt is not None and self.map is not None:
+            if self.map_gt is not None and self.map is not None and self.artifacts_cloud is not None:
                 # compare subscribed map point cloud to ground truth mesh
                 if self.do_eval:
-                    self.coverage_mask = self.eval(map=self.map,
-                                                   map_gt=self.map_gt,
-                                                   map_gt_mesh=self.map_gt_mesh,
-                                                   coverage_dist_th=self.coverage_dist_th)
+                    assert self.artifacts_cloud.shape[0] == 4
+                    artifacts_cloud = torch.as_tensor(self.artifacts_cloud[:3, :], dtype=torch.float32).transpose(1, 0).unsqueeze(0).to(self.device)
+                    self.coverage_mask = self.evaluation(map=self.map,
+                                                         map_gt_cloud=self.map_gt,
+                                                         map_gt_mesh=self.map_gt_mesh,
+                                                         artifacts_gt_map=artifacts_cloud,
+                                                         coverage_dist_th=self.coverage_dist_th)
 
                 # publish point cloud from ground truth mesh
                 points = self.map_gt  # (1, N, 3)
@@ -374,7 +411,8 @@ class MapEval:
                     self.publish_pointcloud(points_to_pub,
                                             topic_name='~cloud_from_gt_mesh',
                                             stamp=rospy.Time.now(),
-                                            frame_id=map_gt_frame)
+                                            frame_id=map_gt_frame,
+                                            intensity='coverage')
                     rospy.logdebug(f'Ground truth mesh frame: {map_gt_frame}')
                     rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
             rate.sleep()
