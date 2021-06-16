@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import os
+import time
+
 import torch
 from pytorch3d.io import load_obj, load_ply
 from pytorch3d.structures import Meshes, Pointclouds
@@ -19,7 +21,9 @@ from ros_numpy import msgify, numpify
 import tf2_ros
 from timeit import default_timer as timer
 import xlwt
-from pyquaternion import Quaternion
+from visualization_msgs.msg import Marker
+import rospkg
+from scipy.spatial.transform import Rotation
 # problems with Cryptodome: pip install pycryptodomex
 # https://github.com/DP-3T/reference_implementation/issues/1
 
@@ -60,19 +64,24 @@ class MapEval:
         self.map_face_acc_pub = rospy.Publisher('~map_loss_face', Float64, queue_size=1)
         self.map_edge_acc_pub = rospy.Publisher('~map_loss_edge', Float64, queue_size=1)
         self.map_chamfer_acc_pub = rospy.Publisher('~map_loss_chamfer', Float64, queue_size=1)
+        # world ground truth publisher
+        self.world_mesh_pub = rospy.Publisher('/world_mesh', Marker, queue_size=1)
 
         self.map_gt_frame = rospy.get_param('~map_gt_frame', 'subt')
         self.map_gt_mesh = None
+        self.map_gt_mesh_marker = Marker()
+        self.artifacts_cloud = None
         self.map_gt = None
         self.pc_msg = None
         self.map_frame = None
         self.map = None
         self.coverage_mask = None
+
         # loading ground truth data
         t = timer()
         if self.load_gt:
-            self.load_gt_mesh(path_to_obj)
-            rospy.loginfo('Loading ground truth mesh took %.3f s', timer() - t)
+            self.load_ground_truth(path_to_obj)
+            rospy.loginfo('Loading ground truth took %.3f s', timer() - t)
 
         # record the metrics
         if self.record_metrics:
@@ -116,6 +125,10 @@ class MapEval:
     def run(self):
         rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
+            self.map_gt_mesh_marker.header.stamp = rospy.Time.now()
+            self.world_mesh_pub.publish(self.map_gt_mesh_marker)
+            if self.artifacts_cloud is not None:
+                self.publish_pointcloud(self.artifacts_cloud, 'artifacts_cloud', rospy.Time(0), self.map_gt_frame)
             if self.pc_msg is None:
                 continue
 
@@ -146,7 +159,7 @@ class MapEval:
                     rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
             rate.sleep()
 
-    def load_gt_mesh(self, path_to_mesh_file):
+    def load_ground_truth(self, path_to_mesh_file):
         assert os.path.exists(path_to_mesh_file)
         if '.obj' in path_to_mesh_file:
             gt_mesh_verts, faces, _ = load_obj(path_to_mesh_file)
@@ -176,21 +189,74 @@ class MapEval:
             self.map_gt = self.map_gt_mesh.verts_packed().to(self.device)
         rospy.loginfo(f'Loaded mesh with verts shape: {gt_mesh_verts.size()}')
 
-    @staticmethod
-    def transform_cloud(points, trans, quat):
-        """
-        Transform points (3 x N) from robot frame into a pinhole camera frame
-        """
-        assert isinstance(points, np.ndarray)
-        assert isinstance(trans, np.ndarray)
-        assert isinstance(quat, Quaternion)
-        assert len(points.shape) == 2
-        assert points.shape[0] == 3
-        assert trans.shape == (3, 1)
-        points = points - trans
-        R_inv = np.asarray(quat.normalised.inverse.rotation_matrix, dtype=np.float32)
-        points = np.matmul(R_inv, points)
-        return points
+        # visualization Marker of gt mesh
+        marker = Marker()
+        marker.header.frame_id = self.map_gt_frame
+        marker.header.stamp = rospy.Time.now()
+        marker.ns = "artifacts_ns"
+        marker.id = 0
+        marker.action = Marker.ADD
+        marker.pose.position.x = 0
+        marker.pose.position.y = 0
+        marker.pose.position.z = 0
+        r = np.array([[ 0., 0., 1.],
+                      [-1., 0., 0.],
+                      [ 0., -1., 0.]])
+        q = Rotation.from_matrix(r).as_quat()
+        marker.pose.orientation.x = q[0]
+        marker.pose.orientation.y = q[1]
+        marker.pose.orientation.z = q[2]
+        marker.pose.orientation.w = q[3]
+        marker.scale.x = 1
+        marker.scale.y = 1
+        marker.scale.z = 1
+        marker.color.a = 0.2
+        marker.color.r = 0
+        marker.color.g = 1
+        marker.color.b = 0
+        marker.type = Marker.MESH_RESOURCE
+        marker.mesh_resource = f"package://rpz_planning/data/meshes/{self.map_gt_frame}.dae"
+        self.map_gt_mesh_marker = marker
+        # get the artifacts point cloud
+        self.artifacts_cloud = self.get_artifacts_cloud()
+
+    def get_artifacts_cloud(self, artifacts=None):
+        time.sleep(2)  # let the tf node load
+        # TODO: get artifacts list from tf tree
+        if artifacts is None:
+            artifacts = ['backpack_1', 'backpack_2', 'backpack_3', 'backpack_4',
+                         'phone_1', 'phone_2', 'phone_3', 'phone_4',
+                         'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'rescue_randy_4']
+        artifacts_cloud = []
+        for i, artifact_name in enumerate(artifacts):
+            try:
+                artifact_frame = artifact_name
+                transform = self.tf.lookup_transform(self.map_gt_frame, artifact_frame, rospy.Time(0))
+            except tf2_ros.LookupException:
+                rospy.logwarn('Ground truth artifacts poses are not yet available')
+                return
+
+            # create artifacts point cloud here from their meshes
+            verts, faces, _ = load_obj(os.path.join(rospkg.RosPack().get_path('rpz_planning'),
+                                                    f"data/meshes/artifacts/{artifact_name[:-2]}.obj"))
+            # mesh = Meshes(verts=[verts], faces=[faces.verts_idx]).to(self.device)
+            # cloud = sample_points_from_meshes(mesh, 1000).squeeze(0).to(self.device)
+            cloud = verts.cpu().numpy().transpose(1, 0)
+            # TODO: correct coordinates mismatch in Blender (swap here X and Y)
+            R = np.array([[0., 1., 0.],
+                          [-1., 0., 0.],
+                          [0., 0., 1.]])
+            cloud = np.matmul(R, cloud)
+            # transform point cloud to global world frame
+            T = numpify(transform.transform)
+            R, t = T[:3, :3], T[:3, 3]
+            cloud = np.matmul(R, cloud) + t.reshape([3, 1])
+            artifacts_cloud.append(cloud)
+        artifacts_cloud_np = artifacts_cloud[0]
+        for cloud in artifacts_cloud[1:]:
+            artifacts_cloud_np = np.concatenate([artifacts_cloud_np, cloud], axis=1)
+        assert artifacts_cloud_np.shape[0] == 3
+        return artifacts_cloud_np
 
     def pc_callback(self, pc_msg):
         assert isinstance(pc_msg, PointCloud2)
@@ -200,13 +266,6 @@ class MapEval:
         try:
             t0 = timer()
             transform = self.tf.lookup_transform(self.map_frame, self.map_gt_frame, rospy.Time(0))
-            translation = np.array([transform.transform.translation.x,
-                                    transform.transform.translation.y,
-                                    transform.transform.translation.z]).reshape([3, 1])
-            quat = Quaternion(x=transform.transform.rotation.x,
-                              y=transform.transform.rotation.y,
-                              z=transform.transform.rotation.z,
-                              w=transform.transform.rotation.w)
             map_np = numpify(self.pc_msg)
             # remove inf points
             mask = np.isfinite(map_np['x']) & np.isfinite(map_np['y']) & np.isfinite(map_np['z'])
@@ -217,14 +276,16 @@ class MapEval:
             map[0, ...] = map_np['x']
             map[1, ...] = map_np['y']
             map[2, ...] = map_np['z']
-            map = self.transform_cloud(map, translation, quat).transpose(1, 0)
+            T = numpify(transform.transform)
+            R, t = T[:3, :3], T[:3, 3]
+            map = np.matmul(R, map) + t.reshape([3, 1])
 
-            self.map = torch.as_tensor(map, dtype=torch.float32).unsqueeze(0).to(self.device)
+            self.map = torch.as_tensor(map.transpose(1, 0), dtype=torch.float32).unsqueeze(0).to(self.device)
             assert self.map.dim() == 3
             assert self.map.size()[2] == 3
             rospy.logdebug('Point cloud conversion took: %.3f s', timer() - t0)
         except tf2_ros.LookupException:
-            rospy.logwarn('No transform between estimated robot pose and its ground truth')
+            rospy.logwarn('No transform between constructed map frame and its ground truth')
 
     def eval(self, map, map_gt, map_gt_mesh, coverage_dist_th=1.0):
         # Discard old messages.
@@ -264,7 +325,6 @@ class MapEval:
             # print(map_nn.dists.sqrt().min(), map_nn.dists.sqrt().mean(), map_nn.dists.sqrt().max())
             assert coverage_mask.shape[:2] == map_gt.shape[:2]
             exp_completeness = coverage_mask.sum() / map_gt.size()[1]
-            rospy.loginfo(f'Num covered points: {int(coverage_mask.sum())}/{map_gt.size()[1]}')
             t2 = timer()
 
             rospy.logdebug('Explored space evaluation took: %.3f s\n', t2 - t1)
@@ -299,6 +359,7 @@ class MapEval:
         rospy.loginfo(f'Exploration Face loss: {exp_loss_face.detach().cpu().numpy():.3f}')
         rospy.loginfo(f'Exploration Chamfer loss: {exp_loss_chamfer.squeeze().detach().cpu().numpy():.3f}')
         rospy.loginfo(f'Exploration completeness: {exp_completeness.detach().cpu().numpy()}')
+        rospy.loginfo(f'Num covered points: {int(coverage_mask.sum())}/{map_gt.size()[1]}')
         print('-'*30)
 
         print('\n')

@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 
 from typing import Union
+import torch
 
 from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d._C import face_point_dist_forward as face_point_distance
 from pytorch3d._C import edge_point_dist_forward as edge_point_distance
 from pytorch3d._C import point_face_dist_forward as point_face_distance
 from pytorch3d._C import point_edge_dist_forward as point_edge_distance
-import torch
-import torch.nn.functional as F
 from pytorch3d.ops.knn import knn_points
 
 

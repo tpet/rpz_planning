@@ -9,7 +9,7 @@ argv = argv[argv.index("--") + 1:]
 
 input_file = argv[0]
 output_file = argv[1]
-axis_up = argv[2].upper() if len(argv) > 2 else 'Z'
+axis_up = argv[2].upper() if len(argv) > 2 else 'Y'
 
 print('Input file:', input_file)
 print('Output file:', output_file)

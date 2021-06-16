@@ -1235,7 +1235,7 @@ class RPZPlanner(object):
 
     # def reward(self, xyzrpy, cam_to_robot, frustums):
 
-    def path_cost(self, xyzrpy, dist_weight=0.1, trav_weight=100.0, turn_weight=0.5):
+    def path_cost(self, xyzrpy, dist_weight=0.1, trav_weight=150.0, turn_weight=0.5):
         assert isinstance(xyzrpy, torch.Tensor)
         # (..., N, 6)
         assert xyzrpy.shape[-1] == 6
@@ -1268,7 +1268,7 @@ class RPZPlanner(object):
         turn_cost *= turn_weight
         trav_cost *= trav_weight
         cost = dist_cost + turn_cost + trav_cost
-        rospy.logdebug('Path cost %.1f (dist. %.1f, turning %.1f, trav.: %.3f).',
+        rospy.loginfo('Path cost %.1f (dist. %.3f, turning %.3f, trav.: %.3f).',
                        cost.item(), dist_cost.item(), turn_cost.item(), trav_cost.item())
         return cost
 

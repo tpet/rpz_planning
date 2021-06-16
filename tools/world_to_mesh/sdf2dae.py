@@ -170,60 +170,30 @@ def parse_sdf(model_name):
     return meshes
 
 
-def parse_world(world_path):
-    root = ET.parse(world_path).getroot()
-
+def parse_model(model_name):
+    extracted_meshes = parse_sdf(model_name)
+    pose = [0, 0, 0, 0, 0, 0]
+    scale = [1, 1, 1]
     meshes = []
-    model_names = []
-    for node in tqdm(root.findall('world/include')):
-        uri = node.find('uri').text
-        name = node.find('name').text if node.find('name') is not None else ''
-        pose = node.find('pose').text if node.find('pose') is not None else '0 0 0 0 0 0'
-        pose = [float(a) for a in filter(lambda a: bool(a), pose.split(' '))]
-        scale = node.find('scale').text if node.find('scale') is not None else '1 1 1'
-        scale = [float(a) for a in filter(lambda a: bool(a), scale.split(' '))]
+    
+    for mesh in extracted_meshes:
+        for i, node in enumerate(mesh.scene.nodes):
+            if node.id is not None:
+                parent = collada.scene.Node('parent__' + node.id, children=[node])
 
-        # Hardcode exceptions
-        if uri in ['model://sun', 'model://ground_plane', 'model://asphalt_plane']:
-            continue
+                T = pose_to_matrix(pose)
 
-        model_name = uri[8:]
-        if 'fuel' in uri:
-            model_name = model_name[find_character_in_string(model_name, '/')[-1] + 1:]
-        if model_name[-1] == ' ':
-            model_name = model_name[:-1]
+                parent.transforms.append(collada.scene.MatrixTransform(T.flatten()))
+                parent.transforms.append(collada.scene.ScaleTransform(scale[0], scale[1], scale[2]))
+                mesh.scene.nodes[i] = parent
+            else:
+                print("Couldn't find transform between parent and child nodes:", model_name)
 
-        model_names.append(model_name)
+    meshes.extend(extracted_meshes)
 
-    # print(np.unique(model_names).tolist())
-    # return
-
-        # if sys.argv[2] in model_name:
-        extracted_meshes = parse_sdf(model_name)
-
-        for mesh in extracted_meshes:
-            for i, node in enumerate(mesh.scene.nodes):
-                if node.id is not None:
-                    parent = collada.scene.Node('parent__' + node.id, children=[node])
-                    # # TODO: remove this stupid code
-                    new_pose = deepcopy(pose)
-                    new_pose[:3] = np.asarray(new_pose)[:3] * 100.
-                    T = pose_to_matrix(new_pose)
-                    # T = pose_to_matrix(pose)
-                    # print()
-                    # print('*' * 30)
-                    # print(model_name, new_pose[:3])
-                    parent.transforms.append(collada.scene.MatrixTransform(T.flatten()))
-                    parent.transforms.append(collada.scene.ScaleTransform(scale[0], scale[1], scale[2]))
-                    mesh.scene.nodes[i] = parent
-                else:
-                    print("Couldn't find transform between parent and child nodes:", model_name)
-
-        meshes.extend(extracted_meshes)
-
-        # meshes.extend(generate_ground_plane())
-        # output = merge_meshes(meshes)
-        # output.write(f'./meshes/{sys.argv[2]}.dae')
+    # meshes.extend(generate_ground_plane())
+    # output = merge_meshes(meshes)
+    # output.write(f'./meshes/{sys.argv[2]}.dae')
     return merge_meshes(meshes)
 
 
@@ -250,7 +220,7 @@ def merge_meshes(meshes):
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
-        print('Usage: python merge_dae.py <input.world> <output.dae>')
+        print('Usage: python sdf2dae.py <model_name> <output.dae>')
         exit()
 
     models_path = [
@@ -260,5 +230,5 @@ if __name__ == '__main__':
 
     # parse_world(sys.argv[1])
 
-    output = parse_world(sys.argv[1])
+    output = parse_model(sys.argv[1])
     output.write(sys.argv[2])

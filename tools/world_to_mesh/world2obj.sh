@@ -30,5 +30,5 @@ rm /tmp/file.dae /tmp/file.obj
 python3 ${__dir}/world2dae.py $in /tmp/file.dae $axis_up
 
 # Convert from Collada .dae to .obj using Blender
-blender --background --python ${__dir}/blend_convert_to_obj.py -- /tmp/file.dae $out $axis_up
+blender --background --python ${__dir}/dae_to_obj.py -- /tmp/file.dae $out $axis_up
 
