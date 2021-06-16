@@ -122,43 +122,6 @@ class MapEval:
         pub = rospy.Publisher(topic_name, PointCloud2, queue_size=1)
         pub.publish(pc_msg)
 
-    def run(self):
-        rate = rospy.Rate(self.rate)
-        while not rospy.is_shutdown():
-            self.map_gt_mesh_marker.header.stamp = rospy.Time.now()
-            self.world_mesh_pub.publish(self.map_gt_mesh_marker)
-            if self.artifacts_cloud is not None:
-                self.publish_pointcloud(self.artifacts_cloud, 'artifacts_cloud', rospy.Time(0), self.map_gt_frame)
-            if self.pc_msg is None:
-                continue
-
-            if self.map_gt is not None and self.map is not None:
-                # compare subscribed map point cloud to ground truth mesh
-                if self.do_eval:
-                    self.coverage_mask = self.eval(map=self.map,
-                                                   map_gt=self.map_gt,
-                                                   map_gt_mesh=self.map_gt_mesh,
-                                                   coverage_dist_th=self.coverage_dist_th)
-
-                # publish point cloud from ground truth mesh
-                points = self.map_gt  # (1, N, 3)
-                if self.coverage_mask is not None:
-                    assert self.coverage_mask.shape[:2] == self.map_gt.shape[:2]
-                    points = torch.cat([points, self.coverage_mask], dim=2)
-
-                    # selecting default map frame if it is not available in ROS
-                    map_gt_frame = self.map_gt_frame if self.map_gt_frame is not None else 'subt'
-                    points_to_pub = points.squeeze().cpu().numpy().transpose(1, 0)
-                    assert len(points_to_pub.shape) == 2
-                    assert points_to_pub.shape[0] >= 3
-                    self.publish_pointcloud(points_to_pub,
-                                            topic_name='~cloud_from_gt_mesh',
-                                            stamp=rospy.Time.now(),
-                                            frame_id=map_gt_frame)
-                    rospy.logdebug(f'Ground truth mesh frame: {map_gt_frame}')
-                    rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
-            rate.sleep()
-
     def load_ground_truth(self, path_to_mesh_file):
         assert os.path.exists(path_to_mesh_file)
         if '.obj' in path_to_mesh_file:
@@ -265,7 +228,7 @@ class MapEval:
         self.map_frame = pc_msg.header.frame_id
         try:
             t0 = timer()
-            transform = self.tf.lookup_transform(self.map_frame, self.map_gt_frame, rospy.Time(0))
+            transform = self.tf.lookup_transform(self.map_gt_frame, self.map_frame, rospy.Time(0))
             map_np = numpify(self.pc_msg)
             # remove inf points
             mask = np.isfinite(map_np['x']) & np.isfinite(map_np['y']) & np.isfinite(map_np['z'])
@@ -378,6 +341,43 @@ class MapEval:
         self.map_edge_acc_pub.publish(Float64(map_loss_edge.detach().cpu().numpy()))
         self.map_chamfer_acc_pub.publish(Float64(map_loss_chamfer.squeeze().detach().cpu().numpy()))
         return coverage_mask
+
+    def run(self):
+        rate = rospy.Rate(self.rate)
+        while not rospy.is_shutdown():
+            self.map_gt_mesh_marker.header.stamp = rospy.Time.now()
+            self.world_mesh_pub.publish(self.map_gt_mesh_marker)
+            if self.artifacts_cloud is not None:
+                self.publish_pointcloud(self.artifacts_cloud, 'artifacts_cloud', rospy.Time(0), self.map_gt_frame)
+            if self.pc_msg is None:
+                continue
+
+            if self.map_gt is not None and self.map is not None:
+                # compare subscribed map point cloud to ground truth mesh
+                if self.do_eval:
+                    self.coverage_mask = self.eval(map=self.map,
+                                                   map_gt=self.map_gt,
+                                                   map_gt_mesh=self.map_gt_mesh,
+                                                   coverage_dist_th=self.coverage_dist_th)
+
+                # publish point cloud from ground truth mesh
+                points = self.map_gt  # (1, N, 3)
+                if self.coverage_mask is not None:
+                    assert self.coverage_mask.shape[:2] == self.map_gt.shape[:2]
+                    points = torch.cat([points, self.coverage_mask], dim=2)
+
+                    # selecting default map frame if it is not available in ROS
+                    map_gt_frame = self.map_gt_frame if self.map_gt_frame is not None else 'subt'
+                    points_to_pub = points.squeeze().cpu().numpy().transpose(1, 0)
+                    assert len(points_to_pub.shape) == 2
+                    assert points_to_pub.shape[0] >= 3
+                    self.publish_pointcloud(points_to_pub,
+                                            topic_name='~cloud_from_gt_mesh',
+                                            stamp=rospy.Time.now(),
+                                            frame_id=map_gt_frame)
+                    rospy.logdebug(f'Ground truth mesh frame: {map_gt_frame}')
+                    rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
+            rate.sleep()
 
 
 if __name__ == '__main__':
