@@ -12,6 +12,7 @@ from pytorch3d.ops.knn import knn_points
 
 
 def face_point_distance_truncated(meshes: Meshes, pcls: Pointclouds):
+    # TODO: potential bug
     """
     `face_point_distance_truncated(mesh, pcl)`: Computes the squared distance of each triangular face in
         mesh to the closest point in pcl and averages across all faces in mesh.
@@ -109,6 +110,7 @@ def point_face_distance_truncated(meshes: Meshes, pcls: Pointclouds):
 
 
 def edge_point_distance_truncated(meshes: Meshes, pcls: Pointclouds):
+    # TODO: potential bug
     """
     `edge_point_distance_truncated(mesh, pcl)`: Computes the squared distance of each edge segment in mesh
         to the closest point in pcl and averages across all edges in mesh.

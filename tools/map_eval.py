@@ -19,7 +19,7 @@ from std_msgs.msg import Float64
 import numpy as np
 from ros_numpy import msgify, numpify
 import tf2_ros
-import tf
+import trimesh
 from timeit import default_timer as timer
 import xlwt
 from visualization_msgs.msg import Marker
@@ -45,13 +45,14 @@ class MapEval:
         else:
             self.device = torch.device("cpu")
         # parameters
-        self.do_points_sampling = rospy.get_param('~do_points_sampling', True)
+        self.do_points_sampling_from_mesh = rospy.get_param('~do_points_sampling_from_mesh', True)
+        self.do_points_sampling_from_map = rospy.get_param('~do_points_sampling_from_map', True)
+        self.n_sample_points = rospy.get_param('~n_sample_points', 10000)
         self.do_eval = rospy.get_param('~do_eval', True)
         self.load_gt = rospy.get_param('~load_gt', True)
         self.record_metrics = rospy.get_param('~record_metrics', True)
         self.xls_file = rospy.get_param('~metrics_xls_file', f'/tmp/mapping-eval')
         self.xls_file = f'{self.xls_file}_{timer()}.xls'
-        self.n_sample_points = rospy.get_param('~n_sample_points', 10000)
         self.coverage_dist_th = rospy.get_param('~coverage_dist_th', 0.2)
         self.artifacts_coverage_dist_th = rospy.get_param('~artifacts_coverage_dist_th', 0.1)
         self.max_age = rospy.get_param('~max_age', 1.0)
@@ -61,6 +62,7 @@ class MapEval:
         self.edge_loss_pub = rospy.Publisher('~exp_loss_edge', Float64, queue_size=1)
         self.chamfer_loss_pub = rospy.Publisher('~exp_loss_chamfer', Float64, queue_size=1)
         self.exp_compl_pub = rospy.Publisher('~exp_completeness', Float64, queue_size=1)
+        self.artif_exp_compl_pub = rospy.Publisher('~artifacts_exp_completeness', Float64, queue_size=1)
         # mapping accuracy publishers
         self.map_face_acc_pub = rospy.Publisher('~map_loss_face', Float64, queue_size=1)
         self.map_edge_acc_pub = rospy.Publisher('~map_loss_edge', Float64, queue_size=1)
@@ -70,6 +72,7 @@ class MapEval:
 
         self.map_gt_frame = rospy.get_param('~map_gt_frame', 'subt')
         self.map_gt_mesh = None
+        self.map_gt_trimesh = None  # mesh loaded with trimesh library
         self.map_gt_mesh_marker = Marker()
         self.artifacts_cloud = None
         self.artifacts_cloud_merged = None
@@ -133,8 +136,10 @@ class MapEval:
         if '.obj' in path_to_mesh_file:
             gt_mesh_verts, faces, _ = load_obj(path_to_mesh_file)
             gt_mesh_faces_idx = faces.verts_idx
+            # self.map_gt_trimesh = trimesh.load(path_to_mesh_file)
         elif '.ply' in path_to_mesh_file:
             gt_mesh_verts, gt_mesh_faces_idx = load_ply(path_to_mesh_file)
+            # self.map_gt_trimesh = trimesh.load(path_to_mesh_file)
         else:
             rospy.logerr('Supported mesh formats are *.obj or *.ply')
             return
@@ -152,7 +157,7 @@ class MapEval:
 
         # We construct a Meshes structure for the target mesh
         self.map_gt_mesh = Meshes(verts=[gt_mesh_verts], faces=[gt_mesh_faces_idx]).to(self.device)
-        if self.do_points_sampling:
+        if self.do_points_sampling_from_mesh:
             self.map_gt = sample_points_from_meshes(self.map_gt_mesh, self.n_sample_points)
         else:
             self.map_gt = gt_mesh_verts.unsqueeze(0)
@@ -307,7 +312,7 @@ class MapEval:
         with torch.no_grad():
             t1 = timer()
             map_sampled = map.clone()
-            if self.do_points_sampling:
+            if self.do_points_sampling_from_map:
                 if self.n_sample_points < map.shape[1]:
                     map_sampled = map[:, torch.randint(map.shape[1], (self.n_sample_points,)), :]
             point_cloud = Pointclouds(map_sampled).to(self.device)
@@ -318,6 +323,8 @@ class MapEval:
             # a normal to triangular plane. Otherwise as a distance to closest edge of the triangle:
             # https://github.com/facebookresearch/pytorch3d/blob/fe39cc7b806afeabe64593e154bfee7b4153f76f/pytorch3d/csrc/utils/geometry_utils.h#L635
             exp_loss_face = face_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
+            # exp_loss_face_trimesh = self.map_gt_trimesh.nearest.on_surface(map_sampled.squeeze().detach().cpu())[1].mean()
+            # rospy.loginfo(f'Trimesh Exploration Face loss: {exp_loss_face_trimesh:.3f}')
             exp_loss_chamfer = chamfer_distance_truncated(x=map_gt_cloud, y=map)
 
             # coverage metric (exploration completeness)
@@ -398,6 +405,7 @@ class MapEval:
         self.edge_loss_pub.publish(Float64(exp_loss_edge.detach().cpu().numpy()))
         self.chamfer_loss_pub.publish(Float64(exp_loss_chamfer.detach().cpu().numpy()))
         self.exp_compl_pub.publish(Float64(exp_completeness.detach().cpu().numpy()))
+        self.artif_exp_compl_pub.publish(Float64(artifacts_exp_completeness))
 
         self.map_face_acc_pub.publish(Float64(map_loss_face.detach().cpu().numpy()))
         self.map_edge_acc_pub.publish(Float64(map_loss_edge.detach().cpu().numpy()))

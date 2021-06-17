@@ -29,20 +29,21 @@
     <!-- Mapping evaluation -->
     <node ns="$(arg robot)" name="map_eval" pkg="rpz_planning" type="map_eval.py" output="screen">
         <rosparam subst_value="true">
-            map_topic: map_accumulator/map
-            gt_mesh: $(arg gt_mesh_file)
-            do_points_sampling: True
-            do_eval: $(arg do_eval)
-            load_gt: $(arg load_gt)
-            n_sample_points: 10000
-            coverage_dist_th: 0.5
-            artifacts_coverage_dist_th: 0.1
-            max_age: $(arg pcl_msg_max_age)
-            map_gt_frame: $(arg world_name)
+            map_topic: map_accumulator/map  <!-- Point cloud map constructed during exploration -->
+            gt_mesh: $(arg gt_mesh_file) <!-- Path to .obj or .ply ground truth mesh file of the world -->
+            do_points_sampling_from_mesh: True <!-- Whether to use points sampling method from mesh (True) or use mesh vertices (False) -->
+            do_points_sampling_from_map: True <!-- Whether to subsample constructed map before metrics computation -->
+            n_sample_points: 10000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
+            do_eval: $(arg do_eval) <!-- Whether to run evaluation function or just see the constructed map -->
+            load_gt: $(arg load_gt) <!-- Whether to load ground truth mesh of the environment -->
+            coverage_dist_th: 0.5 <!-- Threshold value [m]: defines if a world mesh point is considered covered -->
+            artifacts_coverage_dist_th: 0.1 <!-- Threshold value [m]: defines if an artifact mesh point is considered covered -->
+            max_age: $(arg pcl_msg_max_age) <!-- Constructed map point cloud msg timestamp threshold: it wouldn't be processed if dt > age -->
+            map_gt_frame: $(arg world_name) <!-- Ground truth world mesh frame: usually it is the same as world name in Subt simulator -->
 <!--            map_frame: subt-->
-            eval_rate: $(arg eval_rate)
-            record_metrics: $(arg do_metrics_record)
-            metrics_xls_file: $(arg metrics_xls_file)
+            eval_rate: $(arg eval_rate) <!-- How frequent to perform evaluation -->
+            record_metrics: $(arg do_metrics_record) <!-- Whether to record obtained metrics to .xls file -->
+            metrics_xls_file: $(arg metrics_xls_file) <!-- Path to metrics .xls file -->
         </rosparam>
     </node>
 
@@ -61,7 +62,8 @@
                 $(arg robot)/map_eval/map_loss_edge/data
                 $(arg robot)/map_eval/map_loss_chamfer/data"/>
         <node name="rqt_plot_coverage" pkg="rqt_plot" type="rqt_plot"
-          args="$(arg robot)/map_eval/exp_completeness/data"/>
+          args="$(arg robot)/map_eval/exp_completeness/data
+                $(arg robot)/map_eval/artifacts_exp_completeness/data"/>
     </group>
 
 </launch>
