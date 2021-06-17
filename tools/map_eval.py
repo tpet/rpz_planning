@@ -19,6 +19,7 @@ from std_msgs.msg import Float64
 import numpy as np
 from ros_numpy import msgify, numpify
 import tf2_ros
+import tf
 from timeit import default_timer as timer
 import xlwt
 from visualization_msgs.msg import Marker
@@ -78,10 +79,8 @@ class MapEval:
         self.coverage_mask = None
 
         # loading ground truth data
-        t = timer()
         if self.load_gt:
             self.load_ground_truth(path_to_obj)
-            rospy.loginfo('Loading ground truth took %.3f s', timer() - t)
 
         # record the metrics
         if self.record_metrics:
@@ -97,7 +96,7 @@ class MapEval:
             self.ws_writer.write(0, 7, 'Map Chamfer loss')
             self.row_number = 1
 
-        # running the evaluation
+        # obtaining the constructed map
         rospy.loginfo('Subscribing to map topic: %s', map_topic)
         self.map_sub = rospy.Subscriber(map_topic, PointCloud2, self.pc_callback)
 
@@ -127,6 +126,8 @@ class MapEval:
 
     def load_ground_truth(self, path_to_mesh_file):
         assert os.path.exists(path_to_mesh_file)
+        t0 = timer()
+        rospy.loginfo('Loading ground truth mesh ...')
         if '.obj' in path_to_mesh_file:
             gt_mesh_verts, faces, _ = load_obj(path_to_mesh_file)
             gt_mesh_faces_idx = faces.verts_idx
@@ -153,7 +154,7 @@ class MapEval:
             self.map_gt = sample_points_from_meshes(self.map_gt_mesh, self.n_sample_points).to(self.device)
         else:
             self.map_gt = self.map_gt_mesh.verts_packed().to(self.device)
-        rospy.loginfo(f'Loaded mesh with verts shape: {gt_mesh_verts.size()}')
+        rospy.loginfo(f'Loaded mesh with verts shape: {gt_mesh_verts.size()} in {(timer() - t0):.3f} [sec]')
 
         # visualization Marker of gt mesh
         marker = Marker()
@@ -186,21 +187,34 @@ class MapEval:
         # get the artifacts point cloud
         self.artifacts_cloud = self.get_artifacts_cloud()
 
-    def get_artifacts_cloud(self, artifacts=None):
-        time.sleep(2)  # let the tf node load
-        # TODO: get artifacts list from tf tree
-        if artifacts is None:
-            artifacts = ['backpack_1', 'backpack_2', 'backpack_3', 'backpack_4',
-                         'phone_1', 'phone_2', 'phone_3', 'phone_4',
-                         'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'rescue_randy_4']
+    def get_artifacts_cloud(self, frames_lookup_time=10.0):
+        # get artifacts list from tf tree
+        all_frames = []
+        artifact_frames = []
+        artifact_names = ['backpack', 'black_and_decker_cordless_drill',
+                          'climbing_helmet_with_light.mtl', 'climbing_rope', 'fire_extinguisher',
+                          'gas', 'phone', 'rescue_randy']
+        t0 = timer()
+        rospy.loginfo('Looking for artifacts ...')
+        while len(artifact_frames) == 0 and (timer() - t0) < frames_lookup_time:
+            all_frames = self.tf._getFrameStrings()
+            for frame in all_frames:
+                for name in artifact_names:
+                    if name in frame:
+                        artifact_frames.append(frame)
+        rospy.logdebug('Found TF frames: %s', all_frames)
+        rospy.loginfo('Found Artifacts TF frames in %.3f [sec]: %s', (timer() - t0), artifact_frames)
+        # artifact_frames = ['backpack_1', 'backpack_2', 'backpack_3', 'backpack_4',
+        #              'phone_1', 'phone_2', 'phone_3', 'phone_4',
+        #              'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'rescue_randy_4']
         artifacts_cloud = []
-        for i, artifact_name in enumerate(artifacts):
+        for i, artifact_name in enumerate(artifact_frames):
             try:
                 artifact_frame = artifact_name
                 transform = self.tf.lookup_transform(self.map_gt_frame, artifact_frame, rospy.Time(0))
             except tf2_ros.LookupException:
-                rospy.logwarn('Ground truth artifacts poses are not yet available')
-                return
+                rospy.logwarn('Ground truth artifacts poses are not available')
+                return None
 
             # create artifacts point cloud here from their meshes
             verts, faces, _ = load_obj(os.path.join(rospkg.RosPack().get_path('rpz_planning'),
@@ -310,6 +324,7 @@ class MapEval:
             assert coverage_mask.shape[:2] == map_gt_cloud.shape[:2]
             exp_completeness = coverage_mask.sum() / map_gt_cloud.size()[1]
 
+            # TODO: modify it to compute the same metric for each individual artifact
             # number of artifacts points that are covered
             map_nn = knn_points(p1=artifacts_gt_map, p2=map,
                                 lengths1=torch.tensor(artifacts_gt_map.shape[1])[None].to(self.device),
@@ -321,7 +336,6 @@ class MapEval:
             artifacts_exp_completeness = artifacts_coverage_mask.sum() / artifacts_gt_map.size()[1]
 
             t2 = timer()
-
             rospy.logdebug('Explored space evaluation took: %.3f s\n', t2 - t1)
 
             # `exp_loss_face`, `exp_loss_edge` and `exp_loss_chamfer` describe exploration progress
