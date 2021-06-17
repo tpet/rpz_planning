@@ -2,7 +2,7 @@
 
 <launch>
     <arg name="robot" default="X1"/>
-    <arg name="world_name" default="simple_cave_03"/>
+    <arg name="world_name" default="simple_cave_01"/>
     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/$(arg world_name).obj"/>
     <arg name="metrics_xls_file" default="$(find rpz_planning)/data/results/$(arg world_name)"/>
     <arg name="rviz" default="true"/>
@@ -10,11 +10,11 @@
     <arg name="do_eval" default="true"/>
     <arg name="do_metrics_record" default="false"/>
     <arg name="load_gt" default="true"/>
-    <arg name="eval_rate" default="0.05"/> <!-- how often do mapping evaluation -->
-    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_false_simple_cave_03_2021-06-10-12-57-23.bag"/>
+    <arg name="eval_rate" default="0.03"/> <!-- how often do mapping evaluation -->
+    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_false_simple_cave_01_2021-06-09-19-42-16.bag"/>
     <arg name="bag_rate" default="4.0"/>
     <arg name="bag_start" default="0.0"/>
-    <arg name="pcl_msg_max_age" default="10.0"/>
+    <arg name="pcl_msg_max_age" default="30.0"/>
 
     <param name="use_sim_time" value="true" />
 
@@ -31,12 +31,12 @@
         <rosparam subst_value="true">
             map_topic: map_accumulator/map
             gt_mesh: $(arg gt_mesh_file)
-            normalize_mesh_pcl: False
             do_points_sampling: True
             do_eval: $(arg do_eval)
             load_gt: $(arg load_gt)
             n_sample_points: 10000
-            coverage_dist_th: 0.2
+            coverage_dist_th: 0.5
+            artifacts_coverage_dist_th: 0.1
             max_age: $(arg pcl_msg_max_age)
             map_gt_frame: $(arg world_name)
 <!--            map_frame: subt-->
