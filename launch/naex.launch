@@ -21,16 +21,18 @@
     </node>
 
     <!-- Robot ground truth frame publisher-->
-    <node if="$(arg publish_ground_truth)" name="ground_truth_publisher" pkg="subt_virtual" type="ground_truth_publisher">
+    <node name="ground_truth_publisher" pkg="subt_virtual" type="ground_truth_publisher">
         <param name="robot_name" value="$(arg robot)" />
     </node>
 
-    <!-- Navigation and Exploration with Trajectory Optimization -->
+    <!-- Navigation and Exploration -->
     <group ns="$(arg robot)">
         <include file="$(find naex)/launch/naex.launch" pass_all_args="true"/>
         <include if="$(arg follow_opt_path)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
         <include if="$(arg follow_opt_path)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true"/>
     </group>
+    <!-- Odometry -->
+    <include file="$(find subt_virtual)/launch/ekf_odom.launch" pass_all_args="true"/>
 
     <!-- Artifacts detector -->
     <include if="$(arg run_detector)" file="$(find rpz_planning)/launch/detector_x1.launch"/>

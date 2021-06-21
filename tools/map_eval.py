@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import os
-import time
 
 import torch
 from pytorch3d.io import load_obj, load_ply
@@ -14,7 +13,7 @@ from rpz_planning import face_point_distance_truncated
 from rpz_planning import edge_point_distance_truncated
 from rpz_planning import chamfer_distance_truncated
 import rospy
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import PointCloud2, PointCloud
 from std_msgs.msg import Float64
 import numpy as np
 from ros_numpy import msgify, numpify
@@ -55,6 +54,8 @@ class MapEval:
         self.xls_file = f'{self.xls_file}_{timer()}.xls'
         self.coverage_dist_th = rospy.get_param('~coverage_dist_th', 0.2)
         self.artifacts_coverage_dist_th = rospy.get_param('~artifacts_coverage_dist_th', 0.1)
+        self.artifacts_hypothesis_topic = rospy.get_param('~artifacts_hypothesis_topic',
+                                                          'detection_localization/dbg_confirmed_hypotheses_pcl')
         self.max_age = rospy.get_param('~max_age', 1.0)
         self.rate = rospy.get_param('~eval_rate', 1.0)
         # exploration metrics publishers
@@ -67,20 +68,24 @@ class MapEval:
         self.map_face_acc_pub = rospy.Publisher('~map_loss_face', Float64, queue_size=1)
         self.map_edge_acc_pub = rospy.Publisher('~map_loss_edge', Float64, queue_size=1)
         self.map_chamfer_acc_pub = rospy.Publisher('~map_loss_chamfer', Float64, queue_size=1)
-        # world ground truth publisher
+        # artifacts detections score publisher
+        self.dets_score_pub = rospy.Publisher('~detections_score', Float64, queue_size=1)
+        self.artifacts_names = ["rescue_randy", "phone", "backpack", "drill", "extinguisher",
+                                "vent", "helmet", "rope", "cube"]
+        # world ground truth mesh publisher
         self.world_mesh_pub = rospy.Publisher('/world_mesh', Marker, queue_size=1)
 
         self.map_gt_frame = rospy.get_param('~map_gt_frame', 'subt')
         self.map_gt_mesh = None
         self.map_gt_trimesh = None  # mesh loaded with trimesh library
         self.map_gt_mesh_marker = Marker()
-        self.artifacts_cloud = None
-        self.artifacts_cloud_merged = None
+        self.artifacts = {'poses': None, 'classes': None, 'clouds': None, 'cloud_merged': None}
         self.map_gt = None
         self.pc_msg = None
         self.map_frame = None
         self.map = None
         self.coverage_mask = None
+        self.detections = {'poses': None, 'classes': None}
 
         # loading ground truth data
         if self.load_gt:
@@ -103,7 +108,9 @@ class MapEval:
 
         # obtaining the constructed map
         rospy.loginfo('Subscribing to map topic: %s', map_topic)
-        self.map_sub = rospy.Subscriber(map_topic, PointCloud2, self.get_constructed_map)
+        rospy.Subscriber(map_topic, PointCloud2, self.get_constructed_map)
+        # subscribing to localized detection results for evaluation
+        rospy.Subscriber(self.artifacts_hypothesis_topic, PointCloud, self.get_detections)
 
     @staticmethod
     def publish_pointcloud(points, topic_name, stamp, frame_id, intensity='i'):
@@ -194,9 +201,9 @@ class MapEval:
         marker.mesh_resource = f"package://rpz_planning/data/meshes/{self.map_gt_frame}.dae"
         self.map_gt_mesh_marker = marker
         # get the artifacts point cloud
-        self.artifacts_cloud, self.artifacts_cloud_merged = self.get_artifacts_cloud()
+        self.artifacts = self.get_artifacts()
 
-    def get_artifacts_cloud(self, frames_lookup_time=10.0):
+    def get_artifacts(self, frames_lookup_time=10.0):
         # get artifacts list from tf tree
         all_frames = []
         artifact_frames = []
@@ -216,7 +223,7 @@ class MapEval:
         # artifact_frames = ['backpack_1', 'backpack_2', 'backpack_3', 'backpack_4',
         #              'phone_1', 'phone_2', 'phone_3', 'phone_4',
         #              'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'rescue_randy_4']
-        artifacts_cloud = {}
+        artifacts = {'poses': [], 'classes': [], 'clouds': [], 'cloud_merged': None}
         artifacts_cloud_merged = []
         for i, artifact_name in enumerate(artifact_frames):
             try:
@@ -224,7 +231,7 @@ class MapEval:
                 transform = self.tf.lookup_transform(self.map_gt_frame, artifact_frame, rospy.Time(0))
             except tf2_ros.LookupException:
                 rospy.logwarn('Ground truth artifacts poses are not available')
-                return None, None
+                return artifacts
 
             # create artifacts point cloud here from their meshes
             verts, faces, _ = load_obj(os.path.join(rospkg.RosPack().get_path('rpz_planning'),
@@ -252,12 +259,15 @@ class MapEval:
                 intensity = -1
             cloud = np.concatenate([cloud, intensity * np.ones([1, cloud.shape[1]])], axis=0)
             artifacts_cloud_merged.append(cloud)
-            artifacts_cloud[artifact_name] = torch.as_tensor(cloud.transpose([1, 0]), dtype=torch.float32).unsqueeze(0).to(self.device)
+            artifacts['classes'].append(artifact_name[:-2])  # without _n at the end of the name
+            artifacts['poses'].append(t)
+            artifacts['clouds'].append(torch.as_tensor(cloud.transpose([1, 0]), dtype=torch.float32).unsqueeze(0).to(self.device))
         artifacts_cloud_merged_np = artifacts_cloud_merged[0]
         for cloud in artifacts_cloud_merged[1:]:
             artifacts_cloud_merged_np = np.concatenate([artifacts_cloud_merged_np, cloud], axis=1)
         assert artifacts_cloud_merged_np.shape[0] == 4
-        return artifacts_cloud, artifacts_cloud_merged_np
+        artifacts['cloud_merged'] = artifacts_cloud_merged_np
+        return artifacts
 
     def get_constructed_map(self, pc_msg):
         assert isinstance(pc_msg, PointCloud2)
@@ -288,7 +298,39 @@ class MapEval:
         except tf2_ros.LookupException:
             rospy.logwarn('No transform between constructed map frame and its ground truth')
 
-    def evaluation(self, map, map_gt_cloud, map_gt_mesh, artifacts_gt_map,
+    def get_detections(self, pc_msg):
+        assert isinstance(pc_msg, PointCloud)
+        poses = []
+        for p in pc_msg.points:
+            poses.append(np.array([p.x, p.y, p.z]))
+        self.detections['poses'] = np.array(poses)
+        class_numbers = pc_msg.channels[-1].values  # most probable class values
+        # convert numbers to names
+        self.detections['classes'] = [self.artifacts_names[int(n)] for n in class_numbers]
+
+    def evaluate_detections(self, preds, gts, dist_th=1.0):
+        # TODO: evaluate detections accuracy here
+        # the final score should also include false positives and true negatives
+        # compute precision and recall:
+        # https://jonathan-hui.medium.com/map-mean-average-precision-for-object-detection-45c121a31173
+        assert isinstance(preds, dict)
+        assert isinstance(gts, dict)
+        poses = torch.as_tensor(preds['poses']).to(self.device)
+        poses_gt = torch.as_tensor(gts['poses']).to(self.device)
+        assert poses.shape[1] == poses_gt.shape[1]
+        knn = knn_points(poses[None], poses_gt[None], K=1)
+        # currently the score just takes into account proximity of the predictions to ground truth
+        # by a distance threshold and, if the predicted class matches ground truth the score is increased.
+        # It is weighted by the number of predictions to mitigate spamming a lot of false/random predictions
+        score = 0.0
+        for i, d in enumerate(knn.dists.squeeze()):
+            if d <= dist_th:
+                if gts['classes'][i] == preds['classes'][knn.idx.squeeze()[i]]:
+                    score += 1
+        score /= len(preds['classes'])
+        return score
+
+    def evaluation(self, map, map_gt_cloud, map_gt_mesh, artifacts,
                    coverage_dist_th=0.2,
                    artifacts_coverage_dist_th=0.1):
         # Discard old messages.
@@ -303,11 +345,14 @@ class MapEval:
         assert isinstance(map_gt_cloud, torch.Tensor)
         assert map_gt_cloud.dim() == 3
         assert map_gt_cloud.size()[2] == 3  # (1, N2, 3)
-        assert isinstance(artifacts_gt_map, dict)
-        for key in artifacts_gt_map:
-            assert isinstance(artifacts_gt_map[key], torch.Tensor)
-            assert artifacts_gt_map[key].dim() == 3
-            assert artifacts_gt_map[key].size()[2] >= 3  # (1, n, >=3)
+        assert isinstance(artifacts, dict)
+        assert isinstance(artifacts['clouds'], list)
+        assert isinstance(artifacts['classes'], list)
+        assert isinstance(artifacts['cloud_merged'], np.ndarray)
+        for cloud in artifacts['clouds']:
+            assert isinstance(cloud, torch.Tensor)
+            assert cloud.dim() == 3
+            assert cloud.size()[2] >= 3  # (1, n, >=3)
         # compare point cloud to mesh here
         with torch.no_grad():
             t1 = timer()
@@ -342,9 +387,9 @@ class MapEval:
 
             # compute the same metric for each individual artifact
             artifacts_exp_completeness = 0.0
-            for artifact in artifacts_gt_map:
+            for i, cloud in enumerate(artifacts['clouds']):
                 # number of artifact points that are covered
-                cloud = artifacts_gt_map[artifact][..., :3]
+                cloud = cloud[..., :3]
                 assert cloud.shape[2] == map.shape[2]
                 map_nn = knn_points(p1=cloud, p2=map,
                                     lengths1=torch.tensor(cloud.shape[1])[None].to(self.device),
@@ -353,8 +398,14 @@ class MapEval:
                 assert artifact_coverage_mask.shape[:2] == cloud.shape[:2]
                 if artifact_coverage_mask.sum() > 0:
                     artifacts_exp_completeness += artifact_coverage_mask.sum()
-                    rospy.loginfo(f'Explored {int(artifact_coverage_mask.sum())} / {cloud.shape[1]} points of artifact {artifact}')
-            artifacts_exp_completeness = artifacts_exp_completeness / (self.artifacts_cloud_merged.shape[1])
+                    rospy.loginfo(f'Explored {int(artifact_coverage_mask.sum())} / {cloud.shape[1]} '
+                                  f'points of artifact {artifacts["classes"][i]}')
+            artifacts_exp_completeness = artifacts_exp_completeness / (artifacts['cloud_merged'].shape[1])
+
+            if self.detections['poses'] is not None:
+                dets_score = self.evaluate_detections(self.detections, self.artifacts, dist_th=1.0)
+                rospy.loginfo(f'Detections score: {dets_score}')
+                self.dets_score_pub.publish(Float64(dets_score))
 
             t2 = timer()
             rospy.logdebug('Explored space evaluation took: %.3f s\n', t2 - t1)
@@ -417,18 +468,18 @@ class MapEval:
         while not rospy.is_shutdown():
             self.map_gt_mesh_marker.header.stamp = rospy.Time.now()
             self.world_mesh_pub.publish(self.map_gt_mesh_marker)
-            self.publish_pointcloud(self.artifacts_cloud_merged, 'artifacts_cloud', rospy.Time(0), self.map_gt_frame)
+            self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', rospy.Time(0), self.map_gt_frame)
             if self.pc_msg is None:
                 rate.sleep()
                 continue
 
-            if self.map_gt is not None and self.map is not None and self.artifacts_cloud is not None:
+            if self.map_gt is not None and self.map is not None and self.artifacts['clouds'] is not None:
                 # compare subscribed map point cloud to ground truth mesh
                 if self.do_eval:
                     self.coverage_mask = self.evaluation(map=self.map,
                                                          map_gt_cloud=self.map_gt,
                                                          map_gt_mesh=self.map_gt_mesh,
-                                                         artifacts_gt_map=self.artifacts_cloud,
+                                                         artifacts=self.artifacts,
                                                          coverage_dist_th=self.coverage_dist_th,
                                                          artifacts_coverage_dist_th=self.artifacts_coverage_dist_th)
 

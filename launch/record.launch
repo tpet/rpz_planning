@@ -32,9 +32,16 @@
                 /tf_static
                 /$(arg robot)/traversability"/>
 
+    <!-- Detection localization hypothesis -->
+    <arg name="detections_localization_topics"
+         value="/$(arg robot)/detection_localization/dbg_confirmed_hypotheses_pcl
+                /$(arg robot)/detection_localization/dbg_confirmed_hypotheses_pcl
+                /$(arg robot)/detection_localization/dbg_hypotheses_pcl
+                /$(arg robot)/detection_localization/dbg_measurements_pcl"/>
+
     <!-- Recorder node: input topics are specified here as input arguments -->
     <node name="record_data" pkg="rosbag" type="record"
           args="-o $(find rpz_planning)/$(arg robot_type)_opt_path_$(arg follow_opt_path)
-                $(arg mapping_topics) $(arg detector_input_topics)
+                $(arg mapping_topics) $(arg detector_input_topics) $(arg detections_localization_topics)
                 --duration $(arg record_duration)"/>
 </launch>
