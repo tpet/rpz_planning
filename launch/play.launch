@@ -7,7 +7,9 @@
     <arg name="rviz" default="true"/>
     <arg name="start" default="0.0"/>
     <arg name="rate" default="1.0"/>
+    <arg name="trajopt_iters" default="25"/>
     <arg name="debug_trajopt" default="true"/>
+    <arg name="rewards_accum" default="true"/>
 
     <param name="use_sim_time" value="true"/>
 
@@ -54,7 +56,13 @@
     <include ns="$(arg robot)" file="$(dirname)/rpz_planner.launch"
              pass_all_args="true">
         <arg name="robot_type" value="$(arg robot_type)"/>
+        <arg name="trajopt_iters" value="$(arg trajopt_iters)"/>
     </include>
+
+    <!-- Rewards accumulator -->
+    <include if="$(arg rewards_accum)"
+             ns="$(arg robot)" file="$(dirname)/rewards_accumulator.launch"
+             pass_all_args="true"/>
 
     <!-- RVIZ -->
     <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"

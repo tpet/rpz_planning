@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<launch>
+
+    <node name="rewards_accumulator" pkg="rpz_planning" type="rewards_accumulator.py" output="screen">
+        <remap from="local_map" to="reward_cloud"/>
+        <rosparam subst_value="true">
+            pts_proximity_th: 0.05
+            max_age: 5.0
+            reward_cloud_rate: 0.3
+        </rosparam>
+    </node>
+
+</launch>
