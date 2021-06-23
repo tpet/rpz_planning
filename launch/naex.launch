@@ -11,7 +11,7 @@
     <arg if="$(eval follow_opt_path==false)" name="path" default="path"/>
     <arg if="$(eval follow_opt_path==true)" name="path" default="optimized_path"/>
     <arg name="publish_ground_truth" default="true" />
-    <arg name="record_duration" default="30m"/>
+    <arg name="record_duration" default="60m"/>
     <arg name="debug_trajopt" default="false"/>
     <arg name="trajopt_iters" default="25"/>
 

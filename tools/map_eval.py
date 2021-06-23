@@ -51,7 +51,7 @@ class MapEval:
         self.load_gt = rospy.get_param('~load_gt', True)
         self.record_metrics = rospy.get_param('~record_metrics', True)
         self.xls_file = rospy.get_param('~metrics_xls_file', f'/tmp/mapping-eval')
-        self.xls_file = f'{self.xls_file}_{timer()}.xls'
+        self.xls_file = f'{self.xls_file[:-4]}.xls'
         self.coverage_dist_th = rospy.get_param('~coverage_dist_th', 0.2)
         self.artifacts_coverage_dist_th = rospy.get_param('~artifacts_coverage_dist_th', 0.1)
         self.artifacts_hypothesis_topic = rospy.get_param('~artifacts_hypothesis_topic',
@@ -104,6 +104,8 @@ class MapEval:
             self.ws_writer.write(0, 6, 'Map Edge loss')
             self.ws_writer.write(0, 7, 'Map Chamfer loss')
             self.ws_writer.write(0, 8, 'Artifacts Exploration completeness')
+            self.ws_writer.write(0, 9, 'Detections score')
+            self.ws_writer.write(0, 10, 'N of constructed points')
             self.row_number = 1
 
         # obtaining the constructed map
@@ -323,7 +325,7 @@ class MapEval:
         # by a distance threshold and, if the predicted class matches ground truth the score is increased.
         # It is weighted by the number of predictions to mitigate spamming a lot of false/random predictions
         score = 0.0
-        for i, d in enumerate(knn.dists.squeeze()):
+        for i, d in enumerate(knn.dists.squeeze(0)):
             if d <= dist_th:
                 if gts['classes'][i] == preds['classes'][knn.idx.squeeze()[i]]:
                     score += 1
@@ -333,12 +335,6 @@ class MapEval:
     def evaluation(self, map, map_gt_cloud, map_gt_mesh, artifacts,
                    coverage_dist_th=0.2,
                    artifacts_coverage_dist_th=0.1):
-        # Discard old messages.
-        msg_stamp = rospy.Time.now()
-        age = (msg_stamp - self.pc_msg.header.stamp).to_sec()
-        if age > self.max_age:
-            rospy.logwarn('Discarding points %.1f s > %.1f s old.', age, self.max_age)
-            return None
         assert isinstance(map, torch.Tensor)
         assert map.dim() == 3
         assert map.size()[2] == 3  # (1, N1, 3)
@@ -353,6 +349,13 @@ class MapEval:
             assert isinstance(cloud, torch.Tensor)
             assert cloud.dim() == 3
             assert cloud.size()[2] >= 3  # (1, n, >=3)
+        # Discard old messages.
+        msg_stamp = rospy.Time.now()
+        age = (msg_stamp - self.pc_msg.header.stamp).to_sec()
+        if age > self.max_age:
+            rospy.logwarn('Discarding points %.1f s > %.1f s old.', age, self.max_age)
+            return None
+        rospy.loginfo(f'Received map of size {map.size()} for evaluation...')
         # compare point cloud to mesh here
         with torch.no_grad():
             t1 = timer()
@@ -360,6 +363,9 @@ class MapEval:
             if self.do_points_sampling_from_map:
                 if self.n_sample_points < map.shape[1]:
                     map_sampled = map[:, torch.randint(map.shape[1], (self.n_sample_points,)), :]
+            # self.publish_pointcloud(map_sampled.squeeze(0).transpose(1, 0).detach().cpu().numpy(),
+            #                         '~map_sampled', rospy.Time.now(), self.map_gt_frame)
+            N_map_points = map_sampled.shape[1]
             point_cloud = Pointclouds(map_sampled).to(self.device)
 
             exp_loss_edge = edge_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
@@ -402,10 +408,9 @@ class MapEval:
                                   f'points of artifact {artifacts["classes"][i]}')
             artifacts_exp_completeness = artifacts_exp_completeness / (artifacts['cloud_merged'].shape[1])
 
+            dets_score = 0.0
             if self.detections['poses'] is not None:
                 dets_score = self.evaluate_detections(self.detections, self.artifacts, dist_th=1.0)
-                rospy.loginfo(f'Detections score: {dets_score}')
-                self.dets_score_pub.publish(Float64(dets_score))
 
             t2 = timer()
             rospy.logdebug('Explored space evaluation took: %.3f s\n', t2 - t1)
@@ -433,16 +438,20 @@ class MapEval:
             self.ws_writer.write(self.row_number, 6, f'{map_loss_edge.detach().cpu().numpy():.3f}')
             self.ws_writer.write(self.row_number, 7, f'{map_loss_chamfer.detach().cpu().numpy():.3f}')
             self.ws_writer.write(self.row_number, 8, f'{artifacts_exp_completeness:.3f}')
+            self.ws_writer.write(self.row_number, 9, f'{dets_score:.3f}')
+            self.ws_writer.write(self.row_number, 10, f'{N_map_points}')
             self.row_number += 1
             self.wb.save(self.xls_file)
 
         print('\n')
+        rospy.loginfo(f'Number of points in the constructed map: {N_map_points}')
         rospy.loginfo(f'Exploration Edge loss: {exp_loss_edge.detach().cpu().numpy():.3f}')
         rospy.loginfo(f'Exploration Face loss: {exp_loss_face.detach().cpu().numpy():.3f}')
         rospy.loginfo(f'Exploration Chamfer loss: {exp_loss_chamfer.squeeze().detach().cpu().numpy():.3f}')
         rospy.loginfo(f'Exploration completeness: {exp_completeness.detach().cpu().numpy():.3f}')
         rospy.loginfo(f'Num covered points: {int(coverage_mask.sum())} / {map_gt_cloud.size()[1]}')
         rospy.loginfo(f'Artifacts exploration completeness: {artifacts_exp_completeness:.3f}')
+        rospy.loginfo(f'Detections score: {dets_score}')
         print('-'*30)
 
         print('\n')
@@ -457,6 +466,7 @@ class MapEval:
         self.chamfer_loss_pub.publish(Float64(exp_loss_chamfer.detach().cpu().numpy()))
         self.exp_compl_pub.publish(Float64(exp_completeness.detach().cpu().numpy()))
         self.artif_exp_compl_pub.publish(Float64(artifacts_exp_completeness))
+        self.dets_score_pub.publish(Float64(dets_score))
 
         self.map_face_acc_pub.publish(Float64(map_loss_face.detach().cpu().numpy()))
         self.map_edge_acc_pub.publish(Float64(map_loss_edge.detach().cpu().numpy()))
@@ -468,13 +478,15 @@ class MapEval:
         while not rospy.is_shutdown():
             self.map_gt_mesh_marker.header.stamp = rospy.Time.now()
             self.world_mesh_pub.publish(self.map_gt_mesh_marker)
-            self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', rospy.Time(0), self.map_gt_frame)
+            self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', rospy.Time.now(), self.map_gt_frame)
             if self.pc_msg is None:
                 rate.sleep()
                 continue
 
             if self.map_gt is not None and self.map is not None and self.artifacts['clouds'] is not None:
                 # compare subscribed map point cloud to ground truth mesh
+                # self.publish_pointcloud(self.map.squeeze(0).transpose(1, 0).detach().cpu().numpy(),
+                #                         'map', rospy.Time.now(), self.map_gt_frame)
                 if self.do_eval:
                     self.coverage_mask = self.evaluation(map=self.map,
                                                          map_gt_cloud=self.map_gt,
