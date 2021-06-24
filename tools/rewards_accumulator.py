@@ -2,7 +2,6 @@
 
 import rospy
 from sensor_msgs.msg import PointCloud2
-from std_msgs.msg import Float64
 from ros_numpy import msgify, numpify
 import tf2_ros
 
@@ -36,7 +35,6 @@ class RewardsAccumulator:
         self.reward_cloud_rate = rospy.get_param('~reward_cloud_rate', 0.2)
         self.rewards_cloud_pub = rospy.Publisher('~rewards_map', PointCloud2, queue_size=1)
         self.new_cloud_pub = rospy.Publisher('~new_rewards_map', PointCloud2, queue_size=1)
-        self.reward_pub = rospy.Publisher('~reward', Float64, queue_size=1)
         self.tf = tf2_ros.Buffer()
         self.tl = tf2_ros.TransformListener(self.tf)
         self.local_map_sub = rospy.Subscriber(reward_cloud_topic, PointCloud2, self.accumulate_reward_clouds_cb)
@@ -92,10 +90,6 @@ class RewardsAccumulator:
         self.global_map = torch.cat([self.global_map, self.new_points], dim=1)
         assert self.global_map.dim() == 3
         assert self.global_map.shape[2] == 4  # (1, N, 4)
-        global_reward = self.global_map[..., 3].sum().detach()
-        rospy.logdebug(f'Overall reward: {global_reward}')
-        self.reward_pub.publish(Float64(global_reward))
-
         rospy.logdebug('Point cloud accumulation took: %.3f s', timer() - t0)
 
     def msgify_reward_cloud(self, cloud):

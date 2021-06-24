@@ -15,18 +15,29 @@
     <arg name="bag_start" default="0.0"/>
     <arg name="pcl_msg_max_age" default="30.0"/>
 
+    <arg name="reward_cloud_as_input" default="false"/>
+    <arg if="$(eval reward_cloud_as_input)" name="map_topic" default="rewards_accumulator/rewards_map"/>
+    <arg unless="$(eval reward_cloud_as_input)" name="map_topic" default="map_accumulator/map"/>
+
     <param name="use_sim_time" value="true" />
 
+    <!-- Workaround for /tf_static problems with rosbag: https://github.com/ros/geometry2/issues/181 -->
+    <node name="play_tf_static" pkg="nifti_vision_data" type="play_tf_static"
+         args="$(arg bag)" output="log">
+        <remap from="~tf_static" to="/tf_static"/>
+    </node>
+
+    <!-- ROSBAG -->
+    <node name="rosbag_play_rpz" pkg="rosbag" type="play"
+          args="--clock --pause -s $(arg bag_start) -r $(arg bag_rate) $(arg bag)">
+    </node>
+
     <!-- Map accumulator node -->
-    <include file="$(find rpz_planning)/launch/map_accumulator.launch">
-        <arg name="robot" value="$(arg robot)"/>
-        <arg name="bag" value="$(arg bag)"/>
-        <arg name="rate" value="$(arg bag_rate)"/>
-        <arg name="start" value="$(arg bag_start)"/>
+    <include unless="$(eval reward_cloud_as_input)" ns="$(arg robot)" file="$(dirname)/map_accumulator.launch">
     </include>
 
-    <!-- Rewards accumulator node -->
-    <include ns="$(arg robot)" file="$(dirname)/rewards_accumulator.launch">
+    <!-- Map with Rewards accumulator node -->
+    <include if="$(eval reward_cloud_as_input)" ns="$(arg robot)" file="$(dirname)/rewards_accumulator.launch">
         <arg name="reward_cloud_topic" value="reward_cloud"/>
         <arg name="pts_proximity_th" value="0.4"/>
     </include>
@@ -34,7 +45,7 @@
     <!-- Mapping evaluation -->
     <node ns="$(arg robot)" name="map_eval" pkg="rpz_planning" type="map_eval.py" output="screen">
         <rosparam subst_value="true">
-            map_topic: map_accumulator/map  <!-- Point cloud map constructed during exploration -->
+            map_topic: $(arg map_topic)  <!-- Point cloud map constructed during exploration -->
             gt_mesh: $(arg gt_mesh_file) <!-- Path to .obj or .ply ground truth mesh file of the world -->
             do_points_sampling_from_mesh: True <!-- Whether to use points sampling method from mesh (True) or use mesh vertices (False) -->
             do_points_sampling_from_map: True <!-- Whether to subsample constructed map before metrics computation -->

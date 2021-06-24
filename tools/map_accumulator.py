@@ -8,18 +8,7 @@ from ros_numpy import msgify, numpify
 import tf2_ros
 from pyquaternion import Quaternion
 from timeit import default_timer as timer
-import yaml
-from rosbag.bag import Bag
 import torch
-from pytorch3d.io import load_obj, load_ply
-from pytorch3d.structures import Meshes, Pointclouds
-from pytorch3d.ops import sample_points_from_meshes
-from rpz_planning import point_face_distance_truncated
-from rpz_planning import point_edge_distance_truncated
-from rpz_planning import face_point_distance_truncated
-from rpz_planning import edge_point_distance_truncated
-from rpz_planning import chamfer_distance_truncated
-import os
 
 
 class MapAccumulator:
@@ -41,48 +30,8 @@ class MapAccumulator:
         self.map_frame = None
         self.tf = tf2_ros.Buffer()
         self.tl = tf2_ros.TransformListener(self.tf)
-        self.bagfile = rospy.get_param('~bagfile', None)
-        self.msg_counter = 0
-        if self.bagfile is not None:
-            self.bag_info = self.get_bag_info(self.bagfile)
-        self.do_eval = rospy.get_param('~do_eval', None)
-        self.path_to_gt_mesh = rospy.get_param('~gt_mesh', None)
         rospy.Subscriber('local_map', PointCloud2, self.pc_callback)
         rospy.loginfo('Map accumulator node is ready.')
-
-    @staticmethod
-    def load_ground_truth(path_to_mesh_file, n_sample_points=5000, device=torch.device("cuda:0")):
-        assert os.path.exists(path_to_mesh_file)
-        if '.obj' in path_to_mesh_file:
-            gt_mesh_verts, faces, _ = load_obj(path_to_mesh_file)
-            gt_mesh_faces_idx = faces.verts_idx
-        elif '.ply' in path_to_mesh_file:
-            gt_mesh_verts, gt_mesh_faces_idx = load_ply(path_to_mesh_file)
-        else:
-            rospy.logerr('Supported mesh formats are *.obj or *.ply')
-            return
-        # verts is a FloatTensor of shape (V, 3) where V is the number of vertices in the mesh
-        # faces is an object which contains the following LongTensors: verts_idx, normals_idx and textures_idx
-        # For this tutorial, normals and textures are ignored.
-        gt_mesh_faces_idx = gt_mesh_faces_idx.to(device)
-        gt_mesh_verts = gt_mesh_verts.to(device)
-        # TODO: correct coordinates mismatch in Blender (swap here X and Y)
-        R = torch.tensor([[ 0., 1., 0.],
-                          [-1., 0., 0.],
-                          [ 0., 0., 1.]]).to(device)
-        gt_mesh_verts = torch.matmul(R, gt_mesh_verts.transpose(1, 0)).transpose(1, 0)
-        assert gt_mesh_verts.shape[1] == 3
-
-        # We construct a Meshes structure for the target mesh
-        map_gt_mesh = Meshes(verts=[gt_mesh_verts], faces=[gt_mesh_faces_idx]).to(device)
-        map_gt_pcl = sample_points_from_meshes(map_gt_mesh, n_sample_points).to(device)
-        rospy.logdebug(f'Loaded mesh with verts shape: {gt_mesh_verts.size()}')
-        return map_gt_mesh, map_gt_pcl
-
-    @staticmethod
-    def get_bag_info(bagfile):
-        info_dict = yaml.load(Bag(bagfile, 'r')._get_yaml_info(), Loader=yaml.FullLoader)
-        return info_dict
 
     @staticmethod
     def transform_cloud(points, trans, quat):
@@ -103,101 +52,50 @@ class MapAccumulator:
     def pc_callback(self, pc_msg):
         assert isinstance(pc_msg, PointCloud2)
         rospy.logdebug('Point cloud is received')
-        self.msg_counter += 1
         # Transform the point cloud
         self.map_frame = pc_msg.header.frame_id
         try:
             t0 = timer()
             transform = self.tf.lookup_transform('X1_ground_truth', 'X1', rospy.Time(0))
-            translation = np.array([transform.transform.translation.x,
-                                   transform.transform.translation.y,
-                                   transform.transform.translation.z]).reshape([3, 1])
-            quat = Quaternion(x=transform.transform.rotation.x,
-                              y=transform.transform.rotation.y,
-                              z=transform.transform.rotation.z,
-                              w=transform.transform.rotation.w)
-            points = numpify(pc_msg)
-            # remove inf points
-            mask = np.isfinite(points['x']) & np.isfinite(points['y']) & np.isfinite(points['z'])
-            points = points[mask]
-            # pull out x, y, and z values
-            points3 = np.zeros([3] + list(points.shape), dtype=np.float32)
-            points3[0, ...] = points['x']
-            points3[1, ...] = points['y']
-            points3[2, ...] = points['z']
-            points3 = self.transform_cloud(points3, translation, quat)
-            new_points = np.zeros(points3.shape[1], dtype=[('x', np.float32),
-                                                           ('y', np.float32),
-                                                           ('z', np.float32)])
-            new_points['x'] = points3[0, ...]
-            new_points['y'] = points3[1, ...]
-            new_points['z'] = points3[2, ...]
-            # rospy.logdebug('Point cloud conversion took: %.3f s', timer() - t0)
-
-            # accumulate points
-            if not self.points_received:
-                self.points = new_points
-                self.points_received = True
-            self.points = np.concatenate([self.points, new_points])
-            rospy.logdebug('Point cloud accumulation took: %.3f s', timer() - t0)
-
-            # convert to message and publish
-            map_msg = msgify(PointCloud2, self.points)
-            map_msg.header = pc_msg.header
-            self.pc_pub.publish(map_msg)
-
-            if self.bagfile is not None:
-                t_remains = self.bag_info['end'] - rospy.Time.now().to_sec()
-                if t_remains < 0.5 and self.do_eval:  # [sec]
-                    # save resultant map here or compare it to ground truth mesh
-                    # and output metrics
-                    rospy.loginfo('Loading ground truth mesh...')
-                    mesh_gt, pcl_gt = self.load_ground_truth(self.path_to_gt_mesh, device=self.device)
-                    map = torch.as_tensor(points3[None], dtype=torch.float32).transpose(2, 1).to(self.device)
-                    self.eval(map, map_gt_mesh=mesh_gt, map_gt_pcl=pcl_gt)
-                    self.do_eval = False
         except tf2_ros.LookupException:
-            rospy.logwarn('No transform between estimated robot pose and its ground truth')
+            rospy.logwarn('Map accumulator: No transform between estimated robot pose and its ground truth')
+            return
+        translation = np.array([transform.transform.translation.x,
+                               transform.transform.translation.y,
+                               transform.transform.translation.z]).reshape([3, 1])
+        quat = Quaternion(x=transform.transform.rotation.x,
+                          y=transform.transform.rotation.y,
+                          z=transform.transform.rotation.z,
+                          w=transform.transform.rotation.w)
+        points = numpify(pc_msg)
+        # remove inf points
+        mask = np.isfinite(points['x']) & np.isfinite(points['y']) & np.isfinite(points['z'])
+        points = points[mask]
+        # pull out x, y, and z values
+        points3 = np.zeros([3] + list(points.shape), dtype=np.float32)
+        points3[0, ...] = points['x']
+        points3[1, ...] = points['y']
+        points3[2, ...] = points['z']
+        points3 = self.transform_cloud(points3, translation, quat)
+        new_points = np.zeros(points3.shape[1], dtype=[('x', np.float32),
+                                                       ('y', np.float32),
+                                                       ('z', np.float32)])
+        new_points['x'] = points3[0, ...]
+        new_points['y'] = points3[1, ...]
+        new_points['z'] = points3[2, ...]
+        # rospy.logdebug('Point cloud conversion took: %.3f s', timer() - t0)
 
-    def eval(self, map_pcl, map_gt_mesh, map_gt_pcl):
-        assert isinstance(map_pcl, torch.Tensor)
-        assert map_pcl.dim() == 3
-        assert map_pcl.size()[2] == 3
-        point_cloud = Pointclouds(map_pcl).to(self.device)
-        # compare point cloud to mesh here
-        with torch.no_grad():
-            t1 = timer()
-            # https://github.com/facebookresearch/pytorch3d/blob/280fed3c7623b6fac7446cb46aae21f0f6a43d29/pytorch3d/csrc/utils/geometry_utils.h#L386
-            exp_loss_edge = edge_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
-            # distance between mesh face and points is computed as a distance from point to triangle
-            # if point's projection is inside triangle, then the distance is computed as along
-            # a normal to triangular plane. Otherwise as a distance to closest edge of the triangle:
-            # https://github.com/facebookresearch/pytorch3d/blob/fe39cc7b806afeabe64593e154bfee7b4153f76f/pytorch3d/csrc/utils/geometry_utils.h#L635
-            exp_loss_face = face_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
-            exp_loss_chamfer = chamfer_distance_truncated(x=map_gt_pcl, y=map_pcl)
-            t2 = timer()
-            rospy.loginfo('Explored space evaluation took: %.3f s\n', t2 - t1)
+        # accumulate points
+        if not self.points_received:
+            self.points = new_points
+            self.points_received = True
+        self.points = np.concatenate([self.points, new_points])
+        rospy.logdebug('Point cloud accumulation took: %.3f s', timer() - t0)
 
-            # `exp_loss_face`, `exp_loss_edge` and `exp_loss_chamfer` describe exploration progress
-            # current map accuracy could be evaluated by computing vice versa distances:
-            # - from points in cloud to mesh faces/edges:
-            map_loss_edge = point_edge_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
-            map_loss_face = point_face_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
-            # - from points in cloud to nearest neighbours of points sampled from mesh:
-            map_loss_chamfer = chamfer_distance_truncated(x=map_pcl, y=map_gt_pcl)
-            rospy.loginfo('Mapping accuracy evaluation took: %.3f s\n', timer() - t2)
-
-        print('\n')
-        rospy.loginfo(f'Exploration Edge loss: {exp_loss_edge.detach().cpu().numpy():.3f}')
-        rospy.loginfo(f'Exploration Face loss: {exp_loss_face.detach().cpu().numpy():.3f}')
-        rospy.loginfo(f'Exploration Chamfer loss: {exp_loss_chamfer.squeeze().detach().cpu().numpy():.3f}')
-        print('-' * 30)
-
-        print('\n')
-        rospy.loginfo(f'Map Edge loss: {map_loss_edge.detach().cpu().numpy():.3f}')
-        rospy.loginfo(f'Map Face loss: {map_loss_face.detach().cpu().numpy():.3f}')
-        rospy.loginfo(f'Map Chamfer loss: {map_loss_chamfer.squeeze().detach().cpu().numpy():.3f}')
-        print('-' * 30)
+        # convert to message and publish
+        map_msg = msgify(PointCloud2, self.points)
+        map_msg.header = pc_msg.header
+        self.pc_pub.publish(map_msg)
 
 
 if __name__ == '__main__':

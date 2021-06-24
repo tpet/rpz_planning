@@ -35,7 +35,7 @@ class MapEval:
     Metrics for comparison are taken from here:
     https://pytorch3d.readthedocs.io/en/latest/modules/loss.html#pytorch3d.loss.point_mesh_edge_distance
     """
-    def __init__(self, map_topic, path_to_mesh, rewards_map_topic=None):
+    def __init__(self, map_topic, path_to_mesh):
         self.tf = tf2_ros.Buffer()
         self.tl = tf2_ros.TransformListener(self.tf)
         # Set the device
@@ -51,7 +51,7 @@ class MapEval:
         self.load_gt = rospy.get_param('~load_gt', True)
         self.record_metrics = rospy.get_param('~record_metrics', True)
         self.xls_file = rospy.get_param('~metrics_xls_file', f'/tmp/mapping-eval')
-        self.xls_file = f'{self.xls_file[:-4]}.xls'
+        self.xls_file = f'{self.xls_file[:-4]}_{timer()}.xls'
         self.coverage_dist_th = rospy.get_param('~coverage_dist_th', 0.2)
         self.artifacts_coverage_dist_th = rospy.get_param('~artifacts_coverage_dist_th', 0.1)
         self.artifacts_hypothesis_topic = rospy.get_param('~artifacts_hypothesis_topic',
@@ -74,6 +74,8 @@ class MapEval:
                                 "vent", "helmet", "rope", "cube"]
         # world ground truth mesh publisher
         self.world_mesh_pub = rospy.Publisher('/world_mesh', Marker, queue_size=1)
+        # total reward publisher
+        self.reward_pub = rospy.Publisher('~reward', Float64, queue_size=1)
 
         self.map_gt_frame = rospy.get_param('~map_gt_frame', 'subt')
         self.map_gt_mesh = None
@@ -86,7 +88,6 @@ class MapEval:
         self.map = None
         self.coverage_mask = None
         self.detections = {'poses': None, 'classes': None}
-        self.rewards_map = None
 
         # loading ground truth data
         if self.load_gt:
@@ -107,13 +108,11 @@ class MapEval:
             self.ws_writer.write(0, 8, 'Artifacts Exploration completeness')
             self.ws_writer.write(0, 9, 'Detections score')
             self.ws_writer.write(0, 10, 'N of constructed points')
+            self.ws_writer.write(0, 11, 'Total reward')
             self.row_number = 1
 
-        # obtaining the constructed map
+        # obtaining the constructed map (reward cloud)
         self.map_sub = rospy.Subscriber(map_topic, PointCloud2, self.get_constructed_map)
-        # obtaining the rewards cloud if it is published
-        if rewards_map_topic is not None:
-            self.reward_map_sub = rospy.Subscriber(rewards_map_topic, PointCloud2, self.get_rewards_map)
         # subscribing to localized detection results for evaluation
         rospy.Subscriber(self.artifacts_hypothesis_topic, PointCloud, self.get_detections)
 
@@ -289,15 +288,15 @@ class MapEval:
             rospy.logwarn('No transform between constructed map frame and its ground truth')
             return
         map = numpify(self.pc_msg)
-        map = map.ravel()  # Flatten 2D clouds.
-        map = np.vstack([map[f] for f in ['x', 'y', 'z']])
+        map = np.vstack([map[f] for f in map.dtype.fields])  # ['x', 'y', 'z', ('reward')]
         T = numpify(transform.transform)
         R, t = T[:3, :3], T[:3, 3]
-        map = np.matmul(R, map) + t.reshape([3, 1])
+        assert map.shape[0] >= 3  # (>=3, N)
+        map[:3, ...] = np.matmul(R, map[:3, ...]) + t.reshape([3, 1])
 
         self.map = torch.as_tensor(map.transpose([1, 0]), dtype=torch.float32).unsqueeze(0).to(self.device)
         assert self.map.dim() == 3
-        assert self.map.size()[2] == 3
+        assert self.map.size()[2] >= 3
         rospy.logdebug('Point cloud conversion took: %.3f s', timer() - t0)
 
     def get_detections(self, pc_msg):
@@ -309,32 +308,6 @@ class MapEval:
         class_numbers = pc_msg.channels[-1].values  # most probable class values
         # convert numbers to names
         self.detections['classes'] = [self.artifacts_names[int(n)] for n in class_numbers]
-
-    def get_rewards_map(self, pc_msg):
-        assert isinstance(pc_msg, PointCloud2)
-        rospy.logdebug('Received point cloud message')
-        t0 = timer()
-        if self.map_frame is None:
-            rospy.logwarn('Map frame is not yet available')
-            return
-        if self.map_gt_frame is None:
-            rospy.logwarn('Ground truth map frame is not yet available')
-            return
-        try:
-            transform = self.tf.lookup_transform(self.map_gt_frame, self.map_frame, rospy.Time(0))
-        except tf2_ros.LookupException:
-            rospy.logwarn('No transform between constructed map frame and its ground truth')
-            return
-        rewards_map = numpify(pc_msg)
-        rewards_map = rewards_map.ravel()  # Flatten 2D clouds.
-        rewards_map = np.vstack([rewards_map[f] for f in ['x', 'y', 'z', 'reward']])
-        T = numpify(transform.transform)
-        rewards_map = np.matmul(T, rewards_map)
-
-        self.rewards_map = torch.as_tensor(rewards_map.transpose([1, 0]), dtype=torch.float32).unsqueeze(0).to(self.device)
-        assert self.rewards_map.dim() == 3
-        assert self.rewards_map.size()[2] == 4  # (1, N, 4)
-        rospy.logdebug('Point cloud conversion took: %.3f s', timer() - t0)
 
     def evaluate_detections(self, preds, gts, dist_th=1.0):
         # TODO: evaluate detections accuracy here
@@ -359,27 +332,33 @@ class MapEval:
         return score
 
     @staticmethod
-    def evaluate_rewards(rewards_cloud, map_gt_cloud, coverage_dist_th=0.2):
-        if rewards_cloud is None:
+    def estimate_coverage(cloud, map_gt_cloud, coverage_dist_th=0.2):
+        if cloud is None:
             rospy.logwarn('Rewards cloud is not yet received')
             return None
         if map_gt_cloud is None:
             rospy.logwarn('Ground truth map cloud is not yet received')
             return None
-        assert isinstance(rewards_cloud, torch.Tensor)
-        assert rewards_cloud.dim() == 3
-        assert rewards_cloud.size()[2] == 4  # (1, N1, 4)
+        assert isinstance(cloud, torch.Tensor)
+        assert cloud.dim() == 3
+        assert cloud.size()[2] >= 3  # (1, N1, 3(4))
         assert isinstance(map_gt_cloud, torch.Tensor)
         assert map_gt_cloud.dim() == 3
         assert map_gt_cloud.size()[2] == 3  # (1, N2, 3)
-        map = rewards_cloud[..., :3]
-        rewards = rewards_cloud[..., 3].unsqueeze(2)
+        map = cloud[..., :3]
         map_nn = knn_points(p1=map_gt_cloud, p2=map, K=1)
         coverage_mask = map_nn.dists.sqrt() < coverage_dist_th
         assert coverage_mask.shape[:2] == map_gt_cloud.shape[:2]
-        rewards_mask = coverage_mask * rewards[:, map_nn.idx.squeeze(), :]
-        assert rewards_mask.shape[:2] == map_gt_cloud.shape[:2]
-        return rewards_mask
+        exp_completeness = coverage_mask.sum() / map_gt_cloud.size()[1]
+
+        if cloud.shape[2] > 3:
+            # include rewards information in coverage mask computation
+            rewards = cloud[..., 3].unsqueeze(2)
+            rewards_mask = coverage_mask * rewards[:, map_nn.idx.squeeze(), :]
+            assert rewards_mask.shape[:2] == map_gt_cloud.shape[:2]
+            return exp_completeness, rewards_mask
+        else:
+            return exp_completeness, coverage_mask
 
     def evaluation(self, map, map_gt_cloud, map_gt_mesh, artifacts,
                    coverage_dist_th=0.2,
@@ -398,7 +377,7 @@ class MapEval:
             return None
         assert isinstance(map, torch.Tensor)
         assert map.dim() == 3
-        assert map.size()[2] == 3  # (1, N1, 3)
+        assert map.size()[2] >= 3  # (1, N1, >=3)
         assert isinstance(map_gt_cloud, torch.Tensor)
         assert map_gt_cloud.dim() == 3
         assert map_gt_cloud.size()[2] == 3  # (1, N2, 3)
@@ -411,7 +390,8 @@ class MapEval:
             assert cloud.dim() == 3
             assert cloud.size()[2] >= 3  # (1, n, >=3)
         # Discard old messages.
-        age = (rospy.Time.now() - self.pc_msg.header.stamp).to_sec()
+        time_stamp = rospy.Time.now()
+        age = (time_stamp - self.pc_msg.header.stamp).to_sec()
         if age > self.max_age:
             rospy.logwarn('Evaluation: Discarding points %.1f s > %.1f s old.', age, self.max_age)
             return None
@@ -426,7 +406,7 @@ class MapEval:
             # self.publish_pointcloud(map_sampled.squeeze(0).transpose(1, 0).detach().cpu().numpy(),
             #                         '~map_sampled', rospy.Time.now(), self.map_gt_frame)
             N_map_points = map_sampled.shape[1]
-            point_cloud = Pointclouds(map_sampled).to(self.device)
+            point_cloud = Pointclouds(map_sampled[..., :3]).to(self.device)
 
             exp_loss_edge = edge_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
             # distance between mesh and points is computed as a distance from point to triangle
@@ -436,25 +416,28 @@ class MapEval:
             exp_loss_face = face_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
             # exp_loss_face_trimesh = self.map_gt_trimesh.nearest.on_surface(map_sampled.squeeze().detach().cpu())[1].mean()
             # rospy.loginfo(f'Trimesh Exploration Face loss: {exp_loss_face_trimesh:.3f}')
-            exp_loss_chamfer = chamfer_distance_truncated(x=map_gt_cloud, y=map)
+            exp_loss_chamfer = chamfer_distance_truncated(x=map_gt_cloud, y=map[..., :3])
 
             # coverage metric (exploration completeness)
             # The metric is evaluated as the fraction of ground truth points considered as covered.
             # A ground truth point is considered as covered if its nearest neighbour
             # there is a point from the constructed map that is located within a distance threshold
             # from the ground truth point.
-            map_nn = knn_points(p1=map_gt_cloud, p2=map, K=1)
-            coverage_mask = map_nn.dists.sqrt() < coverage_dist_th
-            assert coverage_mask.shape[:2] == map_gt_cloud.shape[:2]
-            exp_completeness = coverage_mask.sum() / map_gt_cloud.size()[1]
+            exp_completeness, coverage_mask = self.estimate_coverage(map, map_gt_cloud,
+                                                                     coverage_dist_th=coverage_dist_th)
+            total_reward = -1
+            if map.shape[2] == 4:  # if map contains reward values
+                total_reward = map[..., 3].sum().detach()
+                rospy.loginfo(f'Total reward: {total_reward}')
+                self.reward_pub.publish(Float64(total_reward))
 
             # compute the same metric for each individual artifact
             artifacts_exp_completeness = 0.0
             for i, cloud in enumerate(artifacts['clouds']):
                 # number of artifact points that are covered
                 cloud = cloud[..., :3]
-                assert cloud.shape[2] == map.shape[2]
-                map_nn = knn_points(p1=cloud, p2=map, K=1)
+                assert cloud.shape[2] == map[..., :3].shape[2]
+                map_nn = knn_points(p1=cloud, p2=map[..., :3], K=1)
                 artifact_coverage_mask = map_nn.dists.sqrt() < artifacts_coverage_dist_th
                 assert artifact_coverage_mask.shape[:2] == cloud.shape[:2]
                 if artifact_coverage_mask.sum() > 0:
@@ -476,7 +459,7 @@ class MapEval:
             map_loss_edge = point_edge_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
             map_loss_face = point_face_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud)
             # - from points in cloud to nearest neighbours of points sampled from mesh:
-            map_loss_chamfer = chamfer_distance_truncated(x=map, y=map_gt_cloud,
+            map_loss_chamfer = chamfer_distance_truncated(x=map[..., :3], y=map_gt_cloud,
                                                           apply_point_reduction=True,
                                                           batch_reduction='mean', point_reduction='mean')
             rospy.logdebug('Mapping accuracy evaluation took: %.3f s\n', timer() - t2)
@@ -484,7 +467,7 @@ class MapEval:
 
         # record data
         if self.record_metrics:
-            self.ws_writer.write(self.row_number, 0, msg_stamp.to_sec())
+            self.ws_writer.write(self.row_number, 0, time_stamp.to_sec())
             self.ws_writer.write(self.row_number, 1, f'{exp_loss_face.detach().cpu().numpy():.3f}')
             self.ws_writer.write(self.row_number, 2, f'{exp_loss_edge.detach().cpu().numpy():.3f}')
             self.ws_writer.write(self.row_number, 3, f'{exp_loss_chamfer.detach().cpu().numpy():.3f}')
@@ -495,6 +478,7 @@ class MapEval:
             self.ws_writer.write(self.row_number, 8, f'{artifacts_exp_completeness:.3f}')
             self.ws_writer.write(self.row_number, 9, f'{dets_score:.3f}')
             self.ws_writer.write(self.row_number, 10, f'{N_map_points}')
+            self.ws_writer.write(self.row_number, 11, f'{total_reward}')
             self.row_number += 1
             self.wb.save(self.xls_file)
 
@@ -504,7 +488,6 @@ class MapEval:
         rospy.loginfo(f'Exploration Face loss: {exp_loss_face.detach().cpu().numpy():.3f}')
         rospy.loginfo(f'Exploration Chamfer loss: {exp_loss_chamfer.squeeze().detach().cpu().numpy():.3f}')
         rospy.loginfo(f'Exploration completeness: {exp_completeness.detach().cpu().numpy():.3f}')
-        rospy.loginfo(f'Num covered points: {int(coverage_mask.sum())} / {map_gt_cloud.size()[1]}')
         rospy.loginfo(f'Artifacts exploration completeness: {artifacts_exp_completeness:.3f}')
         rospy.loginfo(f'Detections score: {dets_score}')
         print('-'*30)
@@ -546,10 +529,6 @@ class MapEval:
                                                      coverage_dist_th=self.coverage_dist_th,
                                                      artifacts_coverage_dist_th=self.artifacts_coverage_dist_th)
 
-                # self.coverage_mask = self.evaluate_rewards(rewards_cloud=self.rewards_map,
-                #                                            map_gt_cloud=self.map_gt,
-                #                                            coverage_dist_th=self.coverage_dist_th)
-
             # publish point cloud from ground truth mesh
             if self.coverage_mask is not None:
                 assert self.coverage_mask.shape[:2] == self.map_gt.shape[:2]
@@ -577,7 +556,6 @@ if __name__ == '__main__':
     assert os.path.exists(path_fo_gt_map_mesh)
     rospy.loginfo('Using ground truth mesh file: %s', path_fo_gt_map_mesh)
     proc = MapEval(map_topic=rospy.get_param('~map_topic', 'map_accumulator/map'),
-                   rewards_map_topic=rospy.get_param('~rewards_map_topic', 'rewards_accumulator/rewards_map'),
                    path_to_mesh=path_fo_gt_map_mesh)
     rospy.loginfo('Mapping evaluation node is initialized.')
     rospy.loginfo('You may need to heat Space for bagfile to start.')
