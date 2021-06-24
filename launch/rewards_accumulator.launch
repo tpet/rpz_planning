@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 
 <launch>
+    <arg name="reward_cloud_topic" default="reward_cloud"/>
+    <arg name="pts_proximity_th" default="0.2"/>
 
     <node name="rewards_accumulator" pkg="rpz_planning" type="rewards_accumulator.py" output="screen">
-        <remap from="local_map" to="reward_cloud"/>
         <rosparam subst_value="true">
-            pts_proximity_th: 0.05
+            reward_cloud_topic: $(arg reward_cloud_topic)
+            pts_proximity_th: $(arg pts_proximity_th)
             max_age: 5.0
             reward_cloud_rate: 0.3
         </rosparam>

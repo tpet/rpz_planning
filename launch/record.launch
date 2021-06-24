@@ -5,6 +5,7 @@
 
     <!-- Map construction topics: new points and localization in tfs -->
     <arg name="mapping_topics" value="/$(arg robot)/updated_map
+                                      /$(arg robot)/reward_cloud
                                       /$(arg robot)/$(arg path)
                                       /tf
                                       /tf_static"/>

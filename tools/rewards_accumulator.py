@@ -21,7 +21,7 @@ class RewardsAccumulator:
     The observations are firstly transformed to robot's ground truth frame
     before being concatenated.
     """
-    def __init__(self,):
+    def __init__(self, reward_cloud_topic='reward_cloud'):
         # Set the device
         if torch.cuda.is_available():
             self.device = torch.device("cuda:0")
@@ -39,7 +39,7 @@ class RewardsAccumulator:
         self.reward_pub = rospy.Publisher('~reward', Float64, queue_size=1)
         self.tf = tf2_ros.Buffer()
         self.tl = tf2_ros.TransformListener(self.tf)
-        self.local_map_sub = rospy.Subscriber('local_map', PointCloud2, self.accumulate_reward_clouds_cb)
+        self.local_map_sub = rospy.Subscriber(reward_cloud_topic, PointCloud2, self.accumulate_reward_clouds_cb)
         rospy.loginfo('Rewards accumulator node is ready.')
 
     def accumulate_reward_clouds_cb(self, pc_msg):
@@ -50,7 +50,7 @@ class RewardsAccumulator:
         msg_stamp = rospy.Time.now()
         age = (msg_stamp - pc_msg.header.stamp).to_sec()
         if age > self.max_age:
-            rospy.logwarn('Discarding points %.1f s > %.1f s old.', age, self.max_age)
+            rospy.logwarn('Rewards accumulator: Discarding points %.1f s > %.1f s old.', age, self.max_age)
             return
 
         try:
@@ -93,7 +93,7 @@ class RewardsAccumulator:
         assert self.global_map.dim() == 3
         assert self.global_map.shape[2] == 4  # (1, N, 4)
         global_reward = self.global_map[..., 3].sum().detach()
-        rospy.loginfo(f'Overall reward: {global_reward}')
+        rospy.logdebug(f'Overall reward: {global_reward}')
         self.reward_pub.publish(Float64(global_reward))
 
         rospy.logdebug('Point cloud accumulation took: %.3f s', timer() - t0)
@@ -129,5 +129,5 @@ class RewardsAccumulator:
 
 if __name__ == '__main__':
     rospy.init_node('rewards_accumulator', log_level=rospy.INFO)
-    proc = RewardsAccumulator()
+    proc = RewardsAccumulator(reward_cloud_topic=rospy.get_param('~reward_cloud_topic', 'reward_cloud'))
     proc.run()

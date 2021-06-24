@@ -7,7 +7,7 @@
 <!--    <arg name="bag" default="$(find rpz_planning)/data/bags/$(arg robot_type)_opt_path_$(arg trajopt)_$(arg world_name).bag"/>-->
     <arg name="bag" default="$(find rpz_planning)/data/bags/explorer_x1_opt_path_false_simple_cave_02_2021-05-28-14-01-15.bag"/>
     <arg name="start" default="0.0"/>
-    <arg name="rate" default="1.0"/>
+    <arg name="rate" default="0.3"/>
     <arg name="do_eval" default="false"/>
 
     <param name="use_sim_time" value="true" />

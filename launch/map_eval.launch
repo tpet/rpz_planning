@@ -2,7 +2,7 @@
 
 <launch>
     <arg name="robot" default="X1"/>
-    <arg name="world_name" default="simple_cave_03"/>
+    <arg name="world_name" default="simple_cave_02"/>
     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/$(arg world_name).obj"/>
     <arg name="rviz" default="true"/>
     <arg name="rqt_plot" default="false"/>
@@ -10,7 +10,7 @@
     <arg name="do_metrics_record" default="false"/>
     <arg name="load_gt" default="true"/>
     <arg name="eval_rate" default="0.03"/> <!-- how often do mapping evaluation -->
-    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_true_simple_cave_03_2021-06-10-09-27-40.bag"/>
+    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_true_simple_cave_02_rewards_images_2021-06-23-15-17-11.bag"/>
     <arg name="bag_rate" default="4.0"/>
     <arg name="bag_start" default="0.0"/>
     <arg name="pcl_msg_max_age" default="30.0"/>
@@ -23,6 +23,12 @@
         <arg name="bag" value="$(arg bag)"/>
         <arg name="rate" value="$(arg bag_rate)"/>
         <arg name="start" value="$(arg bag_start)"/>
+    </include>
+
+    <!-- Rewards accumulator node -->
+    <include ns="$(arg robot)" file="$(dirname)/rewards_accumulator.launch">
+        <arg name="reward_cloud_topic" value="reward_cloud"/>
+        <arg name="pts_proximity_th" value="0.4"/>
     </include>
 
     <!-- Mapping evaluation -->
