@@ -86,7 +86,7 @@ class MapEval:
         self.pc_msg = None
         self.map_frame = None
         self.map = None
-        self.coverage_mask = None
+        self.binary_coverage_mask = None
         self.detections = {'poses': None, 'classes': None}
 
         # loading ground truth data
@@ -310,7 +310,7 @@ class MapEval:
         self.detections['classes'] = [self.artifacts_names[int(n)] for n in class_numbers]
 
     def evaluate_detections(self, preds, gts, dist_th=1.0):
-        # TODO: evaluate detections accuracy here
+        # TODO: check implementation of the detections accuracy here
         # the final score should also include false positives and true negatives
         # compute precision and recall:
         # https://jonathan-hui.medium.com/map-mean-average-precision-for-object-detection-45c121a31173
@@ -356,7 +356,7 @@ class MapEval:
             rewards = cloud[..., 3].unsqueeze(2)
             rewards_mask = coverage_mask * rewards[:, map_nn.idx.squeeze(), :]
             assert rewards_mask.shape[:2] == map_gt_cloud.shape[:2]
-            return exp_completeness, rewards_mask
+            return exp_completeness, rewards_mask > 0
         else:
             return exp_completeness, coverage_mask
 
@@ -423,8 +423,8 @@ class MapEval:
             # A ground truth point is considered as covered if its nearest neighbour
             # there is a point from the constructed map that is located within a distance threshold
             # from the ground truth point.
-            exp_completeness, coverage_mask = self.estimate_coverage(map, map_gt_cloud,
-                                                                     coverage_dist_th=coverage_dist_th)
+            exp_completeness, binary_coverage_mask = self.estimate_coverage(map, map_gt_cloud,
+                                                                            coverage_dist_th=coverage_dist_th)
             total_reward = -1
             if map.shape[2] == 4:  # if map contains reward values
                 total_reward = map[..., 3].sum().detach()
@@ -509,7 +509,7 @@ class MapEval:
         self.map_face_acc_pub.publish(Float64(map_loss_face.detach().cpu().numpy()))
         self.map_edge_acc_pub.publish(Float64(map_loss_edge.detach().cpu().numpy()))
         self.map_chamfer_acc_pub.publish(Float64(map_loss_chamfer.squeeze().detach().cpu().numpy()))
-        return coverage_mask
+        return binary_coverage_mask
 
     def run(self):
         rate = rospy.Rate(self.rate)
@@ -522,18 +522,18 @@ class MapEval:
             # self.publish_pointcloud(self.map.squeeze(0).transpose(1, 0).detach().cpu().numpy(),
             #                         'map', rospy.Time.now(), self.map_gt_frame)
             if self.do_eval:
-                self.coverage_mask = self.evaluation(map=self.map,
-                                                     map_gt_cloud=self.map_gt,
-                                                     map_gt_mesh=self.map_gt_mesh,
-                                                     artifacts=self.artifacts,
-                                                     coverage_dist_th=self.coverage_dist_th,
-                                                     artifacts_coverage_dist_th=self.artifacts_coverage_dist_th)
+                self.binary_coverage_mask = self.evaluation(map=self.map,
+                                                            map_gt_cloud=self.map_gt,
+                                                            map_gt_mesh=self.map_gt_mesh,
+                                                            artifacts=self.artifacts,
+                                                            coverage_dist_th=self.coverage_dist_th,
+                                                            artifacts_coverage_dist_th=self.artifacts_coverage_dist_th)
 
             # publish point cloud from ground truth mesh
-            if self.coverage_mask is not None:
-                assert self.coverage_mask.shape[:2] == self.map_gt.shape[:2]
+            if self.binary_coverage_mask is not None:
+                assert self.binary_coverage_mask.shape[:2] == self.map_gt.shape[:2]
                 points = self.map_gt  # (1, N, 3)
-                points = torch.cat([points, self.coverage_mask], dim=2)
+                points = torch.cat([points, self.binary_coverage_mask], dim=2)
 
                 # selecting default map frame if it is not available in ROS
                 map_gt_frame = self.map_gt_frame if self.map_gt_frame is not None else 'subt'

@@ -5,15 +5,17 @@
     <arg name="robots" default="$(arg robot)"/>
     <arg name="points_min_dist" default="0.125"/>
     <arg name="cmd_vel" default="cmd_vel"/>
-    <arg name="follow_opt_path" default="false"/>
     <arg name="run_detector" default="false"/>
     <arg name="do_recording" default="false"/>
-    <arg if="$(eval follow_opt_path==false)" name="path" default="path"/>
-    <arg if="$(eval follow_opt_path==true)" name="path" default="optimized_path"/>
-    <arg name="publish_ground_truth" default="true" />
+
+    <arg name="follow_opt_path" default="false"/>
+    <arg if="$(eval follow_opt_path)" name="path" default="optimized_path"/>
+    <arg unless="$(eval follow_opt_path)" name="path" default="path"/>
+
     <arg name="record_duration" default="60m"/>
+    <arg name="run_trajopt" default="true" />
     <arg name="debug_trajopt" default="false"/>
-    <arg name="trajopt_iters" default="25"/>
+    <arg name="trajopt_iters" default="50"/>
 
     <!-- Subt frame publisher-->
     <node name="subt_frame_publisher" pkg="subt_virtual" type="subt_frame_publisher">
@@ -28,8 +30,8 @@
     <!-- Navigation and Exploration -->
     <group ns="$(arg robot)">
         <include file="$(find naex)/launch/naex.launch" pass_all_args="true"/>
-        <include if="$(arg follow_opt_path)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
-        <include if="$(arg follow_opt_path)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true"/>
+        <include if="$(arg run_trajopt)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
+        <include if="$(arg run_trajopt)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true"/>
     </group>
     <!-- Odometry -->
     <include file="$(find subt_virtual)/launch/ekf_odom.launch" pass_all_args="true"/>

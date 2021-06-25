@@ -10,7 +10,7 @@
     <arg name="do_metrics_record" default="false"/>
     <arg name="load_gt" default="true"/>
     <arg name="eval_rate" default="0.03"/> <!-- how often do mapping evaluation -->
-    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_true_simple_cave_02_rewards_images_2021-06-23-15-17-11.bag"/>
+    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_true_simple_cave_02_images_rewards_2021-06-24-14-54-38.bag"/>
     <arg name="bag_rate" default="4.0"/>
     <arg name="bag_start" default="0.0"/>
     <arg name="pcl_msg_max_age" default="30.0"/>
@@ -49,10 +49,10 @@
             gt_mesh: $(arg gt_mesh_file) <!-- Path to .obj or .ply ground truth mesh file of the world -->
             do_points_sampling_from_mesh: True <!-- Whether to use points sampling method from mesh (True) or use mesh vertices (False) -->
             do_points_sampling_from_map: True <!-- Whether to subsample constructed map before metrics computation -->
-            n_sample_points: 10000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
+            n_sample_points: 25000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
             do_eval: $(arg do_eval) <!-- Whether to run evaluation function or just see the constructed map -->
             load_gt: $(arg load_gt) <!-- Whether to load ground truth mesh of the environment -->
-            coverage_dist_th: 0.5 <!-- Threshold value [m]: defines if a world mesh point is considered covered -->
+            coverage_dist_th: 0.2 <!-- Threshold value [m]: defines if a world mesh point is considered covered -->
             artifacts_coverage_dist_th: 0.1 <!-- Threshold value [m]: defines if an artifact mesh point is considered covered -->
             artifacts_hypothesis_topic: "detection_localization/dbg_hypotheses_pcl" <!-- Detections localization output to evaluate -->
             max_age: $(arg pcl_msg_max_age) <!-- Constructed map point cloud msg timestamp threshold: it wouldn't be processed if dt > age -->
