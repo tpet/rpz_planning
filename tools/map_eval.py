@@ -51,7 +51,7 @@ class MapEval:
         self.load_gt = rospy.get_param('~load_gt', True)
         self.record_metrics = rospy.get_param('~record_metrics', True)
         self.xls_file = rospy.get_param('~metrics_xls_file', f'/tmp/mapping-eval')
-        self.xls_file = f'{self.xls_file[:-4]}_{timer()}.xls'
+        self.xls_file = f'{self.xls_file[:-4]}.xls'
         self.coverage_dist_th = rospy.get_param('~coverage_dist_th', 0.2)
         self.artifacts_coverage_dist_th = rospy.get_param('~artifacts_coverage_dist_th', 0.1)
         self.artifacts_hypothesis_topic = rospy.get_param('~artifacts_hypothesis_topic',
