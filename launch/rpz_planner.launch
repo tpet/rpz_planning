@@ -25,9 +25,9 @@
 <!--            dist_weight: 1.0-->
 <!--            trav_weight: 1.0-->
 <!--            turn_weight: 1.0-->
-            dist_weight: 100.0
-            trav_weight: 10000.0
-            turn_weight: 100.0
+            dist_weight: 50.0
+            trav_weight: 5000.0
+            turn_weight: 50.0
         </rosparam>
 
         <rosparam if="$(eval robot_type == 'marv')">
