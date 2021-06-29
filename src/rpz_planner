@@ -1382,7 +1382,8 @@ class RPZPlanner(object):
         xyzrpy = select_pts_to_optimize(xyzrpy,
                                         self.rpz_cloud,
                                         map.transpose(1, 0),
-                                        local_map_selection=USE_PYTORCH3D,
+                                        # local_map_selection=USE_PYTORCH3D,
+                                        local_map_selection=False,
                                         dist_th=0.1)
         n_poses = xyzrpy.shape[0]
 
@@ -1513,7 +1514,8 @@ class RPZPlanner(object):
             # Penalize path length change, high roll and pitch and yaw changes.
             time_cost = self.path_cost(xyzrpy)
 
-            criterion = time_cost / reward
+            # criterion = time_cost / reward
+            criterion = time_cost - reward
 
             # publish intermediate result during optimization process only in debug mode
             if iter == (self.num_iters - 1) or self.debug:
@@ -1535,11 +1537,15 @@ class RPZPlanner(object):
             criterion.backward()
             optimizer.step()
 
+            if iter == 0:
+                reward0 = reward
+
             rospy.loginfo('Iter. %i: time %.1f s, '
-                          'reward %.0f, reward/s %.1f '
+                          'reward %.0f / %.0f, reward/s %.1f '
                           '(%.3f s).',
                           iter, time_cost.detach().item(),
-                          reward.detach().item(), 1. / criterion.detach().item(),
+                          reward.detach().item(), reward0.detach().item(),
+                          1. / criterion.detach().item(),
                           timer() - t_iter)
 
 

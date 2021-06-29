@@ -22,9 +22,12 @@
             fixed_endpoints: ['start']
             device: cuda:0
             <!-- device: cpu -->
-            dist_weight: 0.001
-            trav_weight: 1.0
-            turn_weight: 0.005
+<!--            dist_weight: 1.0-->
+<!--            trav_weight: 1.0-->
+<!--            turn_weight: 1.0-->
+            dist_weight: 100.0
+            trav_weight: 10000.0
+            turn_weight: 100.0
         </rosparam>
 
         <rosparam if="$(eval robot_type == 'marv')">

@@ -2,7 +2,7 @@
 
 <launch>
     <arg name="robot" default="X1"/>
-    <arg name="world_name" default="simple_cave_01"/>
+    <arg name="world_name" default="simple_cave_03"/>
     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/$(arg world_name).obj"/>
     <arg name="rviz" default="true"/>
     <arg name="rqt_plot" default="false"/>
@@ -10,12 +10,12 @@
     <arg name="do_metrics_record" default="false"/>
     <arg name="load_gt" default="true"/>
     <arg name="eval_rate" default="0.03"/> <!-- how often do mapping evaluation -->
-    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_true_simple_cave_01_images_2021-06-24-13-40-03.bag"/>
-    <arg name="bag_rate" default="5.0"/>
+    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_true_simple_cave_03_images_rewards_2021-06-26-17-53-02.bag"/>
+    <arg name="bag_rate" default="10.0"/>
     <arg name="bag_start" default="0.0"/>
     <arg name="pcl_msg_max_age" default="60.0"/>
 
-    <arg name="reward_cloud_as_input" default="false"/>
+    <arg name="reward_cloud_as_input" default="true"/>
     <arg if="$(eval reward_cloud_as_input)" name="map_topic" default="rewards_accumulator/rewards_map"/>
     <arg unless="$(eval reward_cloud_as_input)" name="map_topic" default="map_accumulator/map"/>
 
@@ -39,7 +39,7 @@
     <!-- Map with Rewards accumulator node -->
     <include if="$(eval reward_cloud_as_input)" ns="$(arg robot)" file="$(dirname)/rewards_accumulator.launch">
         <arg name="reward_cloud_topic" value="reward_cloud"/>
-        <arg name="pts_proximity_th" value="0.4"/>
+        <arg name="pts_proximity_th" value="0.5"/>
     </include>
 
     <!-- Mapping evaluation -->
@@ -49,15 +49,14 @@
             gt_mesh: $(arg gt_mesh_file) <!-- Path to .obj or .ply ground truth mesh file of the world -->
             do_points_sampling_from_mesh: True <!-- Whether to use points sampling method from mesh (True) or use mesh vertices (False) -->
             do_points_sampling_from_map: True <!-- Whether to subsample constructed map before metrics computation -->
-            n_sample_points: 25000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
+            n_sample_points: 10000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
             do_eval: $(arg do_eval) <!-- Whether to run evaluation function or just see the constructed map -->
             load_gt: $(arg load_gt) <!-- Whether to load ground truth mesh of the environment -->
-            coverage_dist_th: 0.2 <!-- Threshold value [m]: defines if a world mesh point is considered covered -->
+            coverage_dist_th: 0.5 <!-- Threshold value [m]: defines if a world mesh point is considered covered -->
             artifacts_coverage_dist_th: 0.1 <!-- Threshold value [m]: defines if an artifact mesh point is considered covered -->
             artifacts_hypothesis_topic: "detection_localization/dbg_hypotheses_pcl" <!-- Detections localization output to evaluate -->
             max_age: $(arg pcl_msg_max_age) <!-- Constructed map point cloud msg timestamp threshold: it wouldn't be processed if dt > age -->
             map_gt_frame: $(arg world_name) <!-- Ground truth world mesh frame: usually it is the same as world name in Subt simulator -->
-<!--            map_frame: subt-->
             eval_rate: $(arg eval_rate) <!-- How frequent to perform evaluation -->
             record_metrics: $(arg do_metrics_record) <!-- Whether to record obtained metrics to .xls file -->
             metrics_xls_file: $(arg bag) <!-- Path to save metrics .xls file -->
