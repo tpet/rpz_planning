@@ -1,5 +1,15 @@
+# cache
 *.pyc
 .idea
 __pycache__
+.ipynb_checkpoints
 
 data/
+# ROS bags
+*.bag*
+
+# meshes
+*.obj
+*.dae
+*.mtl
+*.ply

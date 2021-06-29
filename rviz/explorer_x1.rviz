@@ -9,7 +9,7 @@ Panels:
         - /TF1/Frames1
         - /RPZ visualization1/Namespaces1
       Splitter Ratio: 0.509186327457428
-    Tree Height: 628
+    Tree Height: 746
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -31,7 +31,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: RPZ rewards
+    SyncSource: ""
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -142,55 +142,111 @@ Visualization Manager:
           Value: false
         X1/rear_right_wheel_link:
           Value: false
-        cave_circuit_01:
+        X1_ground_truth:
+          Value: true
+        backpack_1:
+          Value: true
+        backpack_2:
+          Value: true
+        backpack_3:
+          Value: true
+        backpack_4:
+          Value: true
+        phone_1:
+          Value: true
+        phone_2:
+          Value: true
+        phone_3:
+          Value: true
+        phone_4:
+          Value: true
+        rescue_randy_1:
+          Value: true
+        rescue_randy_2:
+          Value: true
+        rescue_randy_3:
+          Value: true
+        rescue_randy_4:
+          Value: true
+        simple_cave_01:
           Value: true
         subt:
           Value: true
         world:
           Value: false
+      Marker Alpha: 1
       Marker Scale: 4
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: true
       Tree:
-        subt:
-          X1/map:
-            X1/odom:
-              X1:
-                X1/base_link:
-                  X1/base_footprint:
-                    {}
-                  X1/base_link/front_laser:
-                    {}
-                  X1/base_link/front_realsense:
-                    X1/base_link/front_realsense_optical:
+        world:
+          X1_ground_truth:
+            {}
+          backpack_1:
+            {}
+          backpack_2:
+            {}
+          backpack_3:
+            {}
+          backpack_4:
+            {}
+          phone_1:
+            {}
+          phone_2:
+            {}
+          phone_3:
+            {}
+          phone_4:
+            {}
+          rescue_randy_1:
+            {}
+          rescue_randy_2:
+            {}
+          rescue_randy_3:
+            {}
+          rescue_randy_4:
+            {}
+          simple_cave_01:
+            {}
+          subt:
+            X1/map:
+              X1/odom:
+                X1:
+                  X1/base_link:
+                    X1/base_footprint:
                       {}
-                  X1/base_link/imu_sensor:
-                    {}
-                  X1/base_link/left_realsense:
-                    X1/base_link/left_realsense_optical:
+                    X1/base_link/front_laser:
                       {}
-                  X1/base_link/rear_realsense:
-                    X1/base_link/rear_realsense_optical:
+                    X1/base_link/front_realsense:
+                      X1/base_link/front_realsense_optical:
+                        {}
+                    X1/base_link/imu_sensor:
                       {}
-                  X1/base_link/right_realsense:
-                    X1/base_link/right_realsense_optical:
+                    X1/base_link/left_realsense:
+                      X1/base_link/left_realsense_optical:
+                        {}
+                    X1/base_link/rear_realsense:
+                      X1/base_link/rear_realsense_optical:
+                        {}
+                    X1/base_link/right_realsense:
+                      X1/base_link/right_realsense_optical:
+                        {}
+                    X1/base_link_zero_pitch:
                       {}
-                  X1/base_link_zero_pitch:
+                    X1/base_link_zero_roll:
+                      {}
+                    X1/base_link_zero_roll_pitch:
+                      {}
+                  X1/front_left_wheel_link:
                     {}
-                  X1/base_link_zero_roll:
+                  X1/front_right_wheel_link:
                     {}
-                  X1/base_link_zero_roll_pitch:
+                  X1/rear_left_wheel_link:
                     {}
-                X1/front_left_wheel_link:
-                  {}
-                X1/front_right_wheel_link:
-                  {}
-                X1/rear_left_wheel_link:
-                  {}
-                X1/rear_right_wheel_link:
-                  {}
+                  X1/rear_right_wheel_link:
+                    {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -270,6 +326,7 @@ Visualization Manager:
         Z: 0
       Pose Color: 255; 85; 255
       Pose Style: None
+      Queue Size: 10
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
@@ -293,6 +350,7 @@ Visualization Manager:
         Z: 0
       Pose Color: 255; 85; 255
       Pose Style: None
+      Queue Size: 10
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
@@ -334,7 +392,7 @@ Visualization Manager:
       Marker Topic: /X1/visualization
       Name: RPZ visualization
       Namespaces:
-        fov: true
+        {}
       Queue Size: 2
       Value: true
   Enabled: true
@@ -371,6 +429,7 @@ Visualization Manager:
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
+      Field of View: 0.7853981852531433
       Focal Point:
         X: -1.0766942501068115
         Y: -0.4421073794364929
@@ -382,7 +441,6 @@ Visualization Manager:
       Near Clip Distance: 7
       Pitch: 1.5697963237762451
       Target Frame: X1
-      Value: Orbit (rviz)
       Yaw: 3.1454007625579834
     Saved:
       - Class: rviz/Orbit
@@ -392,6 +450,7 @@ Visualization Manager:
           Stereo Focal Distance: 1
           Swap Stereo Eyes: false
           Value: false
+        Field of View: 0.7853981852531433
         Focal Point:
           X: 0
           Y: 0
@@ -403,7 +462,6 @@ Visualization Manager:
         Near Clip Distance: 7
         Pitch: 0.7853981852531433
         Target Frame: X1
-        Value: Orbit (rviz)
         Yaw: 0.7853981852531433
       - Class: rviz/ThirdPersonFollower
         Distance: 20
@@ -412,6 +470,7 @@ Visualization Manager:
           Stereo Focal Distance: 1
           Swap Stereo Eyes: false
           Value: false
+        Field of View: 0.7853981852531433
         Focal Point:
           X: -5
           Y: 0
@@ -423,7 +482,6 @@ Visualization Manager:
         Near Clip Distance: 17
         Pitch: 1
         Target Frame: X1
-        Value: ThirdPersonFollower (rviz)
         Yaw: 3.141590118408203
       - Angle: 0
         Class: rviz/TopDownOrtho
@@ -437,16 +495,15 @@ Visualization Manager:
         Near Clip Distance: 0.009999999776482582
         Scale: 80
         Target Frame: X1
-        Value: TopDownOrtho (rviz)
         X: 0
         Y: 0
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 1025
+  Height: 1163
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd0000000400000000000001b5000003a7fc0200000008fb0000001200530065006c0065006300740069006f006e010000003d000000850000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afc000000c80000031c000000e60100001cfa000000000100000002fb000000100044006900730070006c00610079007301000000000000017f0000015600fffffffb0000000a005600690065007700730100000000ffffffff0000010000fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261000000010000010f0000043bfc0200000002fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007480000003efc0100000002fb0000000800540069006d0065000000000000000748000002eb00fffffffb0000000800540069006d0065010000000000000450000000000000000000000582000003a700000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000400000000000001b500000431fc0200000008fb0000001200530065006c0065006300740069006f006e010000003d000000990000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afc000000dc00000392000000e60100001cfa000000000100000002fb000000100044006900730070006c00610079007301000000000000017f0000015600fffffffb0000000a005600690065007700730100000000ffffffff0000010000fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261000000010000010f0000043bfc0200000002fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007480000003efc0100000002fb0000000800540069006d0065000000000000000748000004f300fffffffb0000000800540069006d00650100000000000004500000000000000000000005c50000043100000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -455,6 +512,6 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: false
-  Width: 1853
-  X: 67
-  Y: 27
+  Width: 1920
+  X: 1920
+  Y: 0

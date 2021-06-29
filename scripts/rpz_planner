@@ -16,7 +16,7 @@ from sensor_msgs.msg import CameraInfo, PointCloud2, PointField
 from std_msgs.msg import ColorRGBA, Header
 from tf.transformations import euler_from_quaternion, quaternion_from_euler, euler_matrix
 import tf2_ros
-from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud
+# from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud
 from threading import RLock
 from timeit import default_timer as timer
 import torch
@@ -817,6 +817,24 @@ def compute_vis_mask(map, cam_to_map, param=2.0, voxel_size=0.6):
     return vis_mask
 
 
+def select_pts_to_optimize(path_pts, rpz_cloud, map):
+    assert isinstance(path_pts, torch.Tensor)
+    assert isinstance(map, torch.Tensor)
+    assert path_pts.ndim == 2
+    assert path_pts.shape[1] >= 3  # (P1, >=3)
+    assert map.ndim == 2
+    assert map.shape[1] >= 3  # (P2, >=3)
+    t0 = timer()
+    # check if path points are inside available rectangular traversability area
+    trav_mask = (path_pts[:, 0] > np.min(rpz_cloud['x'])) & (path_pts[:, 0] < np.max(rpz_cloud['x'])) & \
+                (path_pts[:, 1] > np.min(rpz_cloud['y'])) & (path_pts[:, 1] < np.max(rpz_cloud['y']))
+    if torch.sum(trav_mask) > 2:  # if there are at least two points of the path lying in traversable area
+        path_pts = path_pts[trav_mask, :]
+
+    rospy.logdebug('Points to optimize selection took %s:.3f sec', timer() - t0)
+    return path_pts
+
+
 class RPZPlanner(object):
 
     def __init__(self):
@@ -1334,6 +1352,10 @@ class RPZPlanner(object):
         # For interpolation we'll have: rpz(to_grid(xyyaw)).
         # Optionally, offset z if needed.
 
+        xyzrpy = select_pts_to_optimize(xyzrpy,
+                                        self.rpz_cloud,
+                                        map.transpose(1, 0))
+
         opt_i = slice(1 if 'start' in self.fixed_endpoints else None,
                       -1 if 'goal' in self.fixed_endpoints else None)
 
@@ -1354,6 +1376,7 @@ class RPZPlanner(object):
         vis_mask = None
 
         reward_history = []
+        reward0 = -1
         for iter in range(self.num_iters):
             t_iter = timer()
             rospy.logdebug('Iteration %i started.', iter)
@@ -1384,15 +1407,21 @@ class RPZPlanner(object):
             elif self.order == DimOrder.YAW_X_Y:
                 xyzrpy = torch.cat((xyyaw[:, 1:], rpz[:, 2:], rpz[:, :2], xyyaw[:, :1]), dim=-1)
 
-            # Publish current optimized path.
-            # TODO: Test yaw processing from map to grid and back.
-            # TODO: Alternative solution is to recompute yaw from XY again.
-            msg_out = xyzrpy_to_path_msg(xyzrpy)
-            msg_out.header = msg.header
-            for p in msg_out.poses:
-                assert isinstance(p, PoseStamped)
-                p.header = msg.header
-            self.path_pub.publish(msg_out)
+            if torch.isnan(xyzrpy).any():
+                rospy.logwarn("Path contains NANs. Optimization will not be performed this time")
+                msg_out = msg
+                self.path_pub.publish(msg_out)
+                break
+            else:
+                # Publish current optimized path.
+                # TODO: Test yaw processing from map to grid and back.
+                # TODO: Alternative solution is to recompute yaw from XY again.
+                msg_out = xyzrpy_to_path_msg(xyzrpy)
+                msg_out.header = msg.header
+                for p in msg_out.poses:
+                    assert isinstance(p, PoseStamped)
+                    p.header = msg.header
+                self.path_pub.publish(msg_out)
 
             # Get camera to map transforms.
             t = timer()
@@ -1472,11 +1501,15 @@ class RPZPlanner(object):
             criterion.backward()
             optimizer.step()
 
+            if iter == 0:
+                reward0 = reward
+
             rospy.loginfo('Iter. %i: time %.1f s, '
-                          'reward %.0f, reward/s %.1f '
+                          'reward %.0f/%.0f, reward/s %.1f '
                           '(%.3f s).',
                           iter, time_cost.detach().item(),
-                          reward.detach().item(), 1. / criterion.detach().item(),
+                          reward.detach().item(), reward0.detach().item(),
+                          1. / criterion.detach().item(),
                           timer() - t_iter)
 
 
