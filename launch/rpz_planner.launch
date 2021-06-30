@@ -2,7 +2,7 @@
 
 <launch>
     <arg name="robot" default="X1"/>
-    <arg name="robot_type" default="explorer_x1"/>
+    <arg name="robot_type" default="marv"/>
     <arg name="debug_trajopt" default="false"/>
     <arg name="trajopt_iters" default="50"/>
     <arg name="points_slow_filtered" default="points_slow_filtered"/>
@@ -31,7 +31,7 @@
         </rosparam>
 
         <rosparam if="$(eval robot_type == 'marv')">
-            num_cameras: 2
+            num_cameras: 7
         </rosparam>
         <rosparam if="$(eval robot_type == 'explorer_x1')">
             num_cameras: 4
@@ -44,7 +44,17 @@
         <remap if="$(eval robot_type == 'marv')"
                from="camera_info_0" to="front/optical/camera_info"/>
         <remap if="$(eval robot_type == 'marv')"
-               from="camera_info_1" to="rear/optical/camera_info"/>
+               from="camera_info_1" to="omni/camera_0/optical/camera_info"/>
+        <remap if="$(eval robot_type == 'marv')"
+               from="camera_info_2" to="omni/camera_1/optical/camera_info"/>
+        <remap if="$(eval robot_type == 'marv')"
+               from="camera_info_3" to="omni/camera_2/optical/camera_info"/>
+        <remap if="$(eval robot_type == 'marv')"
+               from="camera_info_4" to="omni/camera_3/optical/camera_info"/>
+        <remap if="$(eval robot_type == 'marv')"
+               from="camera_info_5" to="omni/camera_4/optical/camera_info"/>
+        <remap if="$(eval robot_type == 'marv')"
+               from="camera_info_6" to="rear/optical/camera_info"/>
 
         <!-- explorer cameras topics -->
         <remap if="$(eval 'explorer_x1' in robot_type.lower())"

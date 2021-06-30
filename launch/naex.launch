@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <launch>
     <arg name="robot" default="X1" doc="Robot name, also ROS graph and TF namespace."/>
-    <arg name="robot_type" default="explorer_x1" doc="Robot type, from {absolem, dtr, explorer_x1, marv, x1, x2}."/>
+    <arg name="robot_type" default="marv" doc="Robot type, from {absolem, dtr, explorer_x1, marv, x1, x2}."/>
     <arg name="robots" default="$(arg robot)"/>
     <arg name="points_min_dist" default="0.125"/>
     <arg name="cmd_vel" default="cmd_vel"/>
@@ -13,7 +13,7 @@
     <arg unless="$(eval follow_opt_path)" name="path" default="path"/>
 
     <arg name="record_duration" default="60m"/>
-    <arg name="run_trajopt" default="true" />
+    <arg name="run_trajopt" default="false" />
     <arg name="debug_trajopt" default="false"/>
     <arg name="trajopt_iters" default="50"/>
 

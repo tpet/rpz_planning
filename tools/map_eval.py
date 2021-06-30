@@ -565,7 +565,7 @@ class MapEval:
 
 
 if __name__ == '__main__':
-    rospy.init_node('map_eval', log_level=rospy.DEBUG)
+    rospy.init_node('map_eval', log_level=rospy.INFO)
     path_fo_gt_map_mesh = rospy.get_param('~gt_mesh')
     assert os.path.exists(path_fo_gt_map_mesh)
     rospy.loginfo('Using ground truth mesh file: %s', path_fo_gt_map_mesh)
