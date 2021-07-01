@@ -9,7 +9,7 @@
     <arg name="do_eval" default="true"/>
     <arg name="do_metrics_record" default="false"/>
     <arg name="load_gt" default="true"/>
-    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_false_simple_cave_03_images_rewards_2021-06-25-14-50-39.bag"/>
+    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_true_simple_cave_03_images_rewards_2021-06-30-19-41-06.bag"/>
     <arg name="bag_rate" default="10.0"/>
     <arg name="bag_start" default="0.0"/>
 

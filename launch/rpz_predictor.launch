@@ -2,7 +2,7 @@
 
 <launch>
     <arg name="robot" default="X1"/>
-    <arg name="robot_type=" default="marv"/>
+    <arg name="robot_type=" default="explorer_x1"/>
 
     <include file="$(find nifti_drivers_launchers)/launch/tf_server.launch">
         <arg name="tf_prefix" value="$(arg robot)/" />

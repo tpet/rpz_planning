@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <launch>
     <arg name="robot" default="X1"/>
-    <arg name="robot_type" default="marv"/>
+    <arg name="robot_type" default="explorer_x1"/>
 
     <!-- Map construction topics: new points and localization in tfs -->
     <arg name="mapping_topics" value="/$(arg robot)/updated_map
@@ -75,6 +75,6 @@
     <!-- Recorder node: input topics are specified here as input arguments -->
     <node name="record_data" pkg="rosbag" type="record"
           args="-o $(find rpz_planning)/$(arg robot_type)_opt_path_$(arg follow_opt_path)
-                $(arg trajopt_input_topics)
+                $(arg mapping_topics)
                 --duration $(arg record_duration)"/>
 </launch>

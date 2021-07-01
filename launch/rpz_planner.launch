@@ -2,7 +2,7 @@
 
 <launch>
     <arg name="robot" default="X1"/>
-    <arg name="robot_type" default="marv"/>
+    <arg name="robot_type" default="explorer_x1"/>
     <arg name="debug_trajopt" default="false"/>
     <arg name="trajopt_iters" default="50"/>
     <arg name="points_slow_filtered" default="points_slow_filtered"/>
