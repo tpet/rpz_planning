@@ -527,6 +527,7 @@ class MapEval:
     def run(self):
         rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
+            # publish ground truth
             self.map_gt_mesh_marker.header.stamp = rospy.Time.now()
             self.world_mesh_pub.publish(self.map_gt_mesh_marker)
             self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', rospy.Time.now(), self.map_gt_frame)
