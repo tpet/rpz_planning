@@ -24,6 +24,8 @@ import xlwt
 from visualization_msgs.msg import Marker
 import rospkg
 from scipy.spatial.transform import Rotation
+
+
 # problems with Cryptodome: pip install pycryptodomex
 # https://github.com/DP-3T/reference_implementation/issues/1
 
@@ -32,27 +34,26 @@ class GTWorldPub:
     """
     This ROS node publishes ground truth world (mesh and point clouds).
     """
+
     def __init__(self, world_name='simple_cave_01'):
         self.tf = tf2_ros.Buffer()
         self.tl = tf2_ros.TransformListener(self.tf)
         # Set the device
-        if torch.cuda.is_available():
-            self.device = torch.device("cuda:0")
-        else:
-            self.device = torch.device("cpu")
+        self.device = torch.device("cpu")
         self.seed = 0  # for reprodusibility of experiments
         # parameters
         self.do_points_sampling_from_mesh = rospy.get_param('~do_points_sampling_from_mesh', True)
         self.n_sample_points = rospy.get_param('~n_sample_points', 10000)
+        self.output_local_pc_topic = rospy.get_param('~output_local_pc_topic', '~local_cloud_from_gt_mesh')
         # world ground truth mesh publisher
         self.world_mesh_pub = rospy.Publisher('/world_mesh', Marker, queue_size=1)
-
         self.map_gt_frame = world_name
         self.map_gt_mesh = None
         self.map_gt_mesh_marker = Marker()
         self.artifacts = {'poses': None, 'classes': None, 'clouds': None, 'cloud_merged': None}
         self.map_gt = None
-        self.rate = rospy.get_param('~rate', 1.0)
+        self.rate = rospy.get_param('~rate', 3.5)
+        self.map_size = 25.6
 
         # loading ground truth data
         self.load_ground_truth(world_name)
@@ -89,10 +90,8 @@ class GTWorldPub:
         if '.obj' in path_to_mesh_file:
             gt_mesh_verts, faces, _ = load_obj(path_to_mesh_file)
             gt_mesh_faces_idx = faces.verts_idx
-            # self.map_gt_trimesh = trimesh.load(path_to_mesh_file)
         elif '.ply' in path_to_mesh_file:
             gt_mesh_verts, gt_mesh_faces_idx = load_ply(path_to_mesh_file)
-            # self.map_gt_trimesh = trimesh.load(path_to_mesh_file)
         else:
             rospy.logerr('Supported mesh formats are *.obj or *.ply')
             return
@@ -102,9 +101,9 @@ class GTWorldPub:
         gt_mesh_faces_idx = gt_mesh_faces_idx.to(self.device)
         gt_mesh_verts = gt_mesh_verts.to(self.device)
         # TODO: correct coordinates mismatch in Blender (swap here X and Y)
-        R = torch.tensor([[ 0., 1., 0.],
+        R = torch.tensor([[0., 1., 0.],
                           [-1., 0., 0.],
-                          [ 0., 0., 1.]]).to(self.device)
+                          [0., 0., 1.]]).to(self.device)
         gt_mesh_verts = torch.matmul(R, gt_mesh_verts.transpose(1, 0)).transpose(1, 0)
         assert gt_mesh_verts.shape[1] == 3
 
@@ -129,9 +128,9 @@ class GTWorldPub:
         marker.pose.position.x = 0
         marker.pose.position.y = 0
         marker.pose.position.z = 0
-        r = np.array([[ 0., 0., 1.],
+        r = np.array([[0., 0., 1.],
                       [-1., 0., 0.],
-                      [ 0., -1., 0.]])
+                      [0., -1., 0.]])
         q = Rotation.from_matrix(r).as_quat()
         marker.pose.orientation.x = q[0]
         marker.pose.orientation.y = q[1]
@@ -145,7 +144,7 @@ class GTWorldPub:
         marker.color.g = 1
         marker.color.b = 0
         marker.type = Marker.MESH_RESOURCE
-        marker.mesh_resource = f"package://rpz_planning/data/meshes/{self.map_gt_frame}.dae"
+        marker.mesh_resource = f"package://rpz_planning/data/meshes/{world_name}.dae"
         self.map_gt_mesh_marker = marker
         # get the artifacts point cloud
         self.artifacts = self.get_artifacts()
@@ -208,7 +207,8 @@ class GTWorldPub:
             artifacts_cloud_merged.append(cloud)
             artifacts['classes'].append(artifact_name[:-2])  # without _n at the end of the name
             artifacts['poses'].append(t)
-            artifacts['clouds'].append(torch.as_tensor(cloud.transpose([1, 0]), dtype=torch.float32).unsqueeze(0).to(self.device))
+            artifacts['clouds'].append(
+                torch.as_tensor(cloud.transpose([1, 0]), dtype=torch.float32).unsqueeze(0).to(self.device))
         artifacts_cloud_merged_np = artifacts_cloud_merged[0]
         for cloud in artifacts_cloud_merged[1:]:
             artifacts_cloud_merged_np = np.concatenate([artifacts_cloud_merged_np, cloud], axis=1)
@@ -219,28 +219,45 @@ class GTWorldPub:
     def run(self):
         rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
-            # publish ground truth
+            # publish ground truth mesh
             self.map_gt_mesh_marker.header.stamp = rospy.Time.now()
             self.world_mesh_pub.publish(self.map_gt_mesh_marker)
-            self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', rospy.Time.now(), self.map_gt_frame)
-
-            # selecting default map frame if it is not available in ROS
-            points_to_pub = self.map_gt.squeeze().cpu().numpy().transpose(1, 0)
-            assert len(points_to_pub.shape) == 2
-            assert points_to_pub.shape[0] >= 3
-            self.publish_pointcloud(points_to_pub,
+            self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', rospy.Time.now(),
+                                    self.map_gt_frame)
+            # publish ground truth cloud
+            gt_cloud = self.map_gt.squeeze().numpy().transpose(1, 0)
+            assert len(gt_cloud.shape) == 2
+            assert gt_cloud.shape[0] >= 3
+            self.publish_pointcloud(gt_cloud,
                                     topic_name='/cloud_from_gt_mesh',
                                     stamp=rospy.Time.now(),
                                     frame_id=self.map_gt_frame,
                                     intensity='coverage')
+
+            # publish local ground truth map (around gt robot pose)
+            try:
+                robot_to_map = self.tf.lookup_transform('X1_ground_truth', self.map_gt_frame, rospy.Time(0))
+                T = numpify(robot_to_map.transform)
+                R, t = T[:3, :3], T[:3, 3]
+                gt_cloud_robot_frame = R @ gt_cloud + t.reshape([3, 1])
+                mask = (gt_cloud_robot_frame[0, :] >= -self.map_size/2.) & (gt_cloud_robot_frame[0, :] <= self.map_size/2.) & \
+                       (gt_cloud_robot_frame[1, :] >= -self.map_size/2.) & (gt_cloud_robot_frame[1, :] <= self.map_size/2.)
+                gt_cloud_local = gt_cloud[:, mask]
+                self.publish_pointcloud(gt_cloud_local,
+                                        topic_name=self.output_local_pc_topic,
+                                        stamp=rospy.Time.now(),
+                                        frame_id=self.map_gt_frame)
+            except tf2_ros.LookupException:
+                rospy.logwarn('no tf')
+
             rospy.logdebug(f'Ground truth mesh frame: {self.map_gt_frame}')
-            rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
+            rospy.logdebug(f'Publishing points of shape {gt_cloud.shape} sampled from ground truth mesh')
             rate.sleep()
 
 
 if __name__ == '__main__':
     rospy.init_node('ground_truth_world_publisher', log_level=rospy.INFO)
-    world_name = rospy.get_param('/world_name', 'simple_cave_01')
+    world_name = rospy.get_param('/world_name', 'simple_cave_02')
     rospy.loginfo('Loading world: %s', world_name)
     proc = GTWorldPub(world_name=world_name)
     rospy.loginfo('Ground truth publisher node is initialized.')

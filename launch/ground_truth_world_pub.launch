@@ -1,13 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 
 <launch>
-
     <node name="gt_world_publisher" pkg="rpz_planning" type="ground_truth_world_pub.py" output="screen">
         <rosparam subst_value="true">
             do_points_sampling_from_mesh: True
-            n_sample_points: 10000
-            rate: 0.5
+            n_sample_points: 2500000
+            rate: 3.5
+            output_local_pc_topic: "local_cloud_from_gt_mesh"
         </rosparam>
     </node>
-
 </launch>
