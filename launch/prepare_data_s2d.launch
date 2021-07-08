@@ -19,17 +19,16 @@
 
     <!-- ROSBAG -->
     <node name="rosbag_play_rpz" pkg="rosbag" type="play"
-          args="--clock --pause -s $(arg bag_start) -r $(arg bag_rate) $(arg bag)">
+          args="--clock -s $(arg bag_start) -r $(arg bag_rate) $(arg bag)">
     </node>
 
+    <!-- Point cloud filtering -->
     <include file="$(find nifti_drivers_launchers)/launch/tf_server.launch">
         <arg name="tf_prefix" value="$(arg robot)/" />
     </include>
-
     <include file="$(find tradr_odometry)/launch/base_link_leveller.launch">
         <arg name="tf_prefix" value="$(arg robot)/" />
     </include>
-
     <node if="$(arg filter_cloud)" name="box_filter" pkg="cloud_proc" type="cloud_proc" output="screen">
         <rosparam param="filters" subst_value="true">
             - cloud_proc.DiscardOld:
@@ -43,16 +42,20 @@
                 frame: $(arg robot)/base_link_zero_roll_pitch
 <!--                frame: $(arg robot)/base_link-->
         </rosparam>
-
         <remap from="in" to="$(arg local_cloud_topic)"/>
         <remap from="out" to="$(arg local_cloud_topic)_bigbox"/>
     </node>
 
+    <!-- Convert clouds to voxels and save for traversability network training -->
     <node name="prepare_data_s2d" pkg="dem_predictor" type="prepare_data_s2d.py" output="screen">
         <param if="$(eval filter_cloud)" name="cloud_topic" value="$(arg local_cloud_topic)_bigbox"/>
         <param unless="$(eval filter_cloud)" name="cloud_topic" value="$(arg local_cloud_topic)"/>
-        <param name="odom_topic" value="$(arg odom_topic)"/>
-        <param name="grid_res" value="$(arg grid_res)"/>
+        <rosparam param="filters" subst_value="true">
+            odom_topic: $(arg odom_topic)
+            grid_res: $(arg grid_res)
+            map_frame: "world"
+            robot_frame: "X1_ground_truth"
+        </rosparam>
     </node>
 
     <!-- RVIZ -->

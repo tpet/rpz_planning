@@ -5,7 +5,6 @@
     <arg name="world_name" default="simple_cave_03"/>
     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/$(arg world_name).obj"/>
     <arg name="rviz" default="true"/>
-    <arg name="rqt_plot" default="false"/>
     <arg name="do_eval" default="true"/>
     <arg name="do_metrics_record" default="false"/>
     <arg name="load_gt" default="true"/>
@@ -51,7 +50,7 @@
             do_eval: $(arg do_eval) <!-- Whether to run evaluation function or just see the constructed map -->
             load_gt: $(arg load_gt) <!-- Whether to load ground truth mesh of the environment -->
             coverage_dist_th: 0.5 <!-- Threshold value [m]: defines if a world mesh point is considered covered -->
-            artifacts_coverage_dist_th: 0.1 <!-- Threshold value [m]: defines if an artifact mesh point is considered covered -->
+            artifacts_coverage_dist_th: 0.2 <!-- Threshold value [m]: defines if an artifact mesh point is considered covered -->
             artifacts_hypothesis_topic: "detection_localization/dbg_hypotheses_pcl" <!-- Detections localization output to evaluate -->
             max_age: 60.0 <!-- Constructed map point cloud msg timestamp threshold: it wouldn't be processed if dt > age -->
             map_gt_frame: $(arg world_name) <!-- Ground truth world mesh frame: usually it is the same as world name in Subt simulator -->
@@ -64,20 +63,5 @@
     <!-- RVIZ -->
     <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
           args="-d $(dirname)/../config/map_accum.rviz"/>
-
-    <!-- RQT plot -->
-    <group if="$(arg rqt_plot)">
-        <node name="rqt_plot_explor_losses" pkg="rqt_plot" type="rqt_plot"
-          args="$(arg robot)/map_eval/exp_loss_face/data
-                $(arg robot)/map_eval/exp_loss_edge/data
-                $(arg robot)/map_eval/exp_loss_chamfer/data"/>
-        <node name="rqt_plot_map_acc" pkg="rqt_plot" type="rqt_plot"
-          args="$(arg robot)/map_eval/map_loss_face/data
-                $(arg robot)/map_eval/map_loss_edge/data
-                $(arg robot)/map_eval/map_loss_chamfer/data"/>
-        <node name="rqt_plot_coverage" pkg="rqt_plot" type="rqt_plot"
-          args="$(arg robot)/map_eval/exp_completeness/data
-                $(arg robot)/map_eval/artifacts_exp_completeness/data"/>
-    </group>
 
 </launch>

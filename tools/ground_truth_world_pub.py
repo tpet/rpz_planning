@@ -48,6 +48,7 @@ class GTWorldPub:
         # world ground truth mesh publisher
         self.world_mesh_pub = rospy.Publisher('/world_mesh', Marker, queue_size=1)
         self.map_gt_frame = world_name
+        self.robot_gt_frame = 'X1_ground_truth'
         self.map_gt_mesh = None
         self.map_gt_mesh_marker = Marker()
         self.artifacts = {'poses': None, 'classes': None, 'clouds': None, 'cloud_merged': None}
@@ -220,9 +221,10 @@ class GTWorldPub:
         rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
             # publish ground truth mesh
-            self.map_gt_mesh_marker.header.stamp = rospy.Time.now()
+            stamp = rospy.Time(0)
+            self.map_gt_mesh_marker.header.stamp = stamp
             self.world_mesh_pub.publish(self.map_gt_mesh_marker)
-            self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', rospy.Time.now(),
+            self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', stamp,
                                     self.map_gt_frame)
             # publish ground truth cloud
             gt_cloud = self.map_gt.squeeze().numpy().transpose(1, 0)
@@ -230,13 +232,13 @@ class GTWorldPub:
             assert gt_cloud.shape[0] >= 3
             self.publish_pointcloud(gt_cloud,
                                     topic_name='/cloud_from_gt_mesh',
-                                    stamp=rospy.Time.now(),
+                                    stamp=stamp,
                                     frame_id=self.map_gt_frame,
                                     intensity='coverage')
 
             # publish local ground truth map (around gt robot pose)
             try:
-                robot_to_map = self.tf.lookup_transform('X1_ground_truth', self.map_gt_frame, rospy.Time(0))
+                robot_to_map = self.tf.lookup_transform(self.robot_gt_frame, self.map_gt_frame, stamp)
                 T = numpify(robot_to_map.transform)
                 R, t = T[:3, :3], T[:3, 3]
                 gt_cloud_robot_frame = R @ gt_cloud + t.reshape([3, 1])
@@ -245,7 +247,7 @@ class GTWorldPub:
                 gt_cloud_local = gt_cloud[:, mask]
                 self.publish_pointcloud(gt_cloud_local,
                                         topic_name=self.output_local_pc_topic,
-                                        stamp=rospy.Time.now(),
+                                        stamp=stamp,
                                         frame_id=self.map_gt_frame)
             except tf2_ros.LookupException:
                 rospy.logwarn('no tf')
