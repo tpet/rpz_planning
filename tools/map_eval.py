@@ -18,7 +18,7 @@ from rpz_planning.msg import Metrics
 import numpy as np
 from ros_numpy import msgify, numpify
 import tf2_ros
-import trimesh
+# import trimesh
 from timeit import default_timer as timer
 import xlwt
 from visualization_msgs.msg import Marker

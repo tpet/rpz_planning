@@ -2,7 +2,7 @@
 
 <launch>
     <arg name="reward_cloud_topic" default="reward_cloud"/>
-    <arg name="pts_proximity_th" default="0.2"/>
+    <arg name="pts_proximity_th" default="0.3"/>
 
     <node name="rewards_accumulator" pkg="rpz_planning" type="rewards_accumulator.py" output="screen">
         <rosparam subst_value="true">

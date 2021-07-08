@@ -52,8 +52,8 @@ class RewardsAccumulator:
             return
 
         try:
-            transform = self.tf.lookup_transform('X1_ground_truth', 'X1', rospy.Time(0))
-        except c:
+            transform = self.tf.lookup_transform('X1', 'X1_ground_truth', rospy.Time(0))
+        except tf2_ros.LookupException:
             rospy.logwarn('No transform between estimated robot pose and its ground truth')
             return
 

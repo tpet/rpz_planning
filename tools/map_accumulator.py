@@ -30,24 +30,8 @@ class MapAccumulator:
         self.map_frame = None
         self.tf = tf2_ros.Buffer()
         self.tl = tf2_ros.TransformListener(self.tf)
-        rospy.Subscriber('local_map', PointCloud2, self.pc_callback)
+        rospy.Subscriber(rospy.get_param('~local_map', '/X1/updated_map'), PointCloud2, self.pc_callback)
         rospy.loginfo('Map accumulator node is ready.')
-
-    @staticmethod
-    def transform_cloud(points, trans, quat):
-        """
-        Transform points (3 x N) from robot frame into a pinhole camera frame
-        """
-        assert isinstance(points, np.ndarray)
-        assert isinstance(trans, np.ndarray)
-        assert isinstance(quat, Quaternion)
-        assert len(points.shape) == 2
-        assert points.shape[0] == 3
-        assert trans.shape == (3, 1)
-        points = points - trans
-        R_inv = np.asarray(quat.normalised.inverse.rotation_matrix, dtype=np.float32)
-        points = np.matmul(R_inv, points)
-        return points
 
     def pc_callback(self, pc_msg):
         assert isinstance(pc_msg, PointCloud2)
@@ -56,33 +40,22 @@ class MapAccumulator:
         self.map_frame = pc_msg.header.frame_id
         try:
             t0 = timer()
-            transform = self.tf.lookup_transform('X1_ground_truth', 'X1', rospy.Time(0))
+            transform = self.tf.lookup_transform('X1', 'X1_ground_truth', rospy.Time(0))
         except tf2_ros.LookupException:
             rospy.logwarn('Map accumulator: No transform between estimated robot pose and its ground truth')
             return
-        translation = np.array([transform.transform.translation.x,
-                               transform.transform.translation.y,
-                               transform.transform.translation.z]).reshape([3, 1])
-        quat = Quaternion(x=transform.transform.rotation.x,
-                          y=transform.transform.rotation.y,
-                          z=transform.transform.rotation.z,
-                          w=transform.transform.rotation.w)
         points = numpify(pc_msg)
-        # remove inf points
-        mask = np.isfinite(points['x']) & np.isfinite(points['y']) & np.isfinite(points['z'])
-        points = points[mask]
-        # pull out x, y, and z values
-        points3 = np.zeros([3] + list(points.shape), dtype=np.float32)
-        points3[0, ...] = points['x']
-        points3[1, ...] = points['y']
-        points3[2, ...] = points['z']
-        points3 = self.transform_cloud(points3, translation, quat)
-        new_points = np.zeros(points3.shape[1], dtype=[('x', np.float32),
-                                                       ('y', np.float32),
-                                                       ('z', np.float32)])
-        new_points['x'] = points3[0, ...]
-        new_points['y'] = points3[1, ...]
-        new_points['z'] = points3[2, ...]
+        # Transform local map to ground truth localization frame
+        points = np.vstack([points[f] for f in ['x', 'y', 'z']])
+        T = numpify(transform.transform)
+        R, t = T[:3, :3], T[:3, 3]
+        points = np.matmul(R, points) + t.reshape([3, 1])
+        new_points = np.zeros(points.shape[1], dtype=[('x', np.float32),
+                                                      ('y', np.float32),
+                                                      ('z', np.float32)])
+        new_points['x'] = points[0, ...]
+        new_points['y'] = points[1, ...]
+        new_points['z'] = points[2, ...]
         # rospy.logdebug('Point cloud conversion took: %.3f s', timer() - t0)
 
         # accumulate points
