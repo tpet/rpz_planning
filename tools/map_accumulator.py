@@ -40,7 +40,7 @@ class MapAccumulator:
         self.map_frame = pc_msg.header.frame_id
         try:
             t0 = timer()
-            transform = self.tf.lookup_transform('X1', 'X1_ground_truth', rospy.Time(0))
+            transform = self.tf.lookup_transform('X1_ground_truth', 'X1', rospy.Time(0))
         except tf2_ros.LookupException:
             rospy.logwarn('Map accumulator: No transform between estimated robot pose and its ground truth')
             return

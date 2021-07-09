@@ -266,10 +266,12 @@ class MapEval:
             else:
                 intensity = -1
             cloud = np.concatenate([cloud, intensity * np.ones([1, cloud.shape[1]])], axis=0)
+            assert len(cloud.shape) == 2
+            assert cloud.shape[0] == 4  # (4, n)
             artifacts_cloud_merged.append(cloud)
-            # artifacts['names'].append(artifact_name[:-2])  # without _n at the end of the name
             artifacts['names'].append(artifact_name)
-            artifacts['poses'].append(t)
+            # center of an artifact point cloud in map_gt_frame
+            artifacts['poses'].append(cloud[:3, :].mean(axis=1))
             artifacts['clouds'].append(torch.as_tensor(cloud.transpose([1, 0]), dtype=torch.float32).unsqueeze(0).to(self.device))
         artifacts_cloud_merged_np = artifacts_cloud_merged[0]
         for cloud in artifacts_cloud_merged[1:]:
@@ -435,7 +437,7 @@ class MapEval:
             point_cloud = Pointclouds(map_sampled[..., :3]).to(self.device)
 
             self.metrics_msg.exp_edge_loss = edge_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud).detach().cpu().numpy()
-            # distance between mesh and points is computed as a distance from point to triangle
+            # distance between a point and mesh is computed as a distance from point to triangle
             # if point's projection is inside triangle, then the distance is computed along
             # a normal to triangular plane. Otherwise as a distance to closest edge of the triangle:
             # https://github.com/facebookresearch/pytorch3d/blob/fe39cc7b806afeabe64593e154bfee7b4153f76f/pytorch3d/csrc/utils/geometry_utils.h#L635
@@ -485,6 +487,7 @@ class MapEval:
 
             self.metrics_msg.artifacts_exp_completeness /= len(artifacts['cloud_merged'])
 
+            # ratio of correctly detected artifacts from confirmed hypothesis
             if len(self.detections['poses']) > 0:
                 self.metrics_msg.dets_score = self.evaluate_detections(self.detections, self.artifacts,
                                                                        dist_th=detections_dist_th)

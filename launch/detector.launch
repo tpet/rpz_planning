@@ -28,7 +28,7 @@
 
             <param name="cfg_path" value="$(arg detector_config_path)"/>
             <param name="weights_path" value="$(arg detector_weights_path)"/>
-            <param name="conf_thres" value="0.001"/>
+            <param name="conf_thres" value="0.3"/>
             <param name="pc_buffer_size" value="$(arg pc_buffer_size)"/>
 
             <param name="start_immediately" value="true"/>

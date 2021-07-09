@@ -97,10 +97,81 @@ roslaunch rpz_planning naex_opt.launch follow_opt_path:=true
   Ones a ground truth mesh is loaded, start the playing the bag file (press `space` button)
   (specify the `world_name` argument to match the name of downloaded or created ground truth mesh).
   
-  It will compare a point cloud to a mesh using the following metrics:
+  It will compare a point cloud to a mesh using the following functions:
   - the closest distance from
     [point to mesh edge](https://pytorch3d.readthedocs.io/en/latest/modules/loss.html#pytorch3d.loss.point_mesh_edge_distance)
     (averaged across all points in point cloud),
   - the closes distance from
     [point to mesh face](https://pytorch3d.readthedocs.io/en/latest/modules/loss.html#pytorch3d.loss.point_mesh_face_distance)
-    (averaged across all points in point cloud). 
+    (averaged across all points in point cloud).
+    
+  Evaluation metrics are combined in the ROS message,
+  [Metrics.msg](https://github.com/tpet/rpz_planning/blob/8e15fde74fb64cb1d1da46e93cd446e563bfa3d6/msg/Metrics.msg):
+  
+  ```
+  Header header
+  float64 exp_face_loss
+  float64 exp_edge_loss
+  float64 exp_chamfer_loss
+  float64 exp_completeness
+  float64 map_face_loss
+  float64 map_edge_loss
+  float64 map_chamfer_loss
+  float64 artifacts_exp_completeness
+  float64 dets_score
+  float64 total_reward
+  float64 artifacts_total_reward
+  ```
+  
+  Exploration metrics:
+  
+  - ***exp_face_loss***: distance from ground truth mesh faces to corresponding closes points in the constructed cloud,
+    averaged by the number of faces.
+           
+  - ***exp_edge_loss***: distance from ground truth mesh edges to corresponding closes points in the constructed cloud,
+    averaged by the number of edges.
+    
+  - ***exp_chamfer_loss***: distance from points of ground truth cloud to corresponding closes points in the constructed
+    cloud, averaged by the number of ground truth points.
+    
+  - ***exp_completeness***: fraction of ground truth points sampled from world mesh considered as covered
+    over the whole numer of ground truth world points (takes values between 0 and 1).
+    A ground truth point is considered as covered if
+    there is a point from the constructed map that is located within a distance threshold
+    from the ground truth point.
+    
+
+  Mpping accuracy metrics:
+  
+  - ***map_face_loss***: distance from points in the constructed cloud to corresponding closest mesh faces, averaged by
+    the number of points.
+    
+  - ***map_edge_loss***: distance from points in the constructed cloud to corresponding closest mesh edges, averaged by
+    the number of points.
+    
+  - ***map_chamfer_loss***: distance from points of constructed cloud to corresponding closes points in the ground truth
+    cloud, averaged by the number of constructed points.
+    
+
+  Rewards based on ground truth map and artifacts coverage:
+  
+  - ***artifacts_exp_completeness***: fraction of ground truth points sampled from artifacts' meshes considered as covered
+    over the whole numer of ground truth artifacts' points (takes values between 0 and 1).
+    A ground truth point is considered as covered if
+    there is a point from the constructed map that is located within a distance threshold
+    from the ground truth point.
+    
+  - ***dets_score***: (takes values between 0 and 1) ratio of correctly detected artifacts from confirmed hypothesis
+    over the number of confirmed hypothesis.
+    A detected artifact is considered being correctly detected if its most probable class corresponds to the
+    ground truth class and the detection is located within a distance threshold
+    from the ground truth artifact pose.
+    
+  - ***total_reward***: accumulated reward for the whole exploration route based on visibility information:
+      - 1-5 m distance range range,
+      - points occlusion.,
+      - points that are inside cameras FOVs.
+    
+  - ***artifacts_total_reward***: similar to `total_reward` metric, but computed using the artifacts' covered points.
+  
+  

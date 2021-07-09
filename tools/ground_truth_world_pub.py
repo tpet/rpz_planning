@@ -140,7 +140,7 @@ class GTWorldPub:
         marker.scale.x = 1
         marker.scale.y = 1
         marker.scale.z = 1
-        marker.color.a = 0.2
+        marker.color.a = 0.4
         marker.color.r = 0
         marker.color.g = 1
         marker.color.b = 0
@@ -259,7 +259,7 @@ class GTWorldPub:
 
 if __name__ == '__main__':
     rospy.init_node('ground_truth_world_publisher', log_level=rospy.INFO)
-    world_name = rospy.get_param('/world_name', 'simple_cave_02')
+    world_name = rospy.get_param('/world_name', 'simple_cave_03')
     rospy.loginfo('Loading world: %s', world_name)
     proc = GTWorldPub(world_name=world_name)
     rospy.loginfo('Ground truth publisher node is initialized.')
