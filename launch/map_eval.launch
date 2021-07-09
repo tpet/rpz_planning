@@ -52,7 +52,8 @@
             load_gt: $(arg load_gt) <!-- Whether to load ground truth mesh of the environment -->
             coverage_dist_th: 0.5 <!-- Threshold value [m]: defines if a world mesh point is considered covered -->
             artifacts_coverage_dist_th: 0.1 <!-- Threshold value [m]: defines if an artifact mesh point is considered covered -->
-            artifacts_hypothesis_topic: "detection_localization/dbg_hypotheses_pcl" <!-- Detections localization output to evaluate -->
+            artifacts_hypothesis_topic: "detection_localization/dbg_confirmed_hypotheses_pcl" <!-- Detections localization output to evaluate -->
+            detections_dist_th: 1.5 <!-- Threshold value [m]: defines if an artifact detection point is considered close to gt pose -->
             max_age: 60.0 <!-- Constructed map point cloud msg timestamp threshold: it wouldn't be processed if dt > age -->
             map_gt_frame: $(arg world_name) <!-- Ground truth world mesh frame: usually it is the same as world name in Subt simulator -->
             eval_rate: 0.03 <!-- How frequent to perform evaluation -->
