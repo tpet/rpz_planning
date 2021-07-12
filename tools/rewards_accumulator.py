@@ -2,6 +2,7 @@
 
 import rospy
 from sensor_msgs.msg import PointCloud2
+from geometry_msgs.msg import TransformStamped
 from ros_numpy import msgify, numpify
 import tf2_ros
 
@@ -9,6 +10,21 @@ import torch
 import numpy as np
 from pytorch3d.ops.knn import knn_points
 from timeit import default_timer as timer
+
+
+def transform_points(points, transform):
+    assert isinstance(points, np.ndarray)
+    assert len(points.shape) == 2
+    assert points.shape[0] == 3 or points.shape[0] == 4  # (3, N) or (4, N)
+    assert isinstance(transform, TransformStamped)
+    # Transform local map to ground truth localization frame
+    T = numpify(transform.transform)
+    if points.shape[0] == 3:
+        R, t = T[:3, :3], T[:3, 3]
+        points = np.matmul(R, points) + t.reshape([3, 1])
+    elif points.shape[0] == 4:
+        points = np.matmul(T, points)
+    return points
 
 
 class RewardsAccumulator:
@@ -51,21 +67,27 @@ class RewardsAccumulator:
             rospy.logwarn('Rewards accumulator: Discarding points %.1f s > %.1f s old.', age, self.max_age)
             return
 
+        self.map_frame = pc_msg.header.frame_id
+
         try:
-            transform = self.tf.lookup_transform('X1_ground_truth', 'X1', rospy.Time(0))
+            transform1 = self.tf.lookup_transform('X1_ground_truth', 'X1', rospy.Time(0))
         except tf2_ros.LookupException:
             rospy.logwarn('No transform between estimated robot pose and its ground truth')
             return
 
-        self.map_frame = pc_msg.header.frame_id
+        # try:
+        #     transform2 = self.tf.lookup_transform(self.map_frame, pc_msg.header.frame_id, rospy.Time(0))
+        # except tf2_ros.LookupException:
+        #     rospy.logwarn("Map accumulator: No transform between received cloud's and target frames")
+        #     return
+
         t0 = timer()
 
         # Transform local map to ground truth localization frame
         local_map = numpify(pc_msg)
-        local_map = local_map.ravel()  # Flatten 2D clouds.
         local_map = np.vstack([local_map[f] for f in ['x', 'y', 'z', 'reward']])
-        T = numpify(transform.transform)
-        local_map = np.matmul(T, local_map)
+        local_map = transform_points(local_map, transform1)
+        # local_map = transform_points(local_map, transform2)
 
         local_map = torch.as_tensor(local_map, dtype=torch.float32).transpose(1, 0)[None].to(self.device)
         assert local_map.dim() == 3

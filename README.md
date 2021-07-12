@@ -161,17 +161,40 @@ roslaunch rpz_planning naex_opt.launch follow_opt_path:=true
     there is a point from the constructed map that is located within a distance threshold
     from the ground truth point.
     
-  - ***dets_score***: (takes values between 0 and 1) ratio of correctly detected artifacts from confirmed hypothesis
-    over the number of confirmed hypothesis.
+  - ***dets_score***: (takes values between 0 and N_artifacts) number of correctly detected artifacts from
+    confirmed hypothesis.
     A detected artifact is considered being correctly detected if its most probable class corresponds to the
     ground truth class and the detection is located within a distance threshold
     from the ground truth artifact pose.
     
   - ***total_reward***: accumulated reward for the whole exploration route based on visibility information:
       - 1-5 m distance range range,
-      - points occlusion.,
+      - points occlusion,
       - points that are inside cameras FOVs.
     
   - ***artifacts_total_reward***: similar to `total_reward` metric, but computed using the artifacts' covered points.
   
   
+  Main parameters for the evaluation could be specified in a launcher,
+  [map_eval.launch](https://github.com/tpet/rpz_planning/blob/8e15fde74fb64cb1d1da46e93cd446e563bfa3d6/launch/map_eval.launch#L45):
+
+  ```xml
+  <rosparam subst_value="true">
+      map_topic: $(arg map_topic)  <!-- Point cloud map constructed during exploration -->
+      gt_mesh: $(arg gt_mesh_file) <!-- Path to .obj or .ply ground truth mesh file of the world -->
+      do_points_sampling_from_mesh: True <!-- Whether to use points sampling method from mesh (True) or use mesh vertices (False) -->
+      do_points_sampling_from_map: True <!-- Whether to subsample constructed map before metrics computation -->
+      n_sample_points: 10000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
+      do_eval: $(arg do_eval) <!-- Whether to run evaluation function or just see the constructed map -->
+      load_gt: $(arg load_gt) <!-- Whether to load ground truth mesh of the environment -->
+      coverage_dist_th: 0.5 <!-- Threshold value [m]: defines if a world mesh point is considered covered -->
+      artifacts_coverage_dist_th: 0.1 <!-- Threshold value [m]: defines if an artifact mesh point is considered covered -->
+      artifacts_hypothesis_topic: "detection_localization/dbg_confirmed_hypotheses_pcl" <!-- Detections localization output to evaluate -->
+      detections_dist_th: 1.5 <!-- Threshold value [m]: defines if an artifact detection point is considered close to gt pose -->
+      max_age: 60.0 <!-- Constructed map point cloud msg timestamp threshold: it wouldn't be processed if dt > age -->
+      map_gt_frame: $(arg world_name) <!-- Ground truth world mesh frame: usually it is the same as world name in Subt simulator -->
+      eval_rate: 0.03 <!-- How frequent to perform evaluation -->
+      record_metrics: $(arg do_metrics_record) <!-- Whether to record obtained metrics to .xls file -->
+      metrics_xls_file: $(arg bag) <!-- Path to save metrics .xls file -->
+  </rosparam>
+  ```

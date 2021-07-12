@@ -2,13 +2,13 @@
 
 <launch>
     <arg name="robot" default="X1"/>
-    <arg name="world_name" default="simple_cave_03"/>
+    <arg name="world_name" default="simple_cave_01"/>
     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/$(arg world_name).obj"/>
     <arg name="rviz" default="true"/>
     <arg name="do_eval" default="true"/>
     <arg name="do_metrics_record" default="false"/>
     <arg name="load_gt" default="true"/>
-    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_false_simple_cave_03_images_rewards_2021-06-26-18-55-19.bag"/>
+    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_true_simple_cave_01_images_rewards_2021-06-25-13-20-37.bag"/>
     <arg name="bag_rate" default="10.0"/>
     <arg name="bag_start" default="0.0"/>
 
@@ -53,7 +53,7 @@
             coverage_dist_th: 0.5 <!-- Threshold value [m]: defines if a world mesh point is considered covered -->
             artifacts_coverage_dist_th: 0.1 <!-- Threshold value [m]: defines if an artifact mesh point is considered covered -->
             artifacts_hypothesis_topic: "detection_localization/dbg_confirmed_hypotheses_pcl" <!-- Detections localization output to evaluate -->
-            detections_dist_th: 1.0 <!-- Threshold value [m]: defines if an artifact detection point is considered close to gt pose -->
+            detections_dist_th: 1.5 <!-- Threshold value [m]: defines if an artifact detection point is considered close to gt pose -->
             max_age: 60.0 <!-- Constructed map point cloud msg timestamp threshold: it wouldn't be processed if dt > age -->
             map_gt_frame: $(arg world_name) <!-- Ground truth world mesh frame: usually it is the same as world name in Subt simulator -->
             eval_rate: 0.03 <!-- How frequent to perform evaluation -->

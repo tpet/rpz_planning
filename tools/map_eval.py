@@ -203,7 +203,7 @@ class MapEval:
         marker.scale.x = 1
         marker.scale.y = 1
         marker.scale.z = 1
-        marker.color.a = 0.2
+        marker.color.a = 0.6
         marker.color.r = 0
         marker.color.g = 1
         marker.color.b = 0
@@ -337,21 +337,21 @@ class MapEval:
         poses = torch.as_tensor(preds['poses']).to(self.device)
         poses_gt = torch.as_tensor(gts['poses']).to(self.device)
         assert poses.shape[1] == poses_gt.shape[1]
-        knn = knn_points(poses[None], poses_gt[None], K=1)
+        knn = knn_points(poses_gt[None], poses[None], K=1)
         # currently the score just takes into account proximity of the predictions to ground truth
         # by a distance threshold and, if the predicted class matches ground truth the score is increased.
-        # It is weighted by the number of predictions to mitigate spamming a lot of false/random predictions
         score = 0.0
         rospy.logdebug(f"Gt classes: {gts['names']}")
         rospy.logdebug(f"Pred classes: {preds['classes']}")
         dists = knn.dists.squeeze(0)
         rospy.logdebug(f"KNN dists: {dists.detach().cpu().numpy()}")
-        assert len(dists) == len(preds['classes'])
+        # TODO: limit the number of evaluated hypothesis
+        assert len(dists) == len(gts['names'])
         for i, d in enumerate(dists):
             if d <= dist_th:
-                if preds['classes'][i] in gts['names'][knn.idx.squeeze(0)[i]]:  # for example backpack in backpack_2
+                if preds['classes'][knn.idx.squeeze(0)[i]] in gts['names'][i]:  # for example backpack in backpack_2
                     score += 1
-        score /= len(preds['classes'])
+        # score /= len(gts['names'][i])
         rospy.logdebug(f"Detections score: {score}")
         return score
 
