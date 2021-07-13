@@ -7,7 +7,6 @@ from geometry_msgs.msg import TransformStamped
 import numpy as np
 from ros_numpy import msgify, numpify
 import tf2_ros
-from pyquaternion import Quaternion
 from timeit import default_timer as timer
 import torch
 
@@ -52,13 +51,16 @@ class MapAccumulator:
     def pc_callback(self, pc_msg):
         assert isinstance(pc_msg, PointCloud2)
         rospy.logdebug('Point cloud is received')
+        t0 = timer()
+
         # Transform the point cloud
-        try:
-            t0 = timer()
-            transform1 = self.tf.lookup_transform('X1_ground_truth', 'X1', rospy.Time(0))
-        except tf2_ros.LookupException:
-            rospy.logwarn('Map accumulator: No transform between estimated robot pose and its ground truth')
-            return
+
+        # try:
+        #     transform1 = self.tf.lookup_transform('X1_ground_truth', 'X1', rospy.Time(0))
+        # except tf2_ros.LookupException:
+        #     rospy.logwarn('Map accumulator: No transform between estimated robot pose and its ground truth')
+        #     return
+
         try:
             transform2 = self.tf.lookup_transform(self.map_frame, pc_msg.header.frame_id, rospy.Time(0))
         except tf2_ros.LookupException:
@@ -66,7 +68,7 @@ class MapAccumulator:
             return
         points = numpify(pc_msg)
         points = np.vstack([points[f] for f in ['x', 'y', 'z']])
-        points = transform_points(points, transform1)
+        # points = transform_points(points, transform1)
         points = transform_points(points, transform2)
         new_points = np.zeros(points.shape[1], dtype=[('x', np.float32),
                                                       ('y', np.float32),

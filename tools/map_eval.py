@@ -203,7 +203,7 @@ class MapEval:
         marker.scale.x = 1
         marker.scale.y = 1
         marker.scale.z = 1
-        marker.color.a = 0.6
+        marker.color.a = 0.4
         marker.color.r = 0
         marker.color.g = 1
         marker.color.b = 0
@@ -328,7 +328,7 @@ class MapEval:
         self.detections['classes'] = [artifacts_names[int(n)] for n in class_numbers]
         # assert len(self.detections['classes']) == len(self.detections['poses'])
 
-    def evaluate_detections(self, preds, gts, dist_th=1.0):
+    def evaluate_detections(self, preds, gts, dist_th=5.0):
         # TODO: the final score should also include false positives and true negatives
         # compute precision and recall:
         # https://jonathan-hui.medium.com/map-mean-average-precision-for-object-detection-45c121a31173
@@ -351,7 +351,7 @@ class MapEval:
             if d <= dist_th:
                 if preds['classes'][knn.idx.squeeze(0)[i]] in gts['names'][i]:  # for example backpack in backpack_2
                     score += 1
-        # score /= len(gts['names'][i])
+        # score /= len(gts['names'])
         rospy.logdebug(f"Detections score: {score}")
         return score
 

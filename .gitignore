@@ -13,3 +13,6 @@ data/
 *.dae
 *.mtl
 *.ply
+
+# virtualenv
+env/

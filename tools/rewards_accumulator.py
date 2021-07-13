@@ -69,11 +69,11 @@ class RewardsAccumulator:
 
         self.map_frame = pc_msg.header.frame_id
 
-        try:
-            transform1 = self.tf.lookup_transform('X1_ground_truth', 'X1', rospy.Time(0))
-        except tf2_ros.LookupException:
-            rospy.logwarn('No transform between estimated robot pose and its ground truth')
-            return
+        # try:
+        #     transform1 = self.tf.lookup_transform('X1_ground_truth', 'X1', rospy.Time(0))
+        # except tf2_ros.LookupException:
+        #     rospy.logwarn('No transform between estimated robot pose and its ground truth')
+        #     return
 
         # try:
         #     transform2 = self.tf.lookup_transform(self.map_frame, pc_msg.header.frame_id, rospy.Time(0))
@@ -86,7 +86,7 @@ class RewardsAccumulator:
         # Transform local map to ground truth localization frame
         local_map = numpify(pc_msg)
         local_map = np.vstack([local_map[f] for f in ['x', 'y', 'z', 'reward']])
-        local_map = transform_points(local_map, transform1)
+        # local_map = transform_points(local_map, transform1)
         # local_map = transform_points(local_map, transform2)
 
         local_map = torch.as_tensor(local_map, dtype=torch.float32).transpose(1, 0)[None].to(self.device)
