@@ -485,7 +485,7 @@ class MapEval:
                     if map.shape[2] == 4:  # if map contains reward values
                         self.metrics_msg.artifacts_total_reward += artifact_coverage_mask.sum().detach().cpu().numpy()
 
-            self.metrics_msg.artifacts_exp_completeness /= len(artifacts['cloud_merged'])
+            self.metrics_msg.artifacts_exp_completeness /= len(artifacts['clouds'])
 
             # ratio of correctly detected artifacts from confirmed hypothesis
             if len(self.detections['poses']) > 0:

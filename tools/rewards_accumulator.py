@@ -13,17 +13,17 @@ from timeit import default_timer as timer
 
 
 def transform_points(points, transform):
-    assert isinstance(points, np.ndarray)
+    assert isinstance(points, torch.Tensor)
     assert len(points.shape) == 2
     assert points.shape[0] == 3 or points.shape[0] == 4  # (3, N) or (4, N)
     assert isinstance(transform, TransformStamped)
     # Transform local map to ground truth localization frame
-    T = numpify(transform.transform)
-    if points.shape[0] == 3:
+    T = torch.as_tensor(numpify(transform.transform), dtype=torch.float32).to(points.device)
+    if points.shape[1] == 3:
         R, t = T[:3, :3], T[:3, 3]
-        points = np.matmul(R, points) + t.reshape([3, 1])
+        points = torch.matmul(R, points) + t.reshape([3, 1])
     elif points.shape[0] == 4:
-        points = np.matmul(T, points)
+        points = torch.matmul(T, points)
     return points
 
 
@@ -70,15 +70,9 @@ class RewardsAccumulator:
         self.map_frame = pc_msg.header.frame_id
 
         # try:
-        #     transform1 = self.tf.lookup_transform('X1_ground_truth', 'X1', rospy.Time(0))
+        #     transform = self.tf.lookup_transform('world', pc_msg.header.frame_id, rospy.Time(0))
         # except tf2_ros.LookupException:
         #     rospy.logwarn('No transform between estimated robot pose and its ground truth')
-        #     return
-
-        # try:
-        #     transform2 = self.tf.lookup_transform(self.map_frame, pc_msg.header.frame_id, rospy.Time(0))
-        # except tf2_ros.LookupException:
-        #     rospy.logwarn("Map accumulator: No transform between received cloud's and target frames")
         #     return
 
         t0 = timer()
@@ -86,8 +80,6 @@ class RewardsAccumulator:
         # Transform local map to ground truth localization frame
         local_map = numpify(pc_msg)
         local_map = np.vstack([local_map[f] for f in ['x', 'y', 'z', 'reward']])
-        # local_map = transform_points(local_map, transform1)
-        # local_map = transform_points(local_map, transform2)
 
         local_map = torch.as_tensor(local_map, dtype=torch.float32).transpose(1, 0)[None].to(self.device)
         assert local_map.dim() == 3
@@ -103,7 +95,9 @@ class RewardsAccumulator:
             proximity_mask = map_nn.dists.sqrt() > self.dist_th
         assert proximity_mask.shape[:2] == local_map.shape[:2]
         self.new_points = local_map[:, proximity_mask.squeeze(), :]
-        # rospy.logdebug(f'Points distances, min: {map_nn.dists.sqrt().min()}, mean: {map_nn.dists.sqrt().mean()}')
+        # TODO: transform new points to be on a ground truth mesh, this doesn't work
+        # self.new_points = transform_points(self.new_points.squeeze(0).transpose(1, 0), transform).transpose(1, 0).unsqueeze(0)
+        rospy.logdebug(f'Points distances, min: {map_nn.dists.sqrt().min()}, mean: {map_nn.dists.sqrt().mean()}')
         rospy.logdebug(f'Adding {self.new_points.shape[1]} new points')
         assert self.new_points.dim() == 3
         assert self.new_points.shape[2] == 4  # (1, n, 4)
