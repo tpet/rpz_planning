@@ -15,7 +15,7 @@
     <arg name="record_duration" default="60m"/>
     <arg name="run_trajopt" default="true" />
     <arg name="debug_trajopt" default="false"/>
-    <arg name="trajopt_iters" default="50"/>
+    <arg name="trajopt_iters" default="25"/>
 
     <!-- Subt frame publisher-->
     <node name="subt_frame_publisher" pkg="subt_virtual" type="subt_frame_publisher">

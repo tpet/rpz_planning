@@ -1452,7 +1452,6 @@ class RPZPlanner(object):
                 for p in msg_out.poses:
                     assert isinstance(p, PoseStamped)
                     p.header = msg.header
-                self.path_pub.publish(msg_out)
 
             # Get camera to map transforms.
             t = timer()
@@ -1518,6 +1517,8 @@ class RPZPlanner(object):
 
             # publish intermediate result during optimization process only in debug mode
             if iter == (self.num_iters - 1) or self.debug:
+                # publish optimized path
+                self.path_pub.publish(msg_out)
                 # Publish reward cloud for visualization.
                 reward_cloud['reward'] = rewards.detach().cpu().numpy()
                 reward_cloud_msg = msgify(PointCloud2, reward_cloud)
