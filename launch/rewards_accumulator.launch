@@ -8,7 +8,7 @@
         <rosparam subst_value="true">
             reward_cloud_topic: $(arg reward_cloud_topic)
             pts_proximity_th: $(arg pts_proximity_th)
-            max_age: 10.0
+<!--            max_age: 10.0-->
             reward_cloud_rate: 0.3
         </rosparam>
     </node>

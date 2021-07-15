@@ -60,12 +60,12 @@ class RewardsAccumulator:
         assert isinstance(pc_msg, PointCloud2)
         rospy.logdebug('Point cloud is received')
 
-        # Discard old messages.
-        msg_stamp = rospy.Time.now()
-        age = (msg_stamp - pc_msg.header.stamp).to_sec()
-        if age > self.max_age:
-            rospy.logwarn('Rewards accumulator: Discarding points %.1f s > %.1f s old.', age, self.max_age)
-            return
+        # # Discard old messages.
+        # msg_stamp = rospy.Time.now()
+        # age = (msg_stamp - pc_msg.header.stamp).to_sec()
+        # if age > self.max_age:
+        #     rospy.logwarn('Rewards accumulator: Discarding points %.1f s > %.1f s old.', age, self.max_age)
+        #     return
 
         self.map_frame = pc_msg.header.frame_id
 
