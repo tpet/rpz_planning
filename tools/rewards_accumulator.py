@@ -47,7 +47,7 @@ class RewardsAccumulator:
         self.new_points = None
         # any point that is farer than this threshold from points in existing pcl is considered as new
         self.dist_th = rospy.get_param('~pts_proximity_th', 0.5)
-        self.max_age = rospy.get_param('~max_age', 5.0)
+        self.max_age = rospy.get_param('~max_age', 10.0)
         self.reward_cloud_rate = rospy.get_param('~reward_cloud_rate', 0.2)
         self.rewards_cloud_pub = rospy.Publisher('~rewards_map', PointCloud2, queue_size=1)
         self.new_cloud_pub = rospy.Publisher('~new_rewards_map', PointCloud2, queue_size=1)
@@ -95,6 +95,7 @@ class RewardsAccumulator:
             proximity_mask = map_nn.dists.sqrt() > self.dist_th
         assert proximity_mask.shape[:2] == local_map.shape[:2]
         self.new_points = local_map[:, proximity_mask.squeeze(), :]
+
         # TODO: transform new points to be on a ground truth mesh, this doesn't work
         # self.new_points = transform_points(self.new_points.squeeze(0).transpose(1, 0), transform).transpose(1, 0).unsqueeze(0)
         rospy.logdebug(f'Points distances, min: {map_nn.dists.sqrt().min()}, mean: {map_nn.dists.sqrt().mean()}')

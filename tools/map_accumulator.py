@@ -66,6 +66,7 @@ class MapAccumulator:
         except tf2_ros.LookupException:
             rospy.logwarn("Map accumulator: No transform between received cloud's and target frames")
             return
+
         points = numpify(pc_msg)
         points = np.vstack([points[f] for f in ['x', 'y', 'z']])
         # points = transform_points(points, transform1)

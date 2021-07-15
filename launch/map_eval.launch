@@ -4,12 +4,13 @@
     <arg name="robot" default="X1"/>
     <arg name="world_name" default="simple_cave_02"/>
     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/$(arg world_name).obj"/>
-    <arg name="rviz" default="true"/>
+    <arg name="rviz" default="false"/>
     <arg name="do_eval" default="true"/>
-    <arg name="do_metrics_record" default="false"/>
+    <arg name="do_metrics_record" default="true"/>
     <arg name="load_gt" default="true"/>
-    <arg name="bag" default="$(find rpz_planning)/data/bags/mapping_eval/explorer_x1_opt_path_true_simple_cave_02_images_rewards_2021-07-14-13-04-42.bag"/>
-    <arg name="bag_rate" default="10.0"/>
+    <arg name="bag" default="explorer_x1_opt_path_true_simple_cave_02_images_rewards_2021-07-14-13-04-42.bag"/>
+    <arg name="bag_path" default="$(find rpz_planning)/data/bags/mapping_eval/$(arg bag)"/>
+    <arg name="bag_rate" default="30.0"/>
     <arg name="bag_start" default="0.0"/>
 
     <arg name="reward_cloud_as_input" default="true"/>
@@ -20,13 +21,13 @@
 
     <!-- Workaround for /tf_static problems with rosbag: https://github.com/ros/geometry2/issues/181 -->
     <node name="play_tf_static" pkg="nifti_vision_data" type="play_tf_static"
-         args="$(arg bag)" output="log">
+         args="$(arg bag_path)" output="log">
         <remap from="~tf_static" to="/tf_static"/>
     </node>
 
     <!-- ROSBAG -->
     <node name="rosbag_play_rpz" pkg="rosbag" type="play"
-          args="--clock --pause -s $(arg bag_start) -r $(arg bag_rate) $(arg bag)">
+          args="--clock --pause -s $(arg bag_start) -r $(arg bag_rate) $(arg bag_path)">
     </node>
 
     <!-- Map accumulator node -->
@@ -37,7 +38,7 @@
     <!-- Map with Rewards accumulator node -->
     <include if="$(eval reward_cloud_as_input)" ns="$(arg robot)" file="$(dirname)/rewards_accumulator.launch">
         <arg name="reward_cloud_topic" value="reward_cloud"/>
-        <arg name="pts_proximity_th" value="0.5"/>
+        <arg name="pts_proximity_th" value="0.22"/>
     </include>
 
     <!-- Mapping evaluation -->
@@ -46,20 +47,20 @@
             map_topic: $(arg map_topic)  <!-- Point cloud map constructed during exploration -->
             gt_mesh: $(arg gt_mesh_file) <!-- Path to .obj or .ply ground truth mesh file of the world -->
             do_points_sampling_from_mesh: True <!-- Whether to use points sampling method from mesh (True) or use mesh vertices (False) -->
-            do_points_sampling_from_map: True <!-- Whether to subsample constructed map before metrics computation -->
-            n_sample_points: 10000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
+            do_points_sampling_from_map: False <!-- Whether to subsample constructed map before metrics computation -->
+            n_sample_points: 500000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
             do_eval: $(arg do_eval) <!-- Whether to run evaluation function or just see the constructed map -->
             load_gt: $(arg load_gt) <!-- Whether to load ground truth mesh of the environment -->
-            coverage_dist_th: 0.5 <!-- Threshold value [m]: defines if a world mesh point is considered covered -->
+            coverage_dist_th: 0.4 <!-- Threshold value [m]: defines if a world mesh point is considered being covered -->
             artifacts_coverage_dist_th: 0.1 <!-- Threshold value [m]: defines if an artifact mesh point is considered covered -->
             artifacts_hypothesis_topic: "detection_localization/dbg_confirmed_hypotheses_pcl" <!-- Detections localization output to evaluate -->
             detections_dist_th: 5.0 <!-- Threshold value [m]: defines if an artifact detection point is considered close to gt pose -->
                                     <!-- according to the rules: https://www.subtchallenge.com/resources/SubT_Challenge_Finals_Rules.pdf -->
             max_age: 60.0 <!-- Constructed map point cloud msg timestamp threshold: it wouldn't be processed if dt > age -->
             map_gt_frame: $(arg world_name) <!-- Ground truth world mesh frame: usually it is the same as world name in Subt simulator -->
-            eval_rate: 0.03 <!-- How frequent to perform evaluation -->
+            eval_rate: 0.1 <!-- How frequent to perform evaluation -->
             record_metrics: $(arg do_metrics_record) <!-- Whether to record obtained metrics to .xls file -->
-            metrics_xls_file: $(arg bag) <!-- Path to save metrics .xls file -->
+            metrics_xls_file: $(arg bag_path) <!-- Path to save metrics .xls file -->
         </rosparam>
     </node>
 
