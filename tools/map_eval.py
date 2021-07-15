@@ -426,6 +426,7 @@ class MapEval:
         # compare point cloud to mesh here
         with torch.no_grad():
             t1 = timer()
+
             map_sampled = map.clone()
             if self.do_points_sampling_from_map:
                 if self.n_sample_points < map.shape[1]:
@@ -433,6 +434,7 @@ class MapEval:
                     map_sampled = map[:, torch.randint(map.shape[1], (self.n_sample_points,)), :]
             # self.publish_pointcloud(map_sampled.squeeze(0).transpose(1, 0).detach().cpu().numpy(),
             #                         '~map_sampled', rospy.Time.now(), self.map_gt_frame)
+
             point_cloud = Pointclouds(map_sampled[..., :3]).to(self.device)
 
             # distance between a point and mesh is computed as a distance from point to triangle
@@ -441,6 +443,7 @@ class MapEval:
             # https://github.com/facebookresearch/pytorch3d/blob/fe39cc7b806afeabe64593e154bfee7b4153f76f/pytorch3d/csrc/utils/geometry_utils.h#L635
             self.metrics_msg.exp_face_loss = face_point_distance_truncated(meshes=map_gt_mesh,
                                                                            pcls=point_cloud).detach().cpu().numpy()
+
             # self.metrics_msg.exp_edge_loss = edge_point_distance_truncated(meshes=map_gt_mesh,
             #                                                                pcls=point_cloud).detach().cpu().numpy()
             # # exp_loss_face_trimesh = self.map_gt_trimesh.nearest.on_surface(map_sampled.squeeze().detach().cpu())[1].mean()
@@ -480,6 +483,7 @@ class MapEval:
                 artifact_coverage_mask = self.estimate_coverage(map, cloud,
                                                                 coverage_dist_th=artifacts_coverage_dist_th)
                 assert artifact_coverage_mask.shape[:2] == cloud.shape[:2]
+
                 if artifact_exp_completeness > 0:
                     self.metrics_msg.artifacts_exp_completeness += artifact_exp_completeness.detach().cpu().numpy()
                     rospy.loginfo(f'Explored {artifact_exp_completeness:.3f} '
@@ -489,11 +493,10 @@ class MapEval:
 
             self.metrics_msg.artifacts_exp_completeness /= len(artifacts['clouds'])
 
-            # ratio of correctly detected artifacts from confirmed hypothesis
+            # number of correctly detected artifacts from confirmed hypothesis
             if len(self.detections['poses']) > 0:
                 self.metrics_msg.dets_score = self.evaluate_detections(self.detections, self.artifacts,
                                                                        dist_th=detections_dist_th)
-
             t4 = timer()
             rospy.logdebug('Artifacts evaluation took: %.3f s\n', t4 - t3)
 

@@ -5,7 +5,7 @@
     <arg name="robots" default="$(arg robot)"/>
     <arg name="points_min_dist" default="0.125"/>
     <arg name="cmd_vel" default="cmd_vel"/>
-    <arg name="run_detector" default="false"/>
+    <arg name="run_detector" default="true"/>
     <arg name="do_recording" default="false"/>
 
     <arg name="follow_opt_path" default="false"/>

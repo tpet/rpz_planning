@@ -68,7 +68,7 @@
     <!-- Detection localization hypothesis -->
     <arg name="detections_localization_topics"
          value="/$(arg robot)/detection_localization/dbg_confirmed_hypotheses_pcl
-                /$(arg robot)/detection_localization/dbg_confirmed_hypotheses_pcl
+                /$(arg robot)/detection_localization/dbg_active_hypotheses_pcl
                 /$(arg robot)/detection_localization/dbg_hypotheses_pcl
                 /$(arg robot)/detection_localization/dbg_measurements_pcl"/>
 
