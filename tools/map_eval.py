@@ -228,9 +228,10 @@ class MapEval:
                         artifact_frames.append(frame)
         rospy.logdebug('Found TF frames: %s', all_frames)
         rospy.loginfo('Found Artifacts TF frames in %.3f [sec]: %s', (timer() - t0), artifact_frames)
-        # artifact_frames = ['backpack_1', 'backpack_2', 'backpack_3', 'backpack_4',
-        #              'phone_1', 'phone_2', 'phone_3', 'phone_4',
-        #              'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'rescue_randy_4']
+        if len(artifact_frames) == 0:  # if artifacts are not found just hard code them and hope for the best
+            artifact_frames = ['backpack_1', 'backpack_2', 'backpack_3', 'backpack_4',
+                               'phone_1', 'phone_2', 'phone_3', 'phone_4',
+                               'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'rescue_randy_4']
         artifacts = {'poses': [], 'names': [], 'clouds': [], 'cloud_merged': None}
         artifacts_cloud_merged = []
         for i, artifact_name in enumerate(artifact_frames):
@@ -436,15 +437,18 @@ class MapEval:
             N_map_points = map_sampled.shape[1]
             point_cloud = Pointclouds(map_sampled[..., :3]).to(self.device)
 
-            self.metrics_msg.exp_edge_loss = edge_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud).detach().cpu().numpy()
             # distance between a point and mesh is computed as a distance from point to triangle
             # if point's projection is inside triangle, then the distance is computed along
             # a normal to triangular plane. Otherwise as a distance to closest edge of the triangle:
             # https://github.com/facebookresearch/pytorch3d/blob/fe39cc7b806afeabe64593e154bfee7b4153f76f/pytorch3d/csrc/utils/geometry_utils.h#L635
-            self.metrics_msg.exp_face_loss = face_point_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud).detach().cpu().numpy()
-            # exp_loss_face_trimesh = self.map_gt_trimesh.nearest.on_surface(map_sampled.squeeze().detach().cpu())[1].mean()
-            # rospy.loginfo(f'Trimesh Exploration Face loss: {exp_loss_face_trimesh:.3f}')
-            self.metrics_msg.exp_chamfer_loss = chamfer_distance_truncated(x=map_gt_cloud, y=map[..., :3]).detach().cpu().numpy()
+            self.metrics_msg.exp_face_loss = face_point_distance_truncated(meshes=map_gt_mesh,
+                                                                           pcls=point_cloud).detach().cpu().numpy()
+            # self.metrics_msg.exp_edge_loss = edge_point_distance_truncated(meshes=map_gt_mesh,
+            #                                                                pcls=point_cloud).detach().cpu().numpy()
+            # # exp_loss_face_trimesh = self.map_gt_trimesh.nearest.on_surface(map_sampled.squeeze().detach().cpu())[1].mean()
+            # # rospy.loginfo(f'Trimesh Exploration Face loss: {exp_loss_face_trimesh:.3f}')
+            # self.metrics_msg.exp_chamfer_loss = chamfer_distance_truncated(x=map_gt_cloud,
+            #                                                                y=map[..., :3]).detach().cpu().numpy()
 
             t2 = timer()
             rospy.logdebug('Explored space evaluation took: %.3f s\n', t2 - t1)
@@ -498,13 +502,18 @@ class MapEval:
             # `exp_loss_face`, `exp_loss_edge` and `exp_loss_chamfer` describe exploration progress
             # current map accuracy could be evaluated by computing vice versa distances:
             # - from points in cloud to mesh faces/edges:
-            self.metrics_msg.map_edge_loss = point_edge_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud).detach().cpu().numpy()
-            self.metrics_msg.map_face_loss = point_face_distance_truncated(meshes=map_gt_mesh, pcls=point_cloud).detach().cpu().numpy()
-            # - from points in cloud to nearest neighbours of points sampled from mesh:
-            self.metrics_msg.map_chamfer_loss = chamfer_distance_truncated(x=map[..., :3], y=map_gt_cloud,
-                                                                           apply_point_reduction=True,
-                                                                           batch_reduction='mean',
-                                                                           point_reduction='mean').detach().cpu().numpy()
+            self.metrics_msg.map_face_loss = point_face_distance_truncated(meshes=map_gt_mesh,
+                                                                           pcls=point_cloud).detach().cpu().numpy()
+
+            # self.metrics_msg.map_edge_loss = point_edge_distance_truncated(meshes=map_gt_mesh,
+            #                                                                pcls=point_cloud).detach().cpu().numpy()
+            #
+            # # - from points in cloud to nearest neighbours of points sampled from mesh:
+            # self.metrics_msg.map_chamfer_loss = chamfer_distance_truncated(x=map[..., :3], y=map_gt_cloud,
+            #                                                                apply_point_reduction=True,
+            #                                                                batch_reduction='mean',
+            #                                                                point_reduction='mean').detach().cpu().numpy()
+
             t5 = timer()
             rospy.logdebug('Mapping accuracy evaluation took: %.3f s\n', t5 - t4)
             rospy.loginfo('\nEvaluation took: %.3f s\n', t5 - t1)

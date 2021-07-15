@@ -47,7 +47,7 @@
             map_topic: $(arg map_topic)  <!-- Point cloud map constructed during exploration -->
             gt_mesh: $(arg gt_mesh_file) <!-- Path to .obj or .ply ground truth mesh file of the world -->
             do_points_sampling_from_mesh: True <!-- Whether to use points sampling method from mesh (True) or use mesh vertices (False) -->
-            do_points_sampling_from_map: False <!-- Whether to subsample constructed map before metrics computation -->
+            do_points_sampling_from_map: True <!-- Whether to subsample constructed map before metrics computation -->
             n_sample_points: 500000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
             do_eval: $(arg do_eval) <!-- Whether to run evaluation function or just see the constructed map -->
             load_gt: $(arg load_gt) <!-- Whether to load ground truth mesh of the environment -->
