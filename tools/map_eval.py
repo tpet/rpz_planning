@@ -111,9 +111,8 @@ class MapEval:
             self.ws_writer.write(0, 7, 'Map Chamfer loss')
             self.ws_writer.write(0, 8, 'Artifacts Exploration completeness')
             self.ws_writer.write(0, 9, 'Detections score')
-            self.ws_writer.write(0, 10, 'N of constructed points')
-            self.ws_writer.write(0, 11, 'Total reward')
-            self.ws_writer.write(0, 12, 'Total artifacts reward')
+            self.ws_writer.write(0, 10, 'Total reward')
+            self.ws_writer.write(0, 11, 'Total artifacts reward')
             self.row_number = 1
 
         # obtaining the constructed map (reward cloud)
@@ -434,7 +433,6 @@ class MapEval:
                     map_sampled = map[:, torch.randint(map.shape[1], (self.n_sample_points,)), :]
             # self.publish_pointcloud(map_sampled.squeeze(0).transpose(1, 0).detach().cpu().numpy(),
             #                         '~map_sampled', rospy.Time.now(), self.map_gt_frame)
-            N_map_points = map_sampled.shape[1]
             point_cloud = Pointclouds(map_sampled[..., :3]).to(self.device)
 
             # distance between a point and mesh is computed as a distance from point to triangle
@@ -516,23 +514,22 @@ class MapEval:
 
             t5 = timer()
             rospy.logdebug('Mapping accuracy evaluation took: %.3f s\n', t5 - t4)
-            rospy.loginfo('\nEvaluation took: %.3f s\n', t5 - t1)
+            rospy.loginfo('Evaluation took: %.3f s\n', t5 - t1)
 
         # record data
         if self.record_metrics:
             self.ws_writer.write(self.row_number, 0, time_stamp.to_sec())
             self.ws_writer.write(self.row_number, 1, f'{self.metrics_msg.exp_face_loss}')
-            self.ws_writer.write(self.row_number, 2, f'{self.metrics_msg.exp_edge_loss}')
-            self.ws_writer.write(self.row_number, 3, f'{self.metrics_msg.exp_chamfer_loss}')
+            # self.ws_writer.write(self.row_number, 2, f'{self.metrics_msg.exp_edge_loss}')
+            # self.ws_writer.write(self.row_number, 3, f'{self.metrics_msg.exp_chamfer_loss}')
             self.ws_writer.write(self.row_number, 4, f'{self.metrics_msg.exp_completeness}')
             self.ws_writer.write(self.row_number, 5, f'{self.metrics_msg.map_face_loss}')
-            self.ws_writer.write(self.row_number, 6, f'{self.metrics_msg.map_edge_loss}')
-            self.ws_writer.write(self.row_number, 7, f'{self.metrics_msg.map_chamfer_loss}')
+            # self.ws_writer.write(self.row_number, 6, f'{self.metrics_msg.map_edge_loss}')
+            # self.ws_writer.write(self.row_number, 7, f'{self.metrics_msg.map_chamfer_loss}')
             self.ws_writer.write(self.row_number, 8, f'{self.metrics_msg.artifacts_exp_completeness}')
             self.ws_writer.write(self.row_number, 9, f'{self.metrics_msg.dets_score}')
-            self.ws_writer.write(self.row_number, 10, f'{N_map_points}')
-            self.ws_writer.write(self.row_number, 11, f'{self.metrics_msg.total_reward}')
-            self.ws_writer.write(self.row_number, 12, f'{self.metrics_msg.artifacts_total_reward}')
+            self.ws_writer.write(self.row_number, 10, f'{self.metrics_msg.total_reward}')
+            self.ws_writer.write(self.row_number, 11, f'{self.metrics_msg.artifacts_total_reward}')
             self.row_number += 1
             self.wb.save(self.xls_file)
 
