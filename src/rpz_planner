@@ -1464,7 +1464,7 @@ class RPZPlanner(object):
             assert map_to_cam.shape == (n_poses, n_cams, 4, 4)
             rospy.logdebug('Camera to map transforms: %.3f s', timer() - t)
 
-            # TODO: Visibility / occlusion mask.
+            # Visibility / occlusion mask.
             if vis_mask is None:
                 t = timer()
                 vis_mask = compute_vis_mask(map, cam_to_map)

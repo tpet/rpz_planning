@@ -221,7 +221,7 @@ class GTWorldPub:
         rate = rospy.Rate(self.rate)
         while not rospy.is_shutdown():
             # publish ground truth mesh
-            stamp = rospy.Time(0)
+            stamp = rospy.Time.now()
             self.map_gt_mesh_marker.header.stamp = stamp
             self.world_mesh_pub.publish(self.map_gt_mesh_marker)
             self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', stamp,
@@ -238,7 +238,7 @@ class GTWorldPub:
 
             # publish local ground truth map (around gt robot pose)
             try:
-                robot_to_map = self.tf.lookup_transform(self.robot_gt_frame, self.map_gt_frame, stamp)
+                robot_to_map = self.tf.lookup_transform(self.robot_gt_frame, self.map_gt_frame, rospy.Time(0))
                 T = numpify(robot_to_map.transform)
                 R, t = T[:3, :3], T[:3, 3]
                 gt_cloud_robot_frame = R @ gt_cloud + t.reshape([3, 1])
