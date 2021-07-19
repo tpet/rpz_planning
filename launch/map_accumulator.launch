@@ -4,7 +4,9 @@
     <arg name="cloud_topic" default="updated_map"/>
 
     <node name="map_accumulator" pkg="rpz_planning" type="map_accumulator.py" output="screen">
-        <param name="local_map" value="$(arg cloud_topic)"/>
-        <param name="target_frame" value="world"/>
+        <rosparam subst_value="true">
+            local_map: $(arg cloud_topic)
+            target_frame: "world"
+        </rosparam>
     </node>
 </launch>

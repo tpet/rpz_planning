@@ -37,10 +37,14 @@ class MapAccumulator:
             self.device = torch.device("cpu")
         self.points = None
         self.points_received = False
+
         self.pc_pub = rospy.Publisher('~map', PointCloud2, queue_size=1)
         self.map_frame = rospy.get_param('~target_frame', 'world')
+        self.cloud_rate = rospy.get_param('~cloud_rate', 1.0)
+
         self.tf = tf2_ros.Buffer(cache_time=rospy.Duration(100))
         self.tl = tf2_ros.TransformListener(self.tf)
+
         rospy.Subscriber(rospy.get_param('~local_map', '/X1/updated_map'), PointCloud2, self.pc_callback)
         rospy.loginfo('Map accumulator node is ready.')
 
@@ -83,16 +87,23 @@ class MapAccumulator:
             self.points = new_points
             self.points_received = True
         self.points = np.concatenate([self.points, new_points])
+        self.map_frame = pc_msg.header.frame_id
         rospy.logdebug('Point cloud accumulation took: %.3f s', timer() - t0)
 
-        # convert to message and publish
-        map_msg = msgify(PointCloud2, self.points)
-        map_msg.header.frame_id = pc_msg.header.frame_id
-        map_msg.header.stamp = rospy.Time.now()
-        self.pc_pub.publish(map_msg)
+    def run(self):
+        rate = rospy.Rate(self.cloud_rate)
+        while not rospy.is_shutdown():
+            if self.points is None:
+                continue
+            # convert to message and publish
+            map_msg = msgify(PointCloud2, self.points)
+            map_msg.header.frame_id = self.map_frame
+            map_msg.header.stamp = rospy.Time.now()
+            self.pc_pub.publish(map_msg)
+            rate.sleep()
 
 
 if __name__ == '__main__':
     rospy.init_node('map_accumulator', log_level=rospy.INFO)
     proc = MapAccumulator()
-    rospy.spin()
+    proc.run()
