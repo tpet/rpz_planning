@@ -405,13 +405,13 @@ Visualization Manager:
       Enabled: true
       Name: Clouds
     - Class: rviz/MarkerArray
-      Enabled: false
+      Enabled: true
       Marker Topic: /X1/visualization
       Name: RPZ visualization
       Namespaces:
         {}
       Queue Size: 2
-      Value: false
+      Value: true
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
@@ -488,7 +488,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 48.73670959472656
+      Distance: 40.47078323364258
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1

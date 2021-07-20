@@ -10,7 +10,7 @@
     <arg name="load_gt" default="true"/>
     <arg name="bag" default="explorer_x1_opt_path_true_simple_cave_02_images_rewards_2021-07-14-13-04-42.bag"/>
     <arg name="bag_path" default="$(find rpz_planning)/data/bags/mapping_eval/$(arg bag)"/>
-    <arg name="bag_rate" default="5.0"/>
+    <arg name="bag_rate" default="10.0"/>
     <arg name="bag_start" default="0.0"/>
     <arg name="eval_rate" default="1.0"/>
 
