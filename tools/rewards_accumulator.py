@@ -2,7 +2,7 @@
 
 import rospy
 from sensor_msgs.msg import PointCloud2
-from geometry_msgs.msg import TransformStamped
+from std_msgs.msg import Float64
 from ros_numpy import msgify, numpify
 import tf2_ros
 
@@ -52,6 +52,7 @@ class RewardsAccumulator:
         self.reward_cloud_rate = rospy.get_param('~reward_cloud_rate', 1.0)
         self.rewards_cloud_pub = rospy.Publisher('~rewards_map', PointCloud2, queue_size=1)
         self.new_cloud_pub = rospy.Publisher('~new_rewards_map', PointCloud2, queue_size=1)
+        self.reward_pub = rospy.Publisher('~total_reward', Float64, queue_size=1)
 
         self.tf = tf2_ros.Buffer(cache_time=rospy.Duration(100))
         self.tl = tf2_ros.TransformListener(self.tf)
@@ -92,46 +93,46 @@ class RewardsAccumulator:
         local_map = np.vstack([local_map[f] for f in ['x', 'y', 'z', 'reward']])
 
         # transform new points to be on a ground truth mesh
-        local_map = torch.as_tensor(local_map, dtype=torch.float32).transpose(1, 0)[None].to(self.device)
-        p = local_map.squeeze(0).transpose(1, 0)
+        local_map = torch.as_tensor(local_map, dtype=torch.float32).transpose(1, 0).to(self.device)
+        p = local_map.transpose(1, 0)
         T1 = numpify(transform1.transform)
         T2 = numpify(transform2.transform)
         T = torch.as_tensor(np.matmul(T2, T1), dtype=torch.float32).to(p.device)
-        local_map = transform_points(p, T).transpose(1, 0).unsqueeze(0)
+        local_map = transform_points(p, T).transpose(1, 0)
 
-        assert local_map.dim() == 3
-        assert local_map.shape[2] == 4  # (1, N, 4)
+        assert local_map.dim() == 2
+        assert local_map.shape[1] == 4  # (N, 4)
         if self.global_map is None:
             self.global_map = local_map
             self.local_map = local_map
-        assert self.global_map.dim() == 3
-        assert self.global_map.shape[2] == 4  # (1, N, 4)
+        assert self.global_map.dim() == 2
+        assert self.global_map.shape[1] == 4  # (N, 4)
 
         # determine new points from local_map based on proximity threshold
         with torch.no_grad():
-            # map_nn = knn_points(p1=local_map, p2=self.local_map, K=1)
-            map_nn = knn_points(p1=local_map, p2=self.global_map, K=1)
+            # map_nn = knn_points(p1=local_map.unsqueeze(0), p2=self.local_map.unsqueeze(0), K=1)
+            map_nn = knn_points(p1=local_map.unsqueeze(0), p2=self.global_map.unsqueeze(0), K=1)
             dists, idxs = map_nn.dists.sqrt().squeeze(), map_nn.idx.squeeze()
             proximity_mask = dists > self.dist_th
-        assert len(dists) == local_map.shape[1]
-        assert len(idxs) == local_map.shape[1]
-        self.new_map = local_map[:, proximity_mask, :]
+        assert len(dists) == local_map.shape[0]
+        assert len(idxs) == local_map.shape[0]
+        self.new_map = local_map[proximity_mask, :]
         self.local_map = local_map
 
         rospy.logdebug(f'Points distances, min: {map_nn.dists.sqrt().min()}, mean: {map_nn.dists.sqrt().mean()}')
         rospy.logdebug(f'Adding {self.new_map.shape[1]} new points')
-        assert self.new_map.dim() == 3
-        assert self.new_map.shape[2] == 4  # (1, n, 4)
+        assert self.new_map.dim() == 2
+        assert self.new_map.shape[1] == 4  # (n, 4)
 
         # and accumulate new points to global map
-        self.global_map = torch.cat([self.global_map, self.new_map], dim=1)
+        self.global_map = torch.cat([self.global_map, self.new_map], dim=0)
         # accumulate rewards (max or log odds), compare global and latest local map rewards
-        rospy.logdebug(f'Global map probabilities: {torch.min(self.global_map[..., 3])} ~ {torch.max(self.global_map[..., 3])}')
-        rospy.logdebug(f'Common map probabilities {torch.min(local_map[:, ~proximity_mask, 3])} ~ {torch.max(local_map[:, ~proximity_mask, 3])}')
-        self.global_map[:, idxs[~proximity_mask], 3] = torch.max(self.global_map[:, idxs[~proximity_mask], 3],
-                                                                 local_map[:, ~proximity_mask, 3])
-        assert self.global_map.dim() == 3
-        assert self.global_map.shape[2] == 4  # (1, N, 4)
+        rospy.logdebug(f'Global map probabilities: {torch.min(self.global_map[:, 3])} ~ {torch.max(self.global_map[:, 3])}')
+        rospy.logdebug(f'Common map probabilities {torch.min(local_map[~proximity_mask, 3])} ~ {torch.max(local_map[~proximity_mask, 3])}')
+        self.global_map[idxs[~proximity_mask], 3] = torch.max(self.global_map[idxs[~proximity_mask], 3],
+                                                              local_map[~proximity_mask, 3])
+        assert self.global_map.dim() == 2
+        assert self.global_map.shape[1] == 4  # (N, 4)
         rospy.logdebug('Point cloud accumulation took: %.3f s', timer() - t0)
 
     def msgify_reward_cloud(self, cloud):
@@ -156,10 +157,16 @@ class RewardsAccumulator:
         while not rospy.is_shutdown():
             if self.global_map is None or self.new_map is None:
                 continue
-            global_map_msg = self.msgify_reward_cloud(self.global_map.detach().cpu().squeeze(0))
-            new_map_msg = self.msgify_reward_cloud(self.new_map.detach().cpu().squeeze(0))
+            # publish reward clouds
+            global_map_msg = self.msgify_reward_cloud(self.global_map.detach().cpu())
+            new_map_msg = self.msgify_reward_cloud(self.new_map.detach().cpu())
             self.rewards_cloud_pub.publish(global_map_msg)
             self.new_cloud_pub.publish(new_map_msg)
+            # publish total reward value
+            total_reward = self.global_map[:, 3].sum().detach().item()
+            rospy.loginfo('Total reward: %.1f', total_reward)
+            rospy.loginfo('New observations reward: %.1f', self.new_map.sum().detach().item())
+            self.reward_pub.publish(Float64(total_reward))
             rate.sleep()
 
 
