@@ -59,6 +59,8 @@
         <arg name="trajopt_iters" value="$(arg trajopt_iters)"/>
     </include>
 
+<!--    <include ns="$(arg robot)" file="$(dirname)/compute_reward.launch" pass_all_args="true"/>-->
+
     <!-- Rewards accumulator -->
     <include if="$(arg rewards_accum)"
              ns="$(arg robot)" file="$(dirname)/rewards_accumulator.launch"

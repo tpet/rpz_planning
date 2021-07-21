@@ -10,7 +10,7 @@
     <arg name="load_gt" default="true"/>
     <arg name="bag" default="explorer_x1_opt_path_true_simple_cave_02_images_rewards_2021-07-14-13-04-42.bag"/>
     <arg name="bag_path" default="$(find rpz_planning)/data/bags/mapping_eval/$(arg bag)"/>
-    <arg name="bag_rate" default="10.0"/>
+    <arg name="bag_rate" default="5.0"/>
     <arg name="bag_start" default="0.0"/>
     <arg name="eval_rate" default="1.0"/>
 
@@ -42,8 +42,11 @@
         <arg name="pts_proximity_th" value="0.22"/>
     </include>
 
-    <!-- Mapping evaluation -->
-    <node ns="$(arg robot)" name="map_eval" pkg="rpz_planning" type="map_eval.py" output="screen">
+    <!-- Travelled distance publisher -->
+    <node ns="$(arg robot)" name="travelled_dist_publisher" pkg="rpz_planning" type="travelled_dist.py" output="log"/>
+
+    <!-- Exploration evaluation -->
+    <node ns="$(arg robot)" name="eval" pkg="rpz_planning" type="eval.py" output="screen">
         <rosparam subst_value="true">
             map_topic: $(arg map_topic)  <!-- Point cloud map constructed during exploration -->
             gt_mesh: $(arg gt_mesh_file) <!-- Path to .obj or .ply ground truth mesh file of the world -->

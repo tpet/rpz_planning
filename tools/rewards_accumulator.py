@@ -165,7 +165,7 @@ class RewardsAccumulator:
             # publish total reward value
             total_reward = self.global_map[:, 3].sum().detach().item()
             rospy.loginfo('Total reward: %.1f', total_reward)
-            rospy.loginfo('New observations reward: %.1f', self.new_map.sum().detach().item())
+            rospy.loginfo('New observations reward: %.1f', self.new_map[:, 3].sum().detach().item())
             self.reward_pub.publish(Float64(total_reward))
             rate.sleep()
 

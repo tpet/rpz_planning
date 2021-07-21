@@ -5,7 +5,6 @@
     <arg name="robot_type" default="explorer_x1"/>
     <arg name="debug_trajopt" default="false"/>
     <arg name="trajopt_iters" default="50"/>
-    <arg name="points_slow_filtered" default="points_slow_filtered"/>
 
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
         <rosparam subst_value="true">
@@ -22,12 +21,12 @@
             fixed_endpoints: ['start']
             device: cuda:0
             <!-- device: cpu -->
-            dist_weight: 1.0
-            trav_weight: 1.0
+            dist_weight: 0.2
+            trav_weight: 10.0
             turn_weight: 0.2
-<!--            dist_weight: 50.0-->
-<!--            trav_weight: 5000.0-->
-<!--            turn_weight: 50.0-->
+<!--            dist_weight: 1.0-->
+<!--            trav_weight: 1.0-->
+<!--            turn_weight: 1.0-->
         </rosparam>
 
         <rosparam if="$(eval robot_type == 'marv')">

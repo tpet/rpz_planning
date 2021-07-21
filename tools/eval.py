@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import os
-
 import torch
 from pytorch3d.io import load_obj, load_ply
 from pytorch3d.structures import Meshes, Pointclouds
@@ -14,28 +13,29 @@ from rpz_planning import edge_point_distance_truncated
 from rpz_planning import chamfer_distance_truncated
 import rospy
 from sensor_msgs.msg import PointCloud2, PointCloud
+from std_msgs.msg import Float64
 from rpz_planning.msg import Metrics
-import numpy as np
+from visualization_msgs.msg import Marker
+from timeit import default_timer as timer
 from ros_numpy import msgify, numpify
 import tf2_ros
 # import trimesh
-from timeit import default_timer as timer
+import numpy as np
 import xlwt
-from visualization_msgs.msg import Marker
 import rospkg
 from scipy.spatial.transform import Rotation
 # problems with Cryptodome: pip install pycryptodomex
 # https://github.com/DP-3T/reference_implementation/issues/1
 
 
-class MapEval:
+class Eval:
     """
     This ROS node subscribes to global map topic with PointCloud2 msgs
     and compares it to ground truth mesh of the simulated environment.
     Metrics for comparison are taken from here:
     https://pytorch3d.readthedocs.io/en/latest/modules/loss.html#pytorch3d.loss.point_mesh_edge_distance
     """
-    def __init__(self, map_topic, path_to_mesh):
+    def __init__(self, path_to_mesh):
         self.tf = tf2_ros.Buffer()
         self.tl = tf2_ros.TransformListener(self.tf)
         # Set the device
@@ -45,6 +45,8 @@ class MapEval:
             self.device = torch.device("cpu")
         self.seed = 0  # for reprodusibility of experiments
         # parameters
+        self.map_topic = rospy.get_param('~map_topic', 'map_accumulator/map')
+        self.travelled_dist_topic = rospy.get_param('~travelled_dist_topic', 'travelled_dist_publisher/travelled_dist')
         self.do_points_sampling_from_mesh = rospy.get_param('~do_points_sampling_from_mesh', True)
         self.do_points_sampling_from_map = rospy.get_param('~do_points_sampling_from_map', True)
         self.n_sample_points = rospy.get_param('~n_sample_points', 10000)
@@ -75,6 +77,9 @@ class MapEval:
         self.map = None
         self.detections = {'poses': [], 'classes': []}
         self.detections_dist_th = rospy.get_param('~detections_dist_th', 2.0)
+
+        # gt travelled distance by robot
+        self.travelled_dist = -1
 
         # loading ground truth data
         if self.load_gt:
@@ -113,10 +118,13 @@ class MapEval:
             self.ws_writer.write(0, 9, 'Detections score')
             self.ws_writer.write(0, 10, 'Total reward')
             self.ws_writer.write(0, 11, 'Total artifacts reward')
+            self.ws_writer.write(0, 12, 'Travelled distance')
             self.row_number = 1
 
+        # subscribing to travelled distance
+        rospy.Subscriber(self.travelled_dist_topic, Float64, self.get_travelled_dist)
         # obtaining the constructed map (reward cloud)
-        self.map_sub = rospy.Subscriber(map_topic, PointCloud2, self.get_constructed_map)
+        rospy.Subscriber(self.map_topic, PointCloud2, self.get_constructed_map)
         # subscribing to localized detection results for evaluation
         rospy.Subscriber(self.artifacts_hypothesis_topic, PointCloud, self.get_detections)
 
@@ -328,6 +336,9 @@ class MapEval:
         self.detections['classes'] = [artifacts_names[int(n)] for n in class_numbers]
         # assert len(self.detections['classes']) == len(self.detections['poses'])
 
+    def get_travelled_dist(self, msg):
+        self.travelled_dist = float(msg.data)
+
     def evaluate_detections(self, preds, gts, dist_th=5.0):
         # TODO: the final score should also include false positives and true negatives
         # compute precision and recall:
@@ -387,7 +398,8 @@ class MapEval:
     def evaluation(self, map, map_gt_cloud, map_gt_mesh, artifacts,
                    coverage_dist_th=0.5,
                    artifacts_coverage_dist_th=0.1,
-                   detections_dist_th=2.0):
+                   detections_dist_th=2.0,
+                   travelled_dist=-1.0):
         if map is None:
             rospy.logwarn('Evaluation: Map cloud is not yet received')
             return None
@@ -400,6 +412,7 @@ class MapEval:
         if artifacts is None:
             rospy.logwarn('Evaluation: Artifacts cloud is not yet received')
             return None
+
         assert isinstance(map, torch.Tensor)
         assert map.dim() == 3
         assert map.size()[2] >= 3  # (1, N1, >=3)
@@ -416,12 +429,14 @@ class MapEval:
             assert isinstance(cloud, torch.Tensor)
             assert cloud.dim() == 3
             assert cloud.size()[2] >= 3  # (1, n, >=3)
+
         # Discard old messages.
         time_stamp = rospy.Time.now()
         age = (time_stamp - self.pc_msg.header.stamp).to_sec()
         if age > self.max_age:
             rospy.logwarn('Evaluation: Discarding points %.1f s > %.1f s old.', age, self.max_age)
             return None
+
         rospy.loginfo(f'Received map of size {map.size()} for evaluation...')
         # compare point cloud to mesh here
         with torch.no_grad():
@@ -533,6 +548,7 @@ class MapEval:
             self.ws_writer.write(self.row_number, 9, f'{self.metrics_msg.dets_score}')
             self.ws_writer.write(self.row_number, 10, f'{self.metrics_msg.total_reward}')
             self.ws_writer.write(self.row_number, 11, f'{self.metrics_msg.artifacts_total_reward}')
+            self.ws_writer.write(self.row_number, 12, f'{travelled_dist}')
             self.row_number += 1
             self.wb.save(self.xls_file)
 
@@ -553,6 +569,7 @@ class MapEval:
             self.world_mesh_pub.publish(self.map_gt_mesh_marker)
             self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', rospy.Time.now(), self.map_gt_frame)
 
+            rospy.logdebug('Travelled distance: %.1f', self.travelled_dist)
             # compare subscribed map point cloud to ground truth mesh
             # self.publish_pointcloud(self.map.squeeze(0).transpose(1, 0).detach().cpu().numpy(),
             #                         'map', rospy.Time.now(), self.map_gt_frame)
@@ -563,7 +580,8 @@ class MapEval:
                                                 artifacts=self.artifacts,
                                                 coverage_dist_th=self.coverage_dist_th,
                                                 artifacts_coverage_dist_th=self.artifacts_coverage_dist_th,
-                                                detections_dist_th=self.detections_dist_th)
+                                                detections_dist_th=self.detections_dist_th,
+                                                travelled_dist=self.travelled_dist)
 
                 # publish point cloud from ground truth mesh
                 if coverage_mask is not None:
@@ -592,8 +610,7 @@ if __name__ == '__main__':
     path_fo_gt_map_mesh = rospy.get_param('~gt_mesh')
     assert os.path.exists(path_fo_gt_map_mesh)
     rospy.loginfo('Using ground truth mesh file: %s', path_fo_gt_map_mesh)
-    proc = MapEval(map_topic=rospy.get_param('~map_topic', 'map_accumulator/map'),
-                   path_to_mesh=path_fo_gt_map_mesh)
+    proc = Eval(path_to_mesh=path_fo_gt_map_mesh)
     rospy.loginfo('Mapping evaluation node is initialized.')
     rospy.loginfo('You may need to heat Space for bagfile to start.')
     proc.run()

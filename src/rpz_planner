@@ -1355,8 +1355,7 @@ class RPZPlanner(object):
         xyzrpy = path_msg_to_xyzrpy(msg)
         assert xyzrpy.shape == (n_poses, 6)
 
-        # TODO: Remove it from here.
-        rospy.loginfo('Original path cost: %.1f [~s].', self.path_cost(xyzrpy))
+        rospy.logdebug('Original path cost: %.1f [~s].', self.path_cost(xyzrpy))
 
         t = timer()
         cam_to_robot = cam_to_robot.to(self.device)
@@ -1406,6 +1405,7 @@ class RPZPlanner(object):
 
         reward_history = []
         reward0 = -1.0
+        time_cost0 = -1.0
         t0 = timer()
 
         for iter in range(self.num_iters):
@@ -1447,7 +1447,6 @@ class RPZPlanner(object):
                 self.path_pub.publish(msg_out)
                 break
             else:
-                # Publish current optimized path.
                 # TODO: Test yaw processing from map to grid and back.
                 # TODO: Alternative solution is to recompute yaw from XY again.
                 msg_out = xyzrpy_to_path_msg(xyzrpy)
@@ -1516,12 +1515,15 @@ class RPZPlanner(object):
             time_cost = self.path_cost(xyzrpy)
 
             criterion = time_cost / reward
-            # criterion = time_cost - reward
 
             # publish intermediate result during optimization process only in debug mode
             if iter == (self.num_iters - 1) or self.debug:
                 # publish optimized path
                 msg_out.header.stamp = rospy.Time.now()
+                for p in msg_out.poses:
+                    assert isinstance(p, PoseStamped)
+                    p.header = msg.header
+                    p.header.stamp = msg_out.header.stamp
                 self.path_pub.publish(msg_out)
                 # Publish reward cloud for visualization.
                 reward_cloud['reward'] = rewards.detach().cpu().numpy()
@@ -1537,17 +1539,18 @@ class RPZPlanner(object):
                 self.visualize_cams(robot_to_map[-1].detach(), id=2)
                 rospy.logdebug('Cameras visualized for %i poses (%.3f s).', 3, timer() - t)
 
+            if iter == 0:
+                reward0 = reward
+                time_cost0 = time_cost
+
             # optimization step
             criterion.backward()
             optimizer.step()
 
-            if iter == 0:
-                reward0 = reward
-
-            rospy.loginfo('Iter. %i: time %.1f s, '
+            rospy.loginfo('Iter. %i: time cost %.1f / %.1f s, '
                           'reward %.0f / %.0f, '
                           '(%.3f s).',
-                          iter, time_cost.detach().item(),
+                          iter, time_cost.detach().item(), time_cost0.detach().item(),
                           reward.detach().item(), reward0.detach().item(),
                           timer() - t_iter)
 
