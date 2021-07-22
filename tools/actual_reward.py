@@ -1,14 +1,11 @@
 #!/usr/bin/env python
-"""RPZ compliant planner."""
+
 from __future__ import absolute_import, division, print_function
-# from exploration.msg import Path
-from PIL.ImageEnhance import Color
 from geometry_msgs.msg import Point, Pose, PoseStamped, Pose2D, Quaternion, Transform, TransformStamped, Twist
 import math
 from matplotlib import colors
 from nav_msgs.msg import Path
 import numpy as np
-# from planning_on_rpz_subspace_v1 import Rpz_diff
 import rospy
 from ros_numpy import msgify, numpify
 from rpz_planning import point_visibility
@@ -16,17 +13,12 @@ from sensor_msgs.msg import CameraInfo, PointCloud2, PointField
 from std_msgs.msg import ColorRGBA, Header
 from tf.transformations import euler_from_quaternion, quaternion_from_euler, euler_matrix
 import tf2_ros
-# from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud
 from threading import RLock
 from timeit import default_timer as timer
 import torch
 import torch.nn.functional as fun
 from visualization_msgs.msg import Marker, MarkerArray
 from collections import OrderedDict
-# from yacs.config import CfgNode
-# https://github.com/rbgirshick/yacs
-# cfg = CfgNode()
-# cfg.visibility_sphere_radius = 100.
 np.set_printoptions(precision=2)
 
 
@@ -584,7 +576,7 @@ def compute_fov_mask(map, frustums, map_to_cam, ramp_size=1.0):
     fov_mask = torch.clamp(fov_dist / ramp_size + 1., 0.0, 1.0)
     return fov_mask
 
-
+@timing
 def compute_fov_mask_smooth(map, intrins, map_to_cam, std=10, eps=1e-6):
     t = timer()
     # find points that are observed by the camera (in its FOV)
@@ -625,7 +617,7 @@ def compute_fov_mask_smooth(map, intrins, map_to_cam, std=10, eps=1e-6):
     rospy.logdebug('FOV mask computation time: %.3f s', timer() - t)
     return fov_mask
 
-
+@timing
 def compute_vis_mask(map, cam_to_map, param=1.0, voxel_size=0.6):
     assert isinstance(map, torch.Tensor)
     # (4, n_pts)
@@ -672,6 +664,26 @@ def compute_vis_mask(map, cam_to_map, param=1.0, voxel_size=0.6):
     assert len(visibilities_dict) <= n_poses
     assert vis_mask.shape == (n_poses, n_cams, n_pts)
     return vis_mask
+
+@timing
+def compute_dist_mask(map, cam_to_map, dist_mean=3.0, dist_std=1.5):
+    assert isinstance(map, torch.Tensor)
+    # (4, n_pts)
+    assert map.dim() == 2
+    assert map.shape[0] == 4
+    n_pts = map.shape[1]
+
+    assert isinstance(cam_to_map, torch.Tensor)
+    # (n_poses, n_cams, 4, 4)
+    assert cam_to_map.dim() == 4
+    n_poses, n_cams = cam_to_map.shape[:2]
+    assert cam_to_map.shape[1:] == (n_cams, 4, 4)
+
+    # Distance based mask
+    sensor_dist = torch.norm(cam_to_map[..., 3, None] - map, dim=-2)
+    assert sensor_dist.shape == (n_poses, n_cams, n_pts)
+    dist_mask = torch.exp(-(sensor_dist - dist_mean) ** 2 / dist_std ** 2)
+    return dist_mask
 
 
 def select_traversable_path_pts(path_pts, rpz_cloud):
@@ -791,9 +803,9 @@ class Rewarder(object):
         try:
             transform = self.tf.lookup_transform(target_frame, self.robot_frame,
                                                  rospy.Time.now(), rospy.Duration(3))
-        except tf2_ros.LookupException:
+        except (tf2_ros.LookupException, tf2_ros.ExtrapolationException):
             rospy.logwarn('Unable to find robot on the map')
-            return
+            return None
         tf = transform.transform
         xyzrpy = pose_msg_to_xyzrpy(tf_to_pose(tf))
         return torch.tensor(xyzrpy)
@@ -1105,13 +1117,13 @@ class Rewarder(object):
                        cost.item(), dist_cost.item(), turn_cost.item(), trav_cost.item())
         return cost
 
-    def path_reward(self, xyzrpy):
+    def path_reward(self, xyzrpy, map, vis_cams=False):
         assert isinstance(xyzrpy, torch.Tensor)
         # (..., N, 6)
         assert xyzrpy.shape[-1] == 6
         assert xyzrpy.dim() >= 2
         # Get frustums and intrinsics of available cameras.
-        cam_to_robot, frustums, intrins = self.get_available_cameras()
+        cam_to_robot, frustums, _ = self.get_available_cameras()
         if cam_to_robot is None:
             rospy.logwarn('Skipping path. No cameras available.')
             return
@@ -1119,20 +1131,15 @@ class Rewarder(object):
         n_cams, _, n_planes = frustums.shape
         assert cam_to_robot.shape == (n_cams, 4, 4)
         assert xyzrpy.shape[1] == 6
+        n_poses = xyzrpy.shape[0]
 
         t = timer()
         cam_to_robot = cam_to_robot.to(self.device)
         frustums = frustums.to(self.device)
-        for key in intrins:
-            intrins[key] = intrins[key].to(self.device)
-        rpz_all = self.rpz_all.to(self.device)
-        map_to_grid = self.map_to_grid.to(self.device)
-        map = self.map.to(self.device)
+        map = map.to(self.device)
         assert map.shape[0] == 4
         n_pts = map.shape[-1]
         xyzrpy = xyzrpy.to(self.device)
-        assert map_to_grid.shape == (3, 3)
-        # rospy.loginfo('Map to grid:\n%s', map_to_grid.detach().numpy())
         rospy.logdebug('Moving to %s: %.3f s', self.device, timer() - t)
 
         # Keep map coordinates, convert to grid just for RPZ interpolation.
@@ -1142,9 +1149,6 @@ class Rewarder(object):
         # For interpolation we'll have: rpz(to_grid(xyyaw)).
         # Optionally, offset z if needed.
 
-        xyzrpy = select_traversable_path_pts(xyzrpy, self.rpz_cloud)
-        n_poses = xyzrpy.shape[0]
-
         # Prepare reward cloud for visualization.
         reward_cloud = np.zeros((n_pts,), dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
                                                  ('visibility', 'f4'), ('fov', 'f4'), ('distance', 'f4'),
@@ -1152,37 +1156,6 @@ class Rewarder(object):
 
         for i, f in enumerate(['x', 'y', 'z']):
             reward_cloud[f] = map[i].detach().cpu().numpy()
-
-        vis_mask = None
-
-        xy = xyzrpy[:, :2]
-        # yaw = xy_to_azimuth(xy)
-        yaw_tail = xy_to_azimuth(xy[1:, :] - xy[:-1, :])
-        # TODO: Add starting yaw.
-        yaw = torch.cat((yaw_tail[:1, :], yaw_tail), dim=-2)
-        # rospy.loginfo('Yaw:\n%s', np.degrees(yaw.detach().numpy()))
-        if self.order == DimOrder.X_Y_YAW:
-            xyyaw = torch.cat((xy, yaw), dim=-1)
-        elif self.order == DimOrder.YAW_X_Y:
-            xyyaw = torch.cat((yaw, xy), dim=-1)
-
-        assert xyyaw.shape == (n_poses, 3)
-        xyyaw_grid = transform_xyyaw_tensor(map_to_grid, xyyaw, order=self.order)
-        rpz = interpolate_rpz(rpz_all, xyyaw_grid, order=self.order)
-
-        # Transform z?
-        assert rpz.shape == (n_poses, 3)
-        assert xyyaw.shape == (n_poses, 3)
-        if self.order == DimOrder.X_Y_YAW:
-            # Fix yaw from XY.
-            xyzrpy = torch.cat((xyyaw[:, :2], rpz[:, 2:], rpz[:, :2], xyyaw[:, 2:]), dim=-1)
-        elif self.order == DimOrder.YAW_X_Y:
-            xyzrpy = torch.cat((xyyaw[:, 1:], rpz[:, 2:], rpz[:, :2], xyyaw[:, :1]), dim=-1)
-
-        if torch.isnan(xyzrpy).any():
-            # TODO: find out why it happens
-            rospy.logerr("Path contains NANs.")
-            return -1.0, None
 
         # Get camera to map transforms.
         t = timer()
@@ -1195,12 +1168,11 @@ class Rewarder(object):
         rospy.logdebug('Camera to map transforms: %.3f s', timer() - t)
 
         # Visibility / occlusion mask.
-        if vis_mask is None:
-            t = timer()
-            vis_mask = compute_vis_mask(map, cam_to_map, param=0.5)
-            with torch.no_grad():
-                reward_cloud['visibility'] = reduce_rewards(vis_mask).detach().cpu().numpy()
-            rospy.logdebug('Point visibility computation took: %.3f s.', timer() - t)
+        t = timer()
+        vis_mask = compute_vis_mask(map, cam_to_map, param=0.5)
+        with torch.no_grad():
+            reward_cloud['visibility'] = reduce_rewards(vis_mask).detach().cpu().numpy()
+        rospy.logdebug('Point visibility computation took: %.3f s.', timer() - t)
 
         # compute smooth version of FOV mask
         # fov_mask = compute_fov_mask_smooth(map, intrins, map_to_cam)
@@ -1211,14 +1183,7 @@ class Rewarder(object):
 
         # Compute point to sensor distances.
         # TODO: Optimize, avoid exhaustive distance computation.
-        t = timer()
-        sensor_dist = torch.norm(cam_to_map[..., 3, None] - map, dim=-2)
-        assert sensor_dist.shape == (n_poses, n_cams, n_pts)
-        rospy.logdebug('Distance to sensors: %.3f s', timer() - t)
-        # Distance based mask
-        dist_mean = 3.0
-        dist_std = 1.5
-        dist_mask = torch.exp(-(sensor_dist - dist_mean)**2 / dist_std**2)
+        dist_mask = compute_dist_mask(map, cam_to_map)
         with torch.no_grad():
             reward_cloud['distance'] = reduce_rewards(dist_mask).detach().cpu().numpy()
 
@@ -1241,12 +1206,13 @@ class Rewarder(object):
         # reward cloud for visualization
         reward_cloud['reward'] = rewards.detach().cpu().numpy()
 
-        # # Visualize cameras (first and last).
-        # t = timer()
-        # self.visualize_cams(robot_to_map[0].detach(), id=0)
-        # self.visualize_cams(robot_to_map[n_poses // 2].detach(), id=1)
-        # self.visualize_cams(robot_to_map[-1].detach(), id=2)
-        # rospy.logdebug('Cameras visualized for %i poses (%.3f s).', 3, timer() - t)
+        # Visualize cameras (first, middle and last).
+        if vis_cams:
+            t = timer()
+            self.visualize_cams(robot_to_map[0].detach(), id=0)
+            self.visualize_cams(robot_to_map[n_poses // 2].detach(), id=1)
+            self.visualize_cams(robot_to_map[-1].detach(), id=2)
+            rospy.logdebug('Cameras visualized for %i poses (%.3f s).', 3, timer() - t)
 
         return reward, reward_cloud
 
@@ -1290,17 +1256,21 @@ class Rewarder(object):
             assert isinstance(self.map_msg, PointCloud2)
             assert self.map_msg.header.frame_id == msg.header.frame_id
 
+        map = self.map.clone()
+
         self.path_msg = msg
         path_xyzrpy = path_msg_to_xyzrpy(self.path_msg)
 
         wp_dists = torch.linalg.norm(path_xyzrpy[1:, :3] - path_xyzrpy[:-1, :3], dim=1)
-        wp_dists = torch.cat([torch.tensor([0.0]), wp_dists])  # append 0.0 in the beginning
 
         xyzrpy = self.get_robot_xyzrpy(self.path_msg.header.frame_id)
 
+        if xyzrpy is None:
+            rospy.logwarn('Unable to find robot pose on the map')
+            return
+
         prev_pose = xyzrpy[:3]
-        actual_path_xyzrpy = []
-        i = 0
+        actual_path_xyzrpy = [xyzrpy.unsqueeze(0)]
         # construct actual path with ~the same dists between waypoints
         while len(actual_path_xyzrpy) < path_xyzrpy.shape[0]:
             # get here robot poses, closest to expected path
@@ -1310,10 +1280,9 @@ class Rewarder(object):
 
             cur_pose = xyzrpy[:3]
             dp = torch.linalg.norm(cur_pose - prev_pose)
-            if dp >= wp_dists[i]:
+            if dp >= wp_dists.mean():
                 actual_path_xyzrpy.append(xyzrpy.unsqueeze(0))
                 prev_pose = cur_pose
-                i += 1
                 # if actual path length reached the length of expected path, stop building actual path
                 if path_length(torch.cat(actual_path_xyzrpy, dim=0)) >= path_length(path_xyzrpy):
                     break
@@ -1321,9 +1290,6 @@ class Rewarder(object):
             # print(len(actual_path_xyzrpy), '/', path_xyzrpy.shape[0])
 
         actual_path_xyzrpy = torch.cat(actual_path_xyzrpy, dim=0)
-
-        rospy.loginfo('Expected path length: %.1f', path_length(path_xyzrpy))
-        rospy.loginfo('Actual path length: %.1f', path_length(actual_path_xyzrpy))
 
         # publish actual path
         assert actual_path_xyzrpy.shape[0] <= path_xyzrpy.shape[0]
@@ -1334,11 +1300,17 @@ class Rewarder(object):
         path_pub.publish(actual_path_msg)
 
         # compute rewards from paths
-        expected_reward, _ = self.path_reward(path_xyzrpy)
-        actual_reward, reward_cloud = self.path_reward(actual_path_xyzrpy)
+        expected_reward, _ = self.path_reward(path_xyzrpy, map)
+        actual_reward, reward_cloud = self.path_reward(actual_path_xyzrpy, map, vis_cams=True)
 
-        rospy.loginfo('Expected reward: %.1f', expected_reward)
-        rospy.loginfo('Actual reward: %.1f', actual_reward)
+        rospy.loginfo('Expected path length: %.1f, N wps: %i, '
+                      'reward: %.1f',
+                      path_length(path_xyzrpy), path_xyzrpy.shape[0],
+                      expected_reward)
+        rospy.loginfo('Actual path length: %.1f, N wps: %i, '
+                      'reward: %.1f',
+                      path_length(actual_path_xyzrpy), actual_path_xyzrpy.shape[0],
+                      actual_reward)
 
         # publish actual local reward cloud
         if reward_cloud is not None:

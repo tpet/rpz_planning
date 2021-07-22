@@ -4,7 +4,7 @@
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1"/>
 
-    <node name="actual_reward" pkg="rpz_planning" type="actual_reward" output="screen">
+    <node name="actual_reward" pkg="rpz_planning" type="actual_reward.py" output="screen">
         <rosparam subst_value="true">
             map_frame: subt
             robot_frame: $(arg robot)/base_footprint
