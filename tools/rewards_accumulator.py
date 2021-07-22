@@ -128,6 +128,7 @@ class RewardsAccumulator:
         self.global_map = torch.cat([self.global_map, self.new_map], dim=0)
         # accumulate rewards (max or log odds), compare global and latest local map rewards
         rospy.logdebug(f'Global map probabilities: {torch.min(self.global_map[:, 3])} ~ {torch.max(self.global_map[:, 3])}')
+        print(local_map[~proximity_mask, 3].shape)
         rospy.logdebug(f'Common map probabilities {torch.min(local_map[~proximity_mask, 3])} ~ {torch.max(local_map[~proximity_mask, 3])}')
         self.global_map[idxs[~proximity_mask], 3] = torch.max(self.global_map[idxs[~proximity_mask], 3],
                                                               local_map[~proximity_mask, 3])

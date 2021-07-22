@@ -43,7 +43,7 @@
     </include>
 
     <!-- Travelled distance publisher -->
-    <node ns="$(arg robot)" name="travelled_dist_publisher" pkg="rpz_planning" type="travelled_dist.py" output="log"/>
+    <include file="$(dirname)/travelled_dist.launch" pass_all_args="true"/>
 
     <!-- Exploration evaluation -->
     <node ns="$(arg robot)" name="eval" pkg="rpz_planning" type="eval.py" output="screen">

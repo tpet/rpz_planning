@@ -3,30 +3,18 @@
 <launch>
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1"/>
-    <arg name="debug_trajopt" default="false"/>
-    <arg name="trajopt_iters" default="50"/>
 
-    <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
+    <node name="actual_reward" pkg="rpz_planning" type="actual_reward" output="screen">
         <rosparam subst_value="true">
             map_frame: subt
             robot_frame: $(arg robot)/base_footprint
             max_age: 1.0
-            debug: $(arg debug_trajopt)
             num_cameras: 1
-            num_iters: $(arg trajopt_iters)
             map_step: 2
-            path_step: 2
             linear_speed: 1.0
             angular_speed: 1.0
-            fixed_endpoints: ['start']
             device: cuda:0
             <!-- device: cpu -->
-            dist_weight: 0.2
-            trav_weight: 1.0
-            turn_weight: 0.2
-<!--            dist_weight: 1.0-->
-<!--            trav_weight: 1.0-->
-<!--            turn_weight: 1.0-->
         </rosparam>
 
         <rosparam if="$(eval robot_type == 'marv')">
