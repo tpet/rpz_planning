@@ -3,16 +3,21 @@
 <launch>
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1"/>
+    <arg name="map_topic" default="local_map"/>
+    <arg name="path_topic" default="path"/>
+    <arg name="publish_cloud" default="false"/>
+    <arg name="rate" default="1.0"/>
 
-    <node name="actual_reward" pkg="rpz_planning" type="actual_reward.py" output="screen">
+    <node name="actual_rewarder" pkg="rpz_planning" type="rewarder.py" output="screen">
         <rosparam subst_value="true">
             map_frame: subt
             robot_frame: $(arg robot)/base_footprint
-            max_age: 1.0
+            max_age: 100.0
             num_cameras: 1
-            map_step: 2
-            linear_speed: 1.0
-            angular_speed: 1.0
+            map_step: 1
+            path_step: 1
+            publish_cloud: $(arg publish_cloud)
+            rate: $(arg rate)
             device: cuda:0
             <!-- device: cpu -->
         </rosparam>
@@ -67,8 +72,8 @@
         <remap if="$(eval 'tradr' in robot_type.lower())"
                from="camera_info_5" to="viz/camera_5/camera_info"/>
 
-        <remap from="map" to="local_map"/>
-        <remap from="path" to="path"/>
-        <remap from="rpz" to="traversability"/>
+        <remap from="map" to="$(arg map_topic)"/>
+        <remap from="path" to="$(arg path_topic)"/>
     </node>
+
 </launch>

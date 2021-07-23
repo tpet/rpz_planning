@@ -7,18 +7,15 @@ from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d.ops import sample_points_from_meshes
 from pytorch3d.ops.knn import knn_points
 from rpz_planning import point_face_distance_truncated
-from rpz_planning import point_edge_distance_truncated
+# from rpz_planning import point_edge_distance_truncated
 from rpz_planning import face_point_distance_truncated
-from rpz_planning import edge_point_distance_truncated
-from rpz_planning import chamfer_distance_truncated
+# from rpz_planning import edge_point_distance_truncated
+# from rpz_planning import chamfer_distance_truncated
 import rospy
 from sensor_msgs.msg import PointCloud2, PointCloud
 from std_msgs.msg import Float64
 from rpz_planning.msg import Metrics
 from visualization_msgs.msg import Marker
-from nav_msgs.msg import Path
-from tf.transformations import euler_from_quaternion
-from geometry_msgs.msg import Pose, PoseStamped
 from timeit import default_timer as timer
 from ros_numpy import msgify, numpify
 import tf2_ros
@@ -29,25 +26,6 @@ import rospkg
 from scipy.spatial.transform import Rotation
 # problems with Cryptodome: pip install pycryptodomex
 # https://github.com/DP-3T/reference_implementation/issues/1
-
-
-def slots(msg):
-    """Return message attributes (slots) as list."""
-    return [getattr(msg, var) for var in msg.__slots__]
-
-
-def pose_msg_to_xyzrpy(msg):
-    assert isinstance(msg, Pose)
-    xyz = slots(msg.position)
-    rpy = euler_from_quaternion(slots(msg.orientation))
-    return xyz + list(rpy)
-
-
-def path_msg_to_xyzrpy(msg):
-    assert isinstance(msg, Path)
-    xyzrpy = [pose_msg_to_xyzrpy(p.pose) for p in msg.poses]
-    xyzrpy = torch.tensor(xyzrpy)
-    return xyzrpy
 
 
 class Eval:
@@ -69,7 +47,7 @@ class Eval:
         # parameters
         self.map_topic = rospy.get_param('~map_topic', 'map_accumulator/map')
         self.travelled_dist_topic = rospy.get_param('~travelled_dist_topic', 'travelled_dist_publisher/travelled_dist')
-        self.route_topic = rospy.get_param('~route_topic', 'travelled_dist_publisher/route')
+        self.actual_reward_topic = rospy.get_param('~actual_reward_topic', 'actual_rewarder/reward')
         self.do_points_sampling_from_mesh = rospy.get_param('~do_points_sampling_from_mesh', True)
         self.do_points_sampling_from_map = rospy.get_param('~do_points_sampling_from_map', True)
         self.n_sample_points = rospy.get_param('~n_sample_points', 10000)
@@ -102,8 +80,10 @@ class Eval:
         self.detections_dist_th = rospy.get_param('~detections_dist_th', 2.0)
 
         # gt travelled distance by robot
-        self.travelled_dist = -1
-        self.route_xyzrpy = None
+        self.travelled_dist = None
+
+        # actual reward value
+        self.actual_reward = None
 
         # loading ground truth data
         if self.load_gt:
@@ -140,18 +120,23 @@ class Eval:
             self.ws_writer.write(0, 7, 'Map Chamfer loss')
             self.ws_writer.write(0, 8, 'Artifacts Exploration completeness')
             self.ws_writer.write(0, 9, 'Detections score')
-            self.ws_writer.write(0, 10, 'Total reward')
+            self.ws_writer.write(0, 10, 'Total expected reward')
             self.ws_writer.write(0, 11, 'Total artifacts reward')
             self.ws_writer.write(0, 12, 'Travelled distance')
+            self.ws_writer.write(0, 13, 'Actual reward')
             self.row_number = 1
 
-        # subscribing to travelled distance and route
+        # subscribing to actual reward topic
+        rospy.Subscriber(self.actual_reward_topic, Float64, self.get_actual_reward)
+        # subscribing to travelled distance
         rospy.Subscriber(self.travelled_dist_topic, Float64, self.get_travelled_dist)
-        rospy.Subscriber(self.route_topic, Path, self.get_route)
         # obtaining the constructed map (reward cloud)
         rospy.Subscriber(self.map_topic, PointCloud2, self.get_constructed_map)
         # subscribing to localized detection results for evaluation
         rospy.Subscriber(self.artifacts_hypothesis_topic, PointCloud, self.get_detections)
+
+        # evaluation runner
+        rospy.Timer(rospy.Duration(1. / self.rate), self.run)
 
     @staticmethod
     def publish_pointcloud(points, topic_name, stamp, frame_id, intensity='i'):
@@ -361,15 +346,13 @@ class Eval:
         self.detections['classes'] = [artifacts_names[int(n)] for n in class_numbers]
         # assert len(self.detections['classes']) == len(self.detections['poses'])
 
+    def get_actual_reward(self, msg):
+        assert isinstance(msg, Float64)
+        self.actual_reward = float(msg.data)
+
     def get_travelled_dist(self, msg):
         assert isinstance(msg, Float64)
         self.travelled_dist = float(msg.data)
-
-    def get_route(self, msg):
-        assert isinstance(msg, Path)
-        xyzrpy = path_msg_to_xyzrpy(msg)
-        rospy.logdebug(f'Route shape: {xyzrpy.shape}')
-        self.route_xyzrpy = xyzrpy
 
     def evaluate_detections(self, preds, gts, dist_th=5.0):
         # TODO: the final score should also include false positives and true negatives
@@ -431,7 +414,8 @@ class Eval:
                    coverage_dist_th=0.5,
                    artifacts_coverage_dist_th=0.1,
                    detections_dist_th=2.0,
-                   travelled_dist=-1.0):
+                   travelled_dist=None,
+                   actual_reward=None):
         if map is None:
             rospy.logwarn('Evaluation: Map cloud is not yet received')
             return None
@@ -510,7 +494,7 @@ class Eval:
                                                                      coverage_dist_th=coverage_dist_th)
             self.metrics_msg.exp_completeness = exp_completeness.detach().cpu().numpy()
 
-            # total reward for the whole exploration route based on visibility information:
+            # total expected reward for the whole exploration route based on visibility information:
             #   - 1-5m range
             #   - occlusion
             #   - cameras fov
@@ -580,7 +564,10 @@ class Eval:
             self.ws_writer.write(self.row_number, 9, f'{self.metrics_msg.dets_score}')
             self.ws_writer.write(self.row_number, 10, f'{self.metrics_msg.total_reward}')
             self.ws_writer.write(self.row_number, 11, f'{self.metrics_msg.artifacts_total_reward}')
-            self.ws_writer.write(self.row_number, 12, f'{travelled_dist}')
+            if travelled_dist is not None:
+                self.ws_writer.write(self.row_number, 12, f'{travelled_dist}')
+            if actual_reward is not None:
+                self.ws_writer.write(self.row_number, 13, f'{actual_reward}')
             self.row_number += 1
             self.wb.save(self.xls_file)
 
@@ -593,51 +580,48 @@ class Eval:
 
         return coverage_mask
 
-    def run(self):
-        rate = rospy.Rate(self.rate)
-        while not rospy.is_shutdown():
-            # publish ground truth
-            self.map_gt_mesh_marker.header.stamp = rospy.Time.now()
-            self.world_mesh_pub.publish(self.map_gt_mesh_marker)
-            self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', rospy.Time.now(), self.map_gt_frame)
+    def run(self, event):
+        # publish ground truth
+        self.map_gt_mesh_marker.header.stamp = rospy.Time.now()
+        self.world_mesh_pub.publish(self.map_gt_mesh_marker)
+        self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', rospy.Time.now(), self.map_gt_frame)
 
-            rospy.logdebug('Travelled distance: %.1f', self.travelled_dist)
-            # compare subscribed map point cloud to ground truth mesh
-            # self.publish_pointcloud(self.map.squeeze(0).transpose(1, 0).detach().cpu().numpy(),
-            #                         'map', rospy.Time.now(), self.map_gt_frame)
-            if self.do_eval:
-                coverage_mask = self.evaluation(map=self.map,
-                                                map_gt_cloud=self.map_gt,
-                                                map_gt_mesh=self.map_gt_mesh,
-                                                artifacts=self.artifacts,
-                                                coverage_dist_th=self.coverage_dist_th,
-                                                artifacts_coverage_dist_th=self.artifacts_coverage_dist_th,
-                                                detections_dist_th=self.detections_dist_th,
-                                                travelled_dist=self.travelled_dist)
+        rospy.logdebug('Travelled distance: %.1f', self.travelled_dist)
+        # compare subscribed map point cloud to ground truth mesh
+        # self.publish_pointcloud(self.map.squeeze(0).transpose(1, 0).detach().cpu().numpy(),
+        #                         'map', rospy.Time.now(), self.map_gt_frame)
 
-                # publish point cloud from ground truth mesh
-                if coverage_mask is None:
-                    rate.sleep()
-                    continue
+        coverage_mask = None
+        if self.do_eval:
+            coverage_mask = self.evaluation(map=self.map,
+                                            map_gt_cloud=self.map_gt,
+                                            map_gt_mesh=self.map_gt_mesh,
+                                            artifacts=self.artifacts,
+                                            coverage_dist_th=self.coverage_dist_th,
+                                            artifacts_coverage_dist_th=self.artifacts_coverage_dist_th,
+                                            detections_dist_th=self.detections_dist_th,
+                                            travelled_dist=self.travelled_dist,
+                                            actual_reward=self.actual_reward)
 
-                binary_coverage_mask = coverage_mask > 0
-                assert binary_coverage_mask.shape[:2] == self.map_gt.shape[:2]
-                points = self.map_gt  # (1, N, 3)
-                points = torch.cat([points, binary_coverage_mask], dim=2)
+        # publish point cloud from ground truth mesh
+        points = self.map_gt  # (1, N, 3)
+        if coverage_mask is not None:
+            binary_coverage_mask = coverage_mask > 0
+            assert binary_coverage_mask.shape[:2] == self.map_gt.shape[:2]
+            points = torch.cat([points, binary_coverage_mask], dim=2)
 
-                # selecting default map frame if it is not available in ROS
-                map_gt_frame = self.map_gt_frame if self.map_gt_frame is not None else 'subt'
-                points_to_pub = points.squeeze().cpu().numpy().transpose(1, 0)
-                assert len(points_to_pub.shape) == 2
-                assert points_to_pub.shape[0] >= 3
-                self.publish_pointcloud(points_to_pub,
-                                        topic_name='~cloud_from_gt_mesh',
-                                        stamp=rospy.Time.now(),
-                                        frame_id=map_gt_frame,
-                                        intensity='coverage')
-                rospy.logdebug(f'Ground truth mesh frame: {map_gt_frame}')
-                rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
-            rate.sleep()
+        # selecting default map frame if it is not available in ROS
+        map_gt_frame = self.map_gt_frame if self.map_gt_frame is not None else 'subt'
+        points_to_pub = points.squeeze().cpu().numpy().transpose(1, 0)
+        assert len(points_to_pub.shape) == 2
+        assert points_to_pub.shape[0] >= 3
+        self.publish_pointcloud(points_to_pub,
+                                topic_name='~cloud_from_gt_mesh',
+                                stamp=rospy.Time.now(),
+                                frame_id=map_gt_frame,
+                                intensity='coverage')
+        rospy.logdebug(f'Ground truth mesh frame: {map_gt_frame}')
+        rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
 
 
 if __name__ == '__main__':
@@ -648,4 +632,4 @@ if __name__ == '__main__':
     proc = Eval(path_to_mesh=path_fo_gt_map_mesh)
     rospy.loginfo('Mapping evaluation node is initialized.')
     rospy.loginfo('You may need to heat Space for bagfile to start.')
-    proc.run()
+    rospy.spin()

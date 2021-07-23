@@ -5,6 +5,7 @@ from geometry_msgs.msg import Point, Pose, PoseStamped, Pose2D, Quaternion, Tran
 import math
 from matplotlib import colors
 from nav_msgs.msg import Path
+from std_msgs.msg import Float64
 import numpy as np
 import rospy
 from ros_numpy import msgify, numpify
@@ -16,7 +17,6 @@ import tf2_ros
 from threading import RLock
 from timeit import default_timer as timer
 import torch
-import torch.nn.functional as fun
 from visualization_msgs.msg import Marker, MarkerArray
 from collections import OrderedDict
 np.set_printoptions(precision=2)
@@ -545,15 +545,17 @@ class Rewarder(object):
         # self.map_x_index = None  # Index of above
 
         # Path msg to follow
+        self.path_lock = RLock()
         self.path_msg = None
+        self.path_xyzrpy = None
 
         self.tf = tf2_ros.Buffer()
         self.tf_sub = tf2_ros.TransformListener(self.tf)
 
         self.viz_pub = rospy.Publisher('visualization', MarkerArray, queue_size=2)
-        self.path_pub = rospy.Publisher('optimized_path', Path, queue_size=2)
-        self.reward_cloud_pub = rospy.Publisher('reward_cloud', PointCloud2, queue_size=2)
-        # self.clearance_pub = rospy.Publisher('clearance', MarkerArray, queue_size=2)
+        self.reward_cloud_pub = rospy.Publisher('~reward_cloud', PointCloud2, queue_size=2)
+        self.reward_pub = rospy.Publisher('~reward', Float64, queue_size=1)
+        self.publish_reward_cloud = rospy.get_param('~publish_cloud', False)
 
         # Allow multiple cameras.
         self.cam_info_lock = RLock()
@@ -568,6 +570,8 @@ class Rewarder(object):
 
         self.map_sub = rospy.Subscriber('map', PointCloud2, self.map_received, queue_size=2)
         self.path_sub = rospy.Subscriber('path', Path, self.path_received, queue_size=2)
+        self.eval_freq = rospy.get_param('~rate', 1.0)
+        self.path_timer = rospy.Timer(rospy.Duration(1. / self.eval_freq), self.run)
 
     def lookup_transform(self, target_frame, source_frame, time,
                          no_wait_frame=None, timeout=0.0):
@@ -863,7 +867,7 @@ class Rewarder(object):
 
         # Visibility / occlusion mask.
         t = timer()
-        vis_mask = compute_vis_mask(map, cam_to_map, param=0.5)
+        vis_mask = compute_vis_mask(map, cam_to_map, param=0.1)
         with torch.no_grad():
             reward_cloud['visibility'] = reduce_rewards(vis_mask).detach().cpu().numpy()
         rospy.logdebug('Point visibility computation took: %.3f s.', timer() - t)
@@ -887,11 +891,8 @@ class Rewarder(object):
 
         # share and sum rewards over multiple sensors and view points
         # rewards = log_odds_conversion(rewards)
-        rewards = reduce_rewards(rewards)
-
         # instead of log odds: max of rewards over all sensors and wps poses
-        # rewards, _ = rewards.view(n_poses * n_cams, n_pts).max(dim=0)
-        # assert rewards.shape == (n_pts,)
+        rewards = reduce_rewards(rewards)
 
         reward = rewards.sum()
         assert isinstance(reward, torch.Tensor)
@@ -913,12 +914,11 @@ class Rewarder(object):
     @timing
     def path_received(self, msg):
         assert isinstance(msg, Path)
-
-        # Discard old messages.
-        age = (rospy.Time.now() - msg.header.stamp).to_sec()
-        if age > self.max_age:
-            rospy.logwarn('Discarding path %.1f s > %.1f s old.', age, self.max_age)
-            return
+        # # Discard old messages.
+        # age = (rospy.Time.now() - msg.header.stamp).to_sec()
+        # if age > self.max_age:
+        #     rospy.logwarn('Discarding path %.1f s > %.1f s old.', age, self.max_age)
+        #     return
 
         # Subsample input path to reduce computation.
         if self.path_step > 1:
@@ -934,31 +934,33 @@ class Rewarder(object):
         elif self.map_frame and msg.header.frame_id != self.map_frame:
             rospy.logwarn_once('Map frame %s will be used instead of path frame %s.',
                                self.map_frame, msg.header.frame_id)
+        with self.path_lock:
+            self.path_msg = msg
+            self.path_xyzrpy = path_msg_to_xyzrpy(self.path_msg)
+
+    def run(self, event):
+        with self.path_lock:
+            if self.path_msg is None:
+                rospy.logwarn('Path is not yet received.')
+                return
 
         with self.map_lock:
             if self.map_msg is None:
-                rospy.logwarn('Skipping path. Map cloud not yet received.')
+                rospy.logwarn('Map cloud is not yet received.')
                 return
             assert isinstance(self.map_msg, PointCloud2)
-            assert self.map_msg.header.frame_id == msg.header.frame_id
+            assert self.map_msg.header.frame_id == self.path_msg.header.frame_id
 
         # Get frustums and intrinsics of available cameras.
         cam_to_robot, frustums, _ = self.get_available_cameras()
         if cam_to_robot is None:
-            rospy.logwarn('Skipping path. No cameras available.')
+            rospy.logwarn('No cameras available.')
             return
 
-        self.path_msg = msg
-        path_xyzrpy = path_msg_to_xyzrpy(self.path_msg)
-
-        xyzrpy = self.get_robot_xyzrpy(self.path_msg.header.frame_id)
         map = self.map
+        path_xyzrpy = self.path_xyzrpy
 
-        if xyzrpy is None:
-            rospy.logwarn('Unable to find robot pose on the map')
-            return
-
-        # compute rewards from paths
+        # compute rewards from path and point cloud map
         t0 = timer()
         reward, reward_cloud = self.path_reward(path_xyzrpy, map, cam_to_robot, frustums, vis_cams=True)
         dt = timer() - t0
@@ -969,15 +971,17 @@ class Rewarder(object):
                       path_length(path_xyzrpy), path_xyzrpy.shape[0],
                       reward)
 
-        # publish reward cloud
-        if reward_cloud is not None:
-            reward_cloud_msg = msgify(PointCloud2, reward_cloud)
-            assert isinstance(reward_cloud_msg, PointCloud2)
-            reward_cloud_msg.header = self.path_msg.header
-            self.reward_cloud_pub.publish(reward_cloud_msg)
+        # publish reward value and cloud
+        if reward is not None:
+            self.reward_pub.publish(Float64(reward.item()))
+            if self.publish_reward_cloud:
+                reward_cloud_msg = msgify(PointCloud2, reward_cloud)
+                assert isinstance(reward_cloud_msg, PointCloud2)
+                reward_cloud_msg.header = self.path_msg.header
+                self.reward_cloud_pub.publish(reward_cloud_msg)
 
 
 if __name__ == '__main__':
-    rospy.init_node('rewarder', log_level=rospy.INFO)
+    rospy.init_node('actual_rewarder', log_level=rospy.INFO)
     node = Rewarder()
     rospy.spin()

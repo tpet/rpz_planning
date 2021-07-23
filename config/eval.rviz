@@ -11,8 +11,9 @@ Panels:
         - /Ground Truth1
         - /Clouds1
         - /Detection hypothesis1
+        - /Paths1
       Splitter Ratio: 0.509186327457428
-    Tree Height: 449
+    Tree Height: 837
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -252,34 +253,10 @@ Visualization Manager:
                     {}
       Update Interval: 0
       Value: true
-    - Alpha: 1
-      Buffer Length: 1
-      Class: rviz/Path
-      Color: 138; 226; 52
-      Enabled: true
-      Head Diameter: 0.30000001192092896
-      Head Length: 0.20000000298023224
-      Length: 0.30000001192092896
-      Line Style: Billboards
-      Line Width: 0.20000000298023224
-      Name: Path
-      Offset:
-        X: 0
-        Y: 0
-        Z: 0
-      Pose Color: 255; 85; 255
-      Pose Style: None
-      Queue Size: 10
-      Radius: 0.029999999329447746
-      Shaft Diameter: 0.10000000149011612
-      Shaft Length: 0.10000000149011612
-      Topic: /X1/path
-      Unreliable: false
-      Value: true
     - Class: rviz/Group
       Displays:
         - Class: rviz/Image
-          Enabled: true
+          Enabled: false
           Image Topic: /X1/front_rgbd/optical/image_raw
           Max Value: 1
           Median window: 5
@@ -289,7 +266,7 @@ Visualization Manager:
           Queue Size: 2
           Transport Hint: raw
           Unreliable: false
-          Value: true
+          Value: false
         - Class: rviz/Image
           Enabled: false
           Image Topic: /X1/left_rgbd/optical/image_raw
@@ -351,9 +328,9 @@ Visualization Manager:
           Queue Size: 10
           Selectable: true
           Size (Pixels): 3
-          Size (m): 0.4000000059604645
+          Size (m): 0.30000001192092896
           Style: Spheres
-          Topic: /X1/map_eval/cloud_from_gt_mesh
+          Topic: /X1/eval/cloud_from_gt_mesh
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
@@ -387,13 +364,13 @@ Visualization Manager:
           Use rainbow: true
           Value: true
         - Class: rviz/Marker
-          Enabled: true
+          Enabled: false
           Marker Topic: /world_mesh
           Name: GT World Mesh
           Namespaces:
-            artifacts_ns: true
+            {}
           Queue Size: 100
-          Value: true
+          Value: false
       Enabled: true
       Name: Ground Truth
     - Class: rviz/Group
@@ -410,7 +387,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: Intensity
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Min Color: 0; 0; 0
@@ -425,7 +402,7 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
@@ -544,6 +521,34 @@ Visualization Manager:
           Use Fixed Frame: true
           Use rainbow: true
           Value: false
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: reward
+          Class: rviz/PointCloud2
+          Color: 255; 255; 255
+          Color Transformer: Intensity
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Min Color: 0; 0; 0
+          Name: Actual reward cloud
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 0.30000001192092896
+          Style: Spheres
+          Topic: /X1/actual_rewarder/reward_cloud
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
       Enabled: true
       Name: Clouds
     - Class: rviz/Group
@@ -662,6 +667,58 @@ Visualization Manager:
           Value: false
       Enabled: true
       Name: Detection hypothesis
+    - Class: rviz/Group
+      Displays:
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz/Path
+          Color: 138; 226; 52
+          Enabled: true
+          Head Diameter: 0.30000001192092896
+          Head Length: 0.20000000298023224
+          Length: 0.30000001192092896
+          Line Style: Billboards
+          Line Width: 0.20000000298023224
+          Name: Local Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Queue Size: 10
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic: /X1/path
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz/Path
+          Color: 252; 233; 79
+          Enabled: true
+          Head Diameter: 0.30000001192092896
+          Head Length: 0.20000000298023224
+          Length: 0.30000001192092896
+          Line Style: Billboards
+          Line Width: 0.20000000298023224
+          Name: Route
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: Axes
+          Queue Size: 10
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic: /X1/travelled_dist_publisher/route
+          Unreliable: false
+          Value: true
+      Enabled: true
+      Name: Paths
   Enabled: true
   Global Options:
     Background Color: 0; 0; 0
@@ -690,7 +747,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 152.05068969726562
+      Distance: 181.1002960205078
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -698,17 +755,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 3.5996928215026855
-        Y: -3.8578872680664062
-        Z: 44.86309814453125
+        X: 7.837422847747803
+        Y: -3.513212203979492
+        Z: 28.733051300048828
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 7
-      Pitch: 1.3347963094711304
+      Pitch: 1.0997967720031738
       Target Frame: subt
-      Yaw: 3.1223039627075195
+      Yaw: 3.1273038387298584
     Saved:
       - Class: rviz/Orbit
         Distance: 10
@@ -774,7 +831,7 @@ Window Geometry:
   Hide Right Dock: false
   LeftImage:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd0000000400000000000001fd000003edfc0200000013fb0000001200530065006c0065006300740069006f006e000000003d000000a30000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afc0000003d00000269000000e60100001cfa000000010100000003fb0000001200520065006100720049006d0061006700650100000000ffffffff0000007e00fffffffb000000100044006900730070006c00610079007301000000000000017f0000015600fffffffb0000000a005600690065007700730100000000ffffffff0000010000fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000a0049006d00610067006501000002940000014e0000000000000000fb0000000a0049006d006100670065010000026f000001730000000000000000fb0000001a00460072006f006e007400430061006d0049006d00610067006500000003c5000000160000000000000000fb0000001400460072006f006e00740049006d00610067006501000002ac0000017e0000001600fffffffb00000012004c0065006600740049006d00610067006500000003a0000000440000001600fffffffb00000014005200690067006800740049006d00610067006500000003e5000000450000001600fffffffb0000001400460072006f006e00740049006d0061006700650000000000ffffffff0000000000000000fb0000001200520065006100720049006d006100670065000000035b000000cf0000000000000000fb0000001200520065006100720049006d006100670065000000035c000000ce0000000000000000fb00000014005200690067006800740049006d0061006700650000000000ffffffff0000000000000000fb00000012004c0065006600740049006d0061006700650000000000ffffffff0000000000000000000000010000010f0000043bfc0200000002fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007800000003efc0100000002fb0000000800540069006d0065010000000000000780000002eb00fffffffb0000000800540069006d006501000000000000045000000000000000000000057d000003ed00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000400000000000001fd000003edfc0200000013fb0000001200530065006c0065006300740069006f006e000000003d000000a30000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afc0000003d000003ed000000e60100001cfa000000010100000003fb0000001200520065006100720049006d0061006700650000000000ffffffff0000007e00fffffffb000000100044006900730070006c00610079007301000000000000017f0000015600fffffffb0000000a005600690065007700730100000000ffffffff0000010000fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000a0049006d00610067006501000002940000014e0000000000000000fb0000000a0049006d006100670065010000026f000001730000000000000000fb0000001a00460072006f006e007400430061006d0049006d00610067006500000003c5000000160000000000000000fb0000001400460072006f006e00740049006d00610067006500000002ac0000017e0000001600fffffffb00000012004c0065006600740049006d00610067006500000003a0000000440000001600fffffffb00000014005200690067006800740049006d00610067006500000003e5000000450000001600fffffffb0000001400460072006f006e00740049006d006100670065010000030b0000011f0000000000000000fb0000001200520065006100720049006d006100670065000000035b000000cf0000000000000000fb0000001200520065006100720049006d006100670065000000035c000000ce0000000000000000fb00000014005200690067006800740049006d0061006700650000000000ffffffff0000000000000000fb00000012004c0065006600740049006d0061006700650000000000ffffffff0000000000000000000000010000010f0000043bfc0200000002fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007800000003efc0100000002fb0000000800540069006d0065010000000000000780000002eb00fffffffb0000000800540069006d006501000000000000045000000000000000000000057d000003ed00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   RearImage:
     collapsed: false
   RightImage:
