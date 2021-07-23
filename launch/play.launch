@@ -9,7 +9,7 @@
     <arg name="rate" default="1.0"/>
     <arg name="trajopt_iters" default="25"/>
     <arg name="debug_trajopt" default="true"/>
-    <arg name="rewards_accum" default="true"/>
+    <arg name="rewards_accum" default="false"/>
 
     <param name="use_sim_time" value="true"/>
 
@@ -65,7 +65,7 @@
     <include if="$(arg rewards_accum)"
              ns="$(arg robot)" file="$(dirname)/rewards_accumulator.launch"
              pass_all_args="true">
-            <arg name="reward_cloud_topic" default="reward_cloud"/>
+            <arg name="reward_cloud_topic" value="reward_cloud"/>
     </include>
 
     <!-- RVIZ -->

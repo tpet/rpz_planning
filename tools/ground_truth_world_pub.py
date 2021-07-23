@@ -6,21 +6,12 @@ import torch
 from pytorch3d.io import load_obj, load_ply
 from pytorch3d.structures import Meshes, Pointclouds
 from pytorch3d.ops import sample_points_from_meshes
-from pytorch3d.ops.knn import knn_points
-from rpz_planning import point_face_distance_truncated
-from rpz_planning import point_edge_distance_truncated
-from rpz_planning import face_point_distance_truncated
-from rpz_planning import edge_point_distance_truncated
-from rpz_planning import chamfer_distance_truncated
 import rospy
 from sensor_msgs.msg import PointCloud2, PointCloud
-from std_msgs.msg import Float64
 import numpy as np
 from ros_numpy import msgify, numpify
 import tf2_ros
-import trimesh
 from timeit import default_timer as timer
-import xlwt
 from visualization_msgs.msg import Marker
 import rospkg
 from scipy.spatial.transform import Rotation
@@ -259,7 +250,7 @@ class GTWorldPub:
 
 if __name__ == '__main__':
     rospy.init_node('ground_truth_world_publisher', log_level=rospy.INFO)
-    world_name = rospy.get_param('/world_name', 'simple_cave_03')
+    world_name = rospy.get_param('/world_name', 'simple_cave_01')
     rospy.loginfo('Loading world: %s', world_name)
     proc = GTWorldPub(world_name=world_name)
     rospy.loginfo('Ground truth publisher node is initialized.')

@@ -43,7 +43,7 @@
     </include>
 
     <!-- Travelled distance publisher -->
-    <include file="$(dirname)/travelled_dist.launch" pass_all_args="true"/>
+    <include ns="$(arg robot)" file="$(dirname)/travelled_dist.launch" pass_all_args="true"/>
 
     <!-- Exploration evaluation -->
     <node ns="$(arg robot)" name="eval" pkg="rpz_planning" type="eval.py" output="screen">
@@ -70,6 +70,6 @@
 
     <!-- RVIZ -->
     <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
-          args="-d $(dirname)/../config/map_accum.rviz"/>
+          args="-d $(dirname)/../config/eval.rviz"/>
 
 </launch>

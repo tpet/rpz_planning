@@ -11,7 +11,7 @@ import tf2_ros
 
 class TravelledDistPub:
     """
-    This ROS node publishes ground truth travelled distance.
+    This ROS node publishes ground truth travelled distance and route.
     """
 
     def __init__(self):
@@ -23,13 +23,14 @@ class TravelledDistPub:
 
         # travelled dist to publish
         self.travelled_dist = 0.0
+        self.eps = 0.005
         self.robot_position = None
         self.initialized_pose = False
 
         # route to publish
         self.route = Path()
         self.route.header.frame_id = self.world_frame
-        self.wps_dist = 1.0  # [m], dist between sampled path waypoints
+        self.wps_dist = rospy.get_param('~route_wps_dist', 1.0)  # [m], dist between sampled path waypoints
         self.route_pub = rospy.Publisher('~route', Path, queue_size=2)
 
         self.dist_pub = rospy.Publisher('~travelled_dist', Float64, queue_size=2)
@@ -49,13 +50,15 @@ class TravelledDistPub:
                     self.initialized_pose = True
 
                 # publish travelled distance so far
-                self.travelled_dist += np.linalg.norm(self.robot_position - prev_position)
+                dp = np.linalg.norm(self.robot_position - prev_position)
+                dp = dp if dp > self.eps else 0.0  # do not add negligible movement
+                self.travelled_dist += dp
                 self.robot_position = prev_position
                 self.dist_pub.publish(Float64(self.travelled_dist))
 
                 # add waypoints every wps_dist to a route and publish it
-                dp = np.linalg.norm(self.robot_position - prev_wp)
-                if dp >= self.wps_dist:
+                dwp = np.linalg.norm(self.robot_position - prev_wp)
+                if dwp >= self.wps_dist:
                     rospy.logdebug('Travelled distance: %.1f', self.travelled_dist)
 
                     # append wp to path
@@ -79,6 +82,6 @@ class TravelledDistPub:
 
 
 if __name__ == '__main__':
-    rospy.init_node('travelled_dist_publisher', log_level=rospy.DEBUG)
+    rospy.init_node('travelled_dist_publisher', log_level=rospy.INFO)
     proc = TravelledDistPub()
     proc.run()

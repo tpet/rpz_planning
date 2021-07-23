@@ -16,6 +16,9 @@ from sensor_msgs.msg import PointCloud2, PointCloud
 from std_msgs.msg import Float64
 from rpz_planning.msg import Metrics
 from visualization_msgs.msg import Marker
+from nav_msgs.msg import Path
+from tf.transformations import euler_from_quaternion
+from geometry_msgs.msg import Pose, PoseStamped
 from timeit import default_timer as timer
 from ros_numpy import msgify, numpify
 import tf2_ros
@@ -26,6 +29,25 @@ import rospkg
 from scipy.spatial.transform import Rotation
 # problems with Cryptodome: pip install pycryptodomex
 # https://github.com/DP-3T/reference_implementation/issues/1
+
+
+def slots(msg):
+    """Return message attributes (slots) as list."""
+    return [getattr(msg, var) for var in msg.__slots__]
+
+
+def pose_msg_to_xyzrpy(msg):
+    assert isinstance(msg, Pose)
+    xyz = slots(msg.position)
+    rpy = euler_from_quaternion(slots(msg.orientation))
+    return xyz + list(rpy)
+
+
+def path_msg_to_xyzrpy(msg):
+    assert isinstance(msg, Path)
+    xyzrpy = [pose_msg_to_xyzrpy(p.pose) for p in msg.poses]
+    xyzrpy = torch.tensor(xyzrpy)
+    return xyzrpy
 
 
 class Eval:
@@ -47,6 +69,7 @@ class Eval:
         # parameters
         self.map_topic = rospy.get_param('~map_topic', 'map_accumulator/map')
         self.travelled_dist_topic = rospy.get_param('~travelled_dist_topic', 'travelled_dist_publisher/travelled_dist')
+        self.route_topic = rospy.get_param('~route_topic', 'travelled_dist_publisher/route')
         self.do_points_sampling_from_mesh = rospy.get_param('~do_points_sampling_from_mesh', True)
         self.do_points_sampling_from_map = rospy.get_param('~do_points_sampling_from_map', True)
         self.n_sample_points = rospy.get_param('~n_sample_points', 10000)
@@ -80,6 +103,7 @@ class Eval:
 
         # gt travelled distance by robot
         self.travelled_dist = -1
+        self.route_xyzrpy = None
 
         # loading ground truth data
         if self.load_gt:
@@ -121,8 +145,9 @@ class Eval:
             self.ws_writer.write(0, 12, 'Travelled distance')
             self.row_number = 1
 
-        # subscribing to travelled distance
+        # subscribing to travelled distance and route
         rospy.Subscriber(self.travelled_dist_topic, Float64, self.get_travelled_dist)
+        rospy.Subscriber(self.route_topic, Path, self.get_route)
         # obtaining the constructed map (reward cloud)
         rospy.Subscriber(self.map_topic, PointCloud2, self.get_constructed_map)
         # subscribing to localized detection results for evaluation
@@ -337,7 +362,14 @@ class Eval:
         # assert len(self.detections['classes']) == len(self.detections['poses'])
 
     def get_travelled_dist(self, msg):
+        assert isinstance(msg, Float64)
         self.travelled_dist = float(msg.data)
+
+    def get_route(self, msg):
+        assert isinstance(msg, Path)
+        xyzrpy = path_msg_to_xyzrpy(msg)
+        rospy.logdebug(f'Route shape: {xyzrpy.shape}')
+        self.route_xyzrpy = xyzrpy
 
     def evaluate_detections(self, preds, gts, dist_th=5.0):
         # TODO: the final score should also include false positives and true negatives
@@ -584,24 +616,27 @@ class Eval:
                                                 travelled_dist=self.travelled_dist)
 
                 # publish point cloud from ground truth mesh
-                if coverage_mask is not None:
-                    binary_coverage_mask = coverage_mask > 0
-                    assert binary_coverage_mask.shape[:2] == self.map_gt.shape[:2]
-                    points = self.map_gt  # (1, N, 3)
-                    points = torch.cat([points, binary_coverage_mask], dim=2)
+                if coverage_mask is None:
+                    rate.sleep()
+                    continue
 
-                    # selecting default map frame if it is not available in ROS
-                    map_gt_frame = self.map_gt_frame if self.map_gt_frame is not None else 'subt'
-                    points_to_pub = points.squeeze().cpu().numpy().transpose(1, 0)
-                    assert len(points_to_pub.shape) == 2
-                    assert points_to_pub.shape[0] >= 3
-                    self.publish_pointcloud(points_to_pub,
-                                            topic_name='~cloud_from_gt_mesh',
-                                            stamp=rospy.Time.now(),
-                                            frame_id=map_gt_frame,
-                                            intensity='coverage')
-                    rospy.logdebug(f'Ground truth mesh frame: {map_gt_frame}')
-                    rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
+                binary_coverage_mask = coverage_mask > 0
+                assert binary_coverage_mask.shape[:2] == self.map_gt.shape[:2]
+                points = self.map_gt  # (1, N, 3)
+                points = torch.cat([points, binary_coverage_mask], dim=2)
+
+                # selecting default map frame if it is not available in ROS
+                map_gt_frame = self.map_gt_frame if self.map_gt_frame is not None else 'subt'
+                points_to_pub = points.squeeze().cpu().numpy().transpose(1, 0)
+                assert len(points_to_pub.shape) == 2
+                assert points_to_pub.shape[0] >= 3
+                self.publish_pointcloud(points_to_pub,
+                                        topic_name='~cloud_from_gt_mesh',
+                                        stamp=rospy.Time.now(),
+                                        frame_id=map_gt_frame,
+                                        intensity='coverage')
+                rospy.logdebug(f'Ground truth mesh frame: {map_gt_frame}')
+                rospy.logdebug(f'Publishing points of shape {points_to_pub.shape} sampled from ground truth mesh')
             rate.sleep()
 
 
