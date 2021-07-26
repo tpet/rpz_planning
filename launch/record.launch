@@ -40,6 +40,22 @@
                                              /$(arg robot)/rear/camera_info
                                              /$(arg robot)/points_slow_filtered"/>
 
+    <!-- Camera info topics -->
+    <arg if="$(eval 'explorer_x1' in robot_type.lower())"
+         name="camera_info_topics" value="/$(arg robot)/front_rgbd/optical/camera_info
+                                          /$(arg robot)/left_rgbd/optical/camera_info
+                                          /$(arg robot)/right_rgbd/optical/camera_info
+                                          /$(arg robot)/rear_rgbd/optical/camera_info"/>
+
+    <arg if="$(eval 'marv' in robot_type.lower())"
+         name="camera_info_topics" value="/$(arg robot)/front/camera_info
+                                          /$(arg robot)/omni/camera_0/optical/camera_info
+                                          /$(arg robot)/omni/camera_1/optical/camera_info
+                                          /$(arg robot)/omni/camera_2/optical/camera_info
+                                          /$(arg robot)/omni/camera_3/optical/camera_info
+                                          /$(arg robot)/omni/camera_4/optical/camera_info
+                                          /$(arg robot)/rear/camera_info"/>
+
     <!-- Inputs for trajectory optimization -->
     <arg if="$(eval 'explorer_x1' in robot_type.lower())" name="trajopt_input_topics"
          value="/$(arg robot)/front_rgbd/optical/camera_info

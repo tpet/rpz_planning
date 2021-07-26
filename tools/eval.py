@@ -120,10 +120,10 @@ class Eval:
             self.ws_writer.write(0, 7, 'Map Chamfer loss')
             self.ws_writer.write(0, 8, 'Artifacts Exploration completeness')
             self.ws_writer.write(0, 9, 'Detections score')
-            self.ws_writer.write(0, 10, 'Total expected reward')
+            self.ws_writer.write(0, 10, 'Total Expected reward')
             self.ws_writer.write(0, 11, 'Total artifacts reward')
             self.ws_writer.write(0, 12, 'Travelled distance')
-            self.ws_writer.write(0, 13, 'Actual reward')
+            self.ws_writer.write(0, 13, 'Total Actual reward')
             self.row_number = 1
 
         # subscribing to actual reward topic

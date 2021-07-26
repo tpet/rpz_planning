@@ -41,7 +41,8 @@ class TravelledDistPub:
         while not rospy.is_shutdown():
             # travelled distance computation
             try:
-                transform = self.tf.lookup_transform(self.world_frame, self.robot+'_ground_truth', rospy.Time(0))
+                transform = self.tf.lookup_transform(self.world_frame, self.robot+'_ground_truth',
+                                                     rospy.Time(0), rospy.Duration(1))
                 T = numpify(transform.transform)
                 prev_position = T[:3, 3]
                 if not self.initialized_pose:
@@ -76,7 +77,7 @@ class TravelledDistPub:
 
                     prev_wp = self.robot_position
 
-            except tf2_ros.LookupException:
+            except (tf2_ros.LookupException, rospy.exceptions.ROSTimeMovedBackwardsException):
                 rospy.logwarn('Robot ground truth pose is not available')
             rate.sleep()
 

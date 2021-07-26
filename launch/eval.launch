@@ -8,7 +8,7 @@
     <arg name="do_eval" default="true"/>
     <arg name="do_metrics_record" default="true"/>
     <arg name="load_gt" default="true"/>
-    <arg name="bag" default="explorer_x1_opt_path_true_simple_cave_02_images_rewards_2021-07-14-13-04-42.bag"/>
+    <arg name="bag" default="explorer_x1_opt_path_true_simple_cave_02_images_rewards_hyps_2021-07-16-10-11-59.bag"/>
     <arg name="bag_path" default="$(find rpz_planning)/data/bags/mapping_eval/$(arg bag)"/>
     <arg name="bag_rate" default="5.0"/>
     <arg name="bag_start" default="0.0"/>
@@ -27,7 +27,7 @@
     </node>
 
     <!-- ROSBAG -->
-    <node name="rosbag_play_rpz" pkg="rosbag" type="play" output="screen"
+    <node name="rosbag_play_rpz" pkg="rosbag" type="play" output="log"
           args="--clock --pause -s $(arg bag_start) -r $(arg bag_rate) $(arg bag_path)">
     </node>
 
@@ -55,7 +55,7 @@
                 gt_mesh: $(arg gt_mesh_file) <!-- Path to .obj or .ply ground truth mesh file of the world -->
                 do_points_sampling_from_mesh: True <!-- Whether to use points sampling method from mesh (True) or use mesh vertices (False) -->
                 do_points_sampling_from_map: True <!-- Whether to subsample constructed map before metrics computation -->
-                n_sample_points: 100000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
+                n_sample_points: 50000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
                 do_eval: $(arg do_eval) <!-- Whether to run evaluation function or just see the constructed map -->
                 load_gt: $(arg load_gt) <!-- Whether to load ground truth mesh of the environment -->
                 coverage_dist_th: 0.5 <!-- Threshold value [m]: defines if a world mesh point is considered being covered -->

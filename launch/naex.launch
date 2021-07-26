@@ -40,5 +40,7 @@
     <include if="$(arg run_detector)" file="$(find rpz_planning)/launch/detector_x1.launch"/>
 
     <!-- Data recording -->
-    <include if="$(arg do_recording)" file="$(find rpz_planning)/launch/record.launch" pass_all_args="true"/>
+    <include if="$(arg do_recording)" file="$(find rpz_planning)/launch/record.launch" pass_all_args="true">
+        <arg name="path" value="control_path"/>
+    </include>
 </launch>

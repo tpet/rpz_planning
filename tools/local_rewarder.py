@@ -619,6 +619,7 @@ def compute_fov_mask_smooth(map, intrins, map_to_cam, std=10, eps=1e-6):
 
 @timing
 def compute_vis_mask(map, cam_to_map, param=1.0, voxel_size=0.6):
+    rospy.loginfo('VIS param: %f', param)
     assert isinstance(map, torch.Tensor)
     # (4, n_pts)
     assert map.dim() == 2
@@ -1153,7 +1154,7 @@ class Rewarder(object):
 
         # Visibility / occlusion mask.
         t = timer()
-        vis_mask = compute_vis_mask(map, cam_to_map, param=0.5)
+        vis_mask = compute_vis_mask(map, cam_to_map, param=1.0)
         with torch.no_grad():
             reward_cloud['visibility'] = reduce_rewards(vis_mask).detach().cpu().numpy()
         rospy.logdebug('Point visibility computation took: %.3f s.', timer() - t)

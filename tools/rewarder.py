@@ -867,7 +867,7 @@ class Rewarder(object):
 
         # Visibility / occlusion mask.
         t = timer()
-        vis_mask = compute_vis_mask(map, cam_to_map, param=0.1)
+        vis_mask = compute_vis_mask(map, cam_to_map, param=0.01)
         with torch.no_grad():
             reward_cloud['visibility'] = reduce_rewards(vis_mask).detach().cpu().numpy()
         rospy.logdebug('Point visibility computation took: %.3f s.', timer() - t)
