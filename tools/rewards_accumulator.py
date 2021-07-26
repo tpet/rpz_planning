@@ -74,15 +74,15 @@ class RewardsAccumulator:
         self.map_frame = pc_msg.header.frame_id
 
         try:
-            transform1 = self.tf.lookup_transform('X1', pc_msg.header.frame_id, pc_msg.header.stamp, rospy.Duration(3))
-        except tf2_ros.LookupException:
+            transform1 = self.tf.lookup_transform('X1', pc_msg.header.frame_id, pc_msg.header.stamp, rospy.Duration(30))
+        except (tf2_ros.LookupException, tf2_ros.ExtrapolationException):
             rospy.logwarn('Map accumulator: No transform between estimated robot pose and its ground truth')
             return
 
         try:
             transform2 = self.tf.lookup_transform(pc_msg.header.frame_id, 'X1_ground_truth', pc_msg.header.stamp,
-                                                  rospy.Duration(3))
-        except tf2_ros.LookupException:
+                                                  rospy.Duration(30))
+        except (tf2_ros.LookupException, tf2_ros.ExtrapolationException):
             rospy.logwarn('Map accumulator: No transform between estimated robot pose and its ground truth')
             return
 

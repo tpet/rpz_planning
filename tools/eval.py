@@ -254,7 +254,7 @@ class Eval:
         for i, artifact_name in enumerate(artifact_frames):
             try:
                 artifact_frame = artifact_name
-                transform = self.tf.lookup_transform(self.map_gt_frame, artifact_frame, rospy.Time(0))
+                transform = self.tf.lookup_transform(self.map_gt_frame, artifact_frame, rospy.Time(0), rospy.Duration(3))
             except tf2_ros.LookupException:
                 rospy.logerr('Ground truth artifacts poses are not available')
                 return artifacts

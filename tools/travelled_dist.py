@@ -41,7 +41,7 @@ class TravelledDistPub:
         while not rospy.is_shutdown():
             # travelled distance computation
             try:
-                transform = self.tf.lookup_transform(self.world_frame, self.robot+'_ground_truth', rospy.Time(0))
+                transform = self.tf.lookup_transform(self.world_frame, self.robot+'_ground_truth', rospy.Time(0), rospy.Duration(1))
                 T = numpify(transform.transform)
                 prev_position = T[:3, 3]
                 if not self.initialized_pose:
