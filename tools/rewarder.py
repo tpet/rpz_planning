@@ -18,7 +18,6 @@ from threading import RLock
 from timeit import default_timer as timer
 import torch
 import torch.nn.functional as fun
-import xlwt
 from visualization_msgs.msg import Marker, MarkerArray
 from collections import OrderedDict
 np.set_printoptions(precision=2)
@@ -145,6 +144,75 @@ def cloud_to_grid_transform(cloud, order=DimOrder.X_Y_YAW):
     return cloud_to_grid
 
 
+def pose_msg_to_xyzrpy(msg):
+    assert isinstance(msg, Pose)
+    xyz = slots(msg.position)
+    rpy = euler_from_quaternion(slots(msg.orientation))
+    return xyz + list(rpy)
+
+
+def xyzrpy_to_pose_msg(xyzrpy):
+    # assert isinstance(xyzrpy, torch.Tensor)
+    # assert isinstance(xyzrpy, list)
+    msg = Pose(Point(*xyzrpy[:3]), Quaternion(*quaternion_from_euler(*xyzrpy[3:])))
+    return msg
+
+
+@timing
+def path_msg_to_xyzrpy(msg):
+    assert isinstance(msg, Path)
+    xyzrpy = [pose_msg_to_xyzrpy(p.pose) for p in msg.poses]
+    xyzrpy = torch.tensor(xyzrpy)
+    return xyzrpy
+
+@timing
+def path_length(xyzrpy):
+    assert isinstance(xyzrpy, torch.Tensor)
+    assert xyzrpy.dim() == 2
+    assert xyzrpy.shape[1] == 6
+    wp_dists = torch.linalg.norm(xyzrpy[1:, :3] - xyzrpy[:-1, :3], dim=1)
+    return wp_dists.sum()
+
+@timing
+def xy_to_azimuth(xy):
+    """Convert (x, y) coordinates to yaw angle."""
+    assert isinstance(xy, torch.Tensor)
+    # assert xy.dim() == 2
+    assert xy.shape[-1] == 2  # (..., 2)
+    # xy_steps = xy[1:, :] - xy[:-1, :]
+    # r = xy_steps.norm(dim=1, keepdim=True)
+    yaw = torch.atan2(xy[..., 1:], xy[..., :1])
+    return yaw
+
+
+@timing
+def xyzrpy_to_path_msg(xyzrpy):
+    assert isinstance(xyzrpy, torch.Tensor)
+    assert xyzrpy.dim() == 2
+    assert xyzrpy.shape[-1] == 6
+    xyzrpy = xyzrpy.detach().cpu().numpy()
+    msg = Path()
+    msg.poses = [PoseStamped(Header(), xyzrpy_to_pose_msg(p)) for p in xyzrpy]
+    return msg
+
+
+def rotation_angle_from_matrix_2d(mat):
+    assert isinstance(mat, torch.Tensor)
+    assert mat.shape[-2:] == (3, 3)
+    # assert (torch.linalg.det(mat) > 0.).all()
+    assert (torch.det(mat) > 0.).all()
+    # Transform may include scale (e.g. map-to-grid transform).
+    if isinstance(mat, np.ndarray):
+        angle = np.arctan2(mat[..., 1, 0], mat[..., 0, 0])
+    elif isinstance(mat, torch.Tensor):
+        angle = torch.atan2(mat[..., 1, 0], mat[..., 0, 0])
+    else:
+        assert False
+        # Assume list of lists.
+        angle = math.atan2(mat[1][0], mat[0][0])
+    return angle
+
+
 @timing
 def cloud_msg_to_rpz_tensor(msg, order=DimOrder.X_Y_YAW):
     """Convert cloud message to RPZ tensor.
@@ -262,76 +330,6 @@ def interpolate_rpz(rpz_all, xyyaw, order=DimOrder.YAW_X_Y, wrap_yaw=True):
                           padding_mode='border', align_corners=False)
     rpz = rpz[0, :, 0, 0, :].transpose(1, 0)
     return rpz
-
-
-def pose_msg_to_xyzrpy(msg):
-    assert isinstance(msg, Pose)
-    xyz = slots(msg.position)
-    rpy = euler_from_quaternion(slots(msg.orientation))
-    return xyz + list(rpy)
-
-
-def xyzrpy_to_pose_msg(xyzrpy):
-    # assert isinstance(xyzrpy, torch.Tensor)
-    # assert isinstance(xyzrpy, list)
-    msg = Pose(Point(*xyzrpy[:3]), Quaternion(*quaternion_from_euler(*xyzrpy[3:])))
-    return msg
-
-
-@timing
-def path_msg_to_xyzrpy(msg):
-    assert isinstance(msg, Path)
-    xyzrpy = [pose_msg_to_xyzrpy(p.pose) for p in msg.poses]
-    xyzrpy = torch.tensor(xyzrpy)
-    return xyzrpy
-
-@timing
-def path_length(xyzrpy):
-    assert isinstance(xyzrpy, torch.Tensor)
-    assert xyzrpy.dim() == 2
-    assert xyzrpy.shape[1] == 6
-    wp_dists = torch.linalg.norm(xyzrpy[1:, :3] - xyzrpy[:-1, :3], dim=1)
-    return wp_dists.sum()
-
-@timing
-def xy_to_azimuth(xy):
-    """Convert (x, y) coordinates to yaw angle."""
-    assert isinstance(xy, torch.Tensor)
-    # assert xy.dim() == 2
-    assert xy.shape[-1] == 2  # (..., 2)
-    # xy_steps = xy[1:, :] - xy[:-1, :]
-    # r = xy_steps.norm(dim=1, keepdim=True)
-    yaw = torch.atan2(xy[..., 1:], xy[..., :1])
-    return yaw
-
-
-@timing
-def xyzrpy_to_path_msg(xyzrpy):
-    assert isinstance(xyzrpy, torch.Tensor)
-    assert xyzrpy.dim() == 2
-    assert xyzrpy.shape[-1] == 6
-    xyzrpy = xyzrpy.detach().cpu().numpy()
-    msg = Path()
-    msg.poses = [PoseStamped(Header(), xyzrpy_to_pose_msg(p)) for p in xyzrpy]
-    return msg
-
-
-def rotation_angle_from_matrix_2d(mat):
-    assert isinstance(mat, torch.Tensor)
-    assert mat.shape[-2:] == (3, 3)
-    # assert (torch.linalg.det(mat) > 0.).all()
-    assert (torch.det(mat) > 0.).all()
-    # Transform may include scale (e.g. map-to-grid transform).
-    if isinstance(mat, np.ndarray):
-        angle = np.arctan2(mat[..., 1, 0], mat[..., 0, 0])
-    elif isinstance(mat, torch.Tensor):
-        angle = torch.atan2(mat[..., 1, 0], mat[..., 0, 0])
-    else:
-        assert False
-        # Assume list of lists.
-        angle = math.atan2(mat[1][0], mat[0][0])
-    return angle
-
 
 @timing
 def transform_xyyaw_tensor(tf, xyyaw, order=DimOrder.YAW_X_Y):
@@ -701,12 +699,6 @@ class Rewarder(object):
         self.linear_speed = rospy.get_param('~linear_speed', 1.0)
         self.angular_speed = rospy.get_param('~angular_speed', 1.0)
 
-        # Latest point cloud map to cover
-        self.map_lock = RLock()
-        self.map_msg = None
-        self.map = None  # n-by-3 cloud position array
-        # self.map_x_index = None  # Index of above
-
         # Latest RPZ manifold
         self.rpz_lock = RLock()
         self.rpz_msg = None
@@ -714,6 +706,12 @@ class Rewarder(object):
         self.rpz_all = None
         self.map_to_grid = None
         self.grid_to_map = None
+
+        # Latest point cloud map to cover
+        self.map_lock = RLock()
+        self.map_msg = None
+        self.map = None  # n-by-3 cloud position array
+        # self.map_x_index = None  # Index of above
 
         # Path msg to follow
         self.path_lock = RLock()
@@ -726,6 +724,7 @@ class Rewarder(object):
         self.viz_pub = rospy.Publisher('visualization', MarkerArray, queue_size=2)
         self.reward_cloud_pub = rospy.Publisher('~reward_cloud', PointCloud2, queue_size=2)
         self.reward_pub = rospy.Publisher('~reward', Float64, queue_size=1)
+        self.cost_pub = rospy.Publisher('~cost', Float64, queue_size=1)
         self.publish_reward_cloud = rospy.get_param('~publish_cloud', False)
 
         # Allow multiple cameras.
@@ -739,26 +738,11 @@ class Rewarder(object):
                                                lambda msg, i=i: self.cam_info_received(msg, i), queue_size=2)
                               for i in range(self.num_cameras)]
 
-        self.map_sub = rospy.Subscriber('map', PointCloud2, self.map_received, queue_size=2)
         self.rpz_sub = rospy.Subscriber('rpz', PointCloud2, self.rpz_received, queue_size=2)
+        self.map_sub = rospy.Subscriber('map', PointCloud2, self.map_received, queue_size=2)
         self.path_sub = rospy.Subscriber('path', Path, self.path_received, queue_size=2)
         self.eval_freq = rospy.get_param('~rate', 1.0)
         self.path_timer = rospy.Timer(rospy.Duration(1. / self.eval_freq), self.run)
-
-        # record the metrics
-        self.xls_file = "/home/ruslan/Desktop/data.xls"
-        self.record_metrics = True
-        if self.record_metrics:
-            self.wb = xlwt.Workbook()
-            self.ws_writer = self.wb.add_sheet("Local rewards and costs")
-            self.ws_writer.write(0, 0, 'Time stamp')
-            self.ws_writer.write(0, 1, 'Actual reward')
-            self.ws_writer.write(0, 2, 'Expected reward')
-            self.ws_writer.write(0, 3, 'Actual cost')
-            self.ws_writer.write(0, 4, 'Expected cost')
-            self.ws_writer.write(0, 5, 'Actual path length')
-            self.ws_writer.write(0, 6, 'Expected path length')
-            self.row_number = 1
 
     def lookup_transform(self, target_frame, source_frame, time,
                          no_wait_frame=None, timeout=0.0):
@@ -930,40 +914,6 @@ class Rewarder(object):
                 rospy.logwarn('Camera %i (%s) unsubscribed.', i, msg.header.frame_id)
 
     @timing
-    def map_received(self, msg):
-        """Process and store map for use in reward estimation."""
-        t = timer()
-        assert isinstance(msg, PointCloud2)
-
-        # This pc transform works slowly (~150 ms).
-        # Consider provide input clouds in one coord frame
-        if self.map_frame != msg.header.frame_id:
-            # Transform the point cloud to global frame
-            try:
-                transform = self.tf.lookup_transform(self.map_frame, msg.header.frame_id, rospy.Time())
-                # msg = do_transform_cloud(msg, transform)
-                msg = transform_cloud_msg(numpify(transform.transform), msg)
-                msg.header.frame_id = self.map_frame
-                rospy.logdebug('Transformed local map to global frame: %s', msg.header.frame_id)
-            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-                rospy.logwarn("Transform from %s to %s is not yet available", self.map_frame, msg.header.frame_id)
-                return
-
-        rospy.logdebug('Map with %i points received.', msg.height * msg.width)
-        map = numpify(msg).ravel()
-        np.random.seed(0)  # for reproducibility
-        map = np.random.choice(map, map.size // self.map_step)
-        # map = np.stack([map[f] for f in ('x', 'y', 'z')])
-        # map = np.concatenate([map, np.ones((1, map.shape[-1]))], axis=0)
-        map = np.stack([map[f] for f in ('x', 'y', 'z')] + [np.ones((map.size,))])
-        map = torch.tensor(map, dtype=torch.float32)
-        with self.map_lock:
-            self.map_msg = msg
-            self.map = map
-        rospy.logdebug('Map with %i processed and stored (%.3f s).',
-                       map.shape[-1], timer() - t)
-
-    @timing
     def rpz_received(self, msg):
         """Process and store RPZ manifold for use in planning."""
         t = timer()
@@ -1029,6 +979,40 @@ class Rewarder(object):
         rospy.logdebug('RPZ processed and stored (%.3f s).', (timer() - t))
 
     @timing
+    def map_received(self, msg):
+        """Process and store map for use in reward estimation."""
+        t = timer()
+        assert isinstance(msg, PointCloud2)
+
+        # This pc transform works slowly (~150 ms).
+        # Consider provide input clouds in one coord frame
+        if self.map_frame != msg.header.frame_id:
+            # Transform the point cloud to global frame
+            try:
+                transform = self.tf.lookup_transform(self.map_frame, msg.header.frame_id, rospy.Time())
+                # msg = do_transform_cloud(msg, transform)
+                msg = transform_cloud_msg(numpify(transform.transform), msg)
+                msg.header.frame_id = self.map_frame
+                rospy.logdebug('Transformed local map to global frame: %s', msg.header.frame_id)
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                rospy.logwarn("Transform from %s to %s is not yet available", self.map_frame, msg.header.frame_id)
+                return
+
+        rospy.logdebug('Map with %i points received.', msg.height * msg.width)
+        map = numpify(msg).ravel()
+        np.random.seed(0)  # for reproducibility
+        map = np.random.choice(map, map.size // self.map_step)
+        # map = np.stack([map[f] for f in ('x', 'y', 'z')])
+        # map = np.concatenate([map, np.ones((1, map.shape[-1]))], axis=0)
+        map = np.stack([map[f] for f in ('x', 'y', 'z')] + [np.ones((map.size,))])
+        map = torch.tensor(map, dtype=torch.float32)
+        with self.map_lock:
+            self.map_msg = msg
+            self.map = map
+        rospy.logdebug('Map with %i processed and stored (%.3f s).',
+                       map.shape[-1], timer() - t)
+
+    @timing
     def get_available_cameras(self):
         """
         Get available cameras:
@@ -1070,6 +1054,40 @@ class Rewarder(object):
         assert intrins['hw'].shape[-1] == 2
 
         return cam_to_robot, frustums, intrins
+
+    def path_cost(self, xyzrpy):
+        assert isinstance(xyzrpy, torch.Tensor)
+        # (..., N, 6)
+        assert xyzrpy.shape[-1] == 6
+        assert xyzrpy.dim() >= 2
+
+        # Distance cost.
+        # xy_diff = torch.diff(xyzrpy[..., :2], dim=-2)
+        xy_diff = xyzrpy[..., 1:, :2] - xyzrpy[..., :-1, :2]
+        edges = xy_diff.norm(dim=-1, keepdim=True)
+        dist_cost = edges.sum() / self.linear_speed
+        # rospy.logdebug('Distance cost: %.1f s.', dist_cost.item())
+
+        # Turning cost.
+        # yaw_diff = torch.diff(xyzrpy[..., -1:], dim=-2).abs()
+        yaw_diff = (xyzrpy[..., 1:, -1:] - xyzrpy[..., :-1, -1:]).abs()
+        # yaw_diff = torch.remainder(torch.diff(xyzrpy[..., -1:], dim=-2), 2 * np.pi)
+        yaw_diff = torch.min(yaw_diff, 2 * np.pi - yaw_diff)
+        turn_cost = yaw_diff.sum() / self.angular_speed
+        # rospy.logdebug('Turning cost: %.1f s.', turn_cost.item())
+
+        # Traversability cost, penalty for roll and pitch.
+        # TODO: Convert to time cost using control parameters.
+        rp = xyzrpy[..., 1:, 3:5]
+        # Use edge lenghts to scale roll and pitch penalties.
+        rp = rp * edges
+        trav_cost = rp.abs().mean()
+
+        # TODO: experiment with trajectory costs
+        cost = dist_cost + turn_cost + trav_cost
+        rospy.loginfo('Path cost %.1f (dist. %.3f, turning %.3f, trav.: %.3f).',
+                       cost.item(), dist_cost.item(), turn_cost.item(), trav_cost.item())
+        return cost
 
     def path_reward(self, xyzrpy, map, cam_to_robot, frustums, vis_cams=False):
         assert isinstance(xyzrpy, torch.Tensor)
@@ -1163,40 +1181,6 @@ class Rewarder(object):
 
         return reward, reward_cloud
 
-    def path_cost(self, xyzrpy):
-        assert isinstance(xyzrpy, torch.Tensor)
-        # (..., N, 6)
-        assert xyzrpy.shape[-1] == 6
-        assert xyzrpy.dim() >= 2
-
-        # Distance cost.
-        # xy_diff = torch.diff(xyzrpy[..., :2], dim=-2)
-        xy_diff = xyzrpy[..., 1:, :2] - xyzrpy[..., :-1, :2]
-        edges = xy_diff.norm(dim=-1, keepdim=True)
-        dist_cost = edges.sum() / self.linear_speed
-        # rospy.logdebug('Distance cost: %.1f s.', dist_cost.item())
-
-        # Turning cost.
-        # yaw_diff = torch.diff(xyzrpy[..., -1:], dim=-2).abs()
-        yaw_diff = (xyzrpy[..., 1:, -1:] - xyzrpy[..., :-1, -1:]).abs()
-        # yaw_diff = torch.remainder(torch.diff(xyzrpy[..., -1:], dim=-2), 2 * np.pi)
-        yaw_diff = torch.min(yaw_diff, 2 * np.pi - yaw_diff)
-        turn_cost = yaw_diff.sum() / self.angular_speed
-        # rospy.logdebug('Turning cost: %.1f s.', turn_cost.item())
-
-        # Traversability cost, penalty for roll and pitch.
-        # TODO: Convert to time cost using control parameters.
-        rp = xyzrpy[..., 1:, 3:5]
-        # Use edge lenghts to scale roll and pitch penalties.
-        rp = rp * edges
-        trav_cost = rp.abs().mean()
-
-        # TODO: experiment with trajectory costs
-        cost = dist_cost + turn_cost + trav_cost
-        rospy.loginfo('Path cost %.1f (dist. %.3f, turning %.3f, trav.: %.3f).',
-                       cost.item(), dist_cost.item(), turn_cost.item(), trav_cost.item())
-        return cost
-
     @timing
     def path_received(self, msg):
         assert isinstance(msg, Path)
@@ -1224,6 +1208,19 @@ class Rewarder(object):
             self.path_msg = msg
             self.path_xyzrpy = path_msg_to_xyzrpy(self.path_msg)
 
+    def run(self, event):
+        with self.path_lock:
+            if self.path_msg is None:
+                rospy.logwarn('Path is not yet received.')
+                return
+
+        with self.map_lock:
+            if self.map_msg is None:
+                rospy.logwarn('Map cloud is not yet received.')
+                return
+            assert isinstance(self.map_msg, PointCloud2)
+            assert self.map_msg.header.frame_id == self.path_msg.header.frame_id
+
         # Get RPZ subspace and map for optimization.
         with self.rpz_lock:
             if self.rpz_msg is None:
@@ -1239,12 +1236,20 @@ class Rewarder(object):
         # rospy.loginfo('Map to grid:\n%s', map_to_grid.detach().numpy())
         rospy.logdebug('Grid to map:\n%s', grid_to_map.detach().numpy())
 
-        assert self.path_xyzrpy.dim() == 2
-        assert self.path_xyzrpy.shape[1] == 6
-        n_poses = self.path_xyzrpy.shape[0]
+        # Get frustums and intrinsics of available cameras.
+        cam_to_robot, frustums, _ = self.get_available_cameras()
+        if cam_to_robot is None:
+            rospy.logwarn('No cameras available.')
+            return
+
+        map = self.map
+        path_xyzrpy = self.path_xyzrpy
+        assert path_xyzrpy.dim() == 2
+        assert path_xyzrpy.shape[1] == 6
+        n_poses = path_xyzrpy.shape[0]
 
         # yaw = xy_to_azimuth(xy)
-        xy = self.path_xyzrpy[:, :2]
+        xy = path_xyzrpy[:, :2]
         yaw_tail = xy_to_azimuth(xy[1:, :] - xy[:-1, :])
         # TODO: Add starting yaw.
         yaw = torch.cat((yaw_tail[:1, :], yaw_tail), dim=-2)
@@ -1263,124 +1268,40 @@ class Rewarder(object):
         assert xyyaw.shape == (n_poses, 3)
         if self.order == DimOrder.X_Y_YAW:
             # Fix yaw from XY.
-            self.path_xyzrpy = torch.cat((xyyaw[:, :2], rpz[:, 2:], rpz[:, :2], xyyaw[:, 2:]), dim=-1)
+            path_xyzrpy = torch.cat((xyyaw[:, :2], rpz[:, 2:], rpz[:, :2], xyyaw[:, 2:]), dim=-1)
         elif self.order == DimOrder.YAW_X_Y:
-            self.path_xyzrpy = torch.cat((xyyaw[:, 1:], rpz[:, 2:], rpz[:, :2], xyyaw[:, :1]), dim=-1)
-        assert self.path_xyzrpy.dim() == 2
-        assert self.path_xyzrpy.shape[1] == 6
-
-    def run(self, event):
-        with self.path_lock:
-            if self.path_msg is None:
-                rospy.logwarn('Path is not yet received.')
-                return
-
-        with self.map_lock:
-            if self.map_msg is None:
-                rospy.logwarn('Map cloud is not yet received.')
-                return
-            assert isinstance(self.map_msg, PointCloud2)
-            assert self.map_msg.header.frame_id == self.path_msg.header.frame_id
-
-        # Get frustums and intrinsics of available cameras.
-        cam_to_robot, frustums, _ = self.get_available_cameras()
-        if cam_to_robot is None:
-            rospy.logwarn('No cameras available.')
-            return
-
-        map = self.map
-        path_xyzrpy = self.path_xyzrpy
-        path_msg = self.path_msg
+            path_xyzrpy = torch.cat((xyyaw[:, 1:], rpz[:, 2:], rpz[:, :2], xyyaw[:, :1]), dim=-1)
+        assert path_xyzrpy.dim() == 2
+        assert path_xyzrpy.shape[1] == 6
 
         if torch.isnan(path_xyzrpy).any():
             rospy.logwarn("Path contains NANs. Evaluation will not be performed this time")
             return
 
-        xyzrpy = self.get_robot_xyzrpy(path_msg.header.frame_id)
-
-        if xyzrpy is None:
-            rospy.logwarn('Unable to find robot pose on the map')
-            return
-
-        # construct actual path with ~the same dists between waypoints
-        prev_pose = xyzrpy[:3]
-        actual_path_xyzrpy = [xyzrpy.unsqueeze(0)]
-        wp_dists = torch.linalg.norm(path_xyzrpy[1:, :3] - path_xyzrpy[:-1, :3], dim=1)
-        received_new_path = False
-
-        while not received_new_path:
-            received_new_path = (self.path_msg.header.stamp - path_msg.header.stamp).to_sec() > 0
-            xyzrpy = self.get_robot_xyzrpy(self.path_msg.header.frame_id)
-
-            cur_pose = xyzrpy[:3]
-            dp = torch.linalg.norm(cur_pose - prev_pose)
-            if dp > wp_dists.min():
-                actual_path_xyzrpy.append(xyzrpy.unsqueeze(0))
-                prev_pose = cur_pose
-
-                if len(actual_path_xyzrpy) == path_xyzrpy.shape[0] or \
-                        path_length(torch.cat(actual_path_xyzrpy, dim=0)) >= path_length(path_xyzrpy):
-                    break
-
-        actual_path_xyzrpy = torch.cat(actual_path_xyzrpy, dim=0)
-        path_xyzrpy = path_xyzrpy[:actual_path_xyzrpy.shape[0], :]
-
-        # publish actual path
-        assert actual_path_xyzrpy.shape[0] <= path_xyzrpy.shape[0]
-        assert actual_path_xyzrpy.shape[1] == path_xyzrpy.shape[1]  # (N1, 6), (N2, 6), N1 <= N2
-        actual_path_msg = xyzrpy_to_path_msg(actual_path_xyzrpy)
-        actual_path_msg.header = self.path_msg.header
-        path_pub = rospy.Publisher('~actual_path', Path, queue_size=1)
-        path_pub.publish(actual_path_msg)
-
         # compute rewards from path and point cloud map
         t0 = timer()
-        # rewards
-        expected_reward, _ = self.path_reward(path_xyzrpy, map, cam_to_robot, frustums, vis_cams=False)
-        actual_reward, actual_reward_cloud = self.path_reward(actual_path_xyzrpy, map, cam_to_robot, frustums, vis_cams=True)
-        # costs
-        expected_cost = self.path_cost(path_xyzrpy)
-        actual_cost = self.path_cost(actual_path_xyzrpy)
-        # lengths
-        expected_length = path_length(path_xyzrpy)
-        actual_length = path_length(actual_path_xyzrpy)
+        reward, reward_cloud = self.path_reward(path_xyzrpy, map, cam_to_robot, frustums, vis_cams=True)
+        cost = self.path_cost(path_xyzrpy)
         dt = timer() - t0
 
-        rospy.logdebug('N points in map: %i, compute time: %.3f sec', map.shape[-1], dt)
-        rospy.loginfo('Expected Path length: %.1f, N wps: %i, '
+        rospy.loginfo('N points in map: %i, compute time: %.3f sec', map.shape[-1], dt)
+        rospy.loginfo('Path length: %.1f, N wps: %i, '
                       'reward: %.1f, cost: %.1f',
-                      expected_length, path_xyzrpy.shape[0],
-                      expected_reward, expected_cost)
-        rospy.loginfo('Actual Path length: %.1f, N wps: %i, '
-                      'reward: %.1f, cost: %.1f',
-                      actual_length, actual_path_xyzrpy.shape[0],
-                      actual_reward, actual_cost)
-
-        # record data
-        if self.record_metrics:
-            self.ws_writer.write(self.row_number, 0, self.path_msg.header.stamp.to_sec())
-            self.ws_writer.write(self.row_number, 1, f'{actual_reward}')
-            self.ws_writer.write(self.row_number, 2, f'{expected_reward}')
-            if actual_cost.item() is not None:
-                self.ws_writer.write(self.row_number, 3, f'{actual_cost}')
-            if expected_cost.item() is not None:
-                self.ws_writer.write(self.row_number, 4, f'{expected_cost}')
-            self.ws_writer.write(self.row_number, 5, f'{actual_reward}')
-            self.ws_writer.write(self.row_number, 6, f'{expected_reward}')
-            self.row_number += 1
-            self.wb.save(self.xls_file)
+                      path_length(path_xyzrpy), path_xyzrpy.shape[0],
+                      reward.item(), cost.item())
 
         # publish reward value and cloud
-        if expected_reward is not None:
-            self.reward_pub.publish(Float64(expected_reward.item()))
+        if reward is not None:
+            self.reward_pub.publish(Float64(reward.item()))
+            self.cost_pub.publish(Float64(cost.item()))
             if self.publish_reward_cloud:
-                reward_cloud_msg = msgify(PointCloud2, actual_reward_cloud)
+                reward_cloud_msg = msgify(PointCloud2, reward_cloud)
                 assert isinstance(reward_cloud_msg, PointCloud2)
                 reward_cloud_msg.header = self.path_msg.header
                 self.reward_cloud_pub.publish(reward_cloud_msg)
 
 
 if __name__ == '__main__':
-    rospy.init_node('local_actual_rewarder', log_level=rospy.INFO)
+    rospy.init_node('actual_rewarder', log_level=rospy.INFO)
     node = Rewarder()
     rospy.spin()

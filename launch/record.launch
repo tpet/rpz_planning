@@ -92,6 +92,6 @@
     <!-- Recorder node: input topics are specified here as input arguments -->
     <node name="record_data" pkg="rosbag" type="record"
           args="-o $(find rpz_planning)/$(arg robot_type)_opt_path_$(arg follow_opt_path)
-                $(arg mapping_topics) $(arg detections_localization_topics) $(arg camera_info_topics)
+                $(arg mapping_topics) $(arg detections_localization_topics) $(arg trajopt_input_topics)
                 --duration $(arg record_duration)"/>
 </launch>

@@ -55,7 +55,7 @@
                 gt_mesh: $(arg gt_mesh_file) <!-- Path to .obj or .ply ground truth mesh file of the world -->
                 do_points_sampling_from_mesh: True <!-- Whether to use points sampling method from mesh (True) or use mesh vertices (False) -->
                 do_points_sampling_from_map: True <!-- Whether to subsample constructed map before metrics computation -->
-                n_sample_points: 50000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
+                n_sample_points: 100000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
                 do_eval: $(arg do_eval) <!-- Whether to run evaluation function or just see the constructed map -->
                 load_gt: $(arg load_gt) <!-- Whether to load ground truth mesh of the environment -->
                 coverage_dist_th: 0.5 <!-- Threshold value [m]: defines if a world mesh point is considered being covered -->
@@ -75,8 +75,9 @@
         <include file="$(dirname)/actual_reward.launch" pass_all_args="true">
             <arg name="map_topic" value="eval/cloud_from_gt_mesh"/>
             <arg name="path_topic" value="travelled_dist_publisher/route"/>
-<!--            <arg name="map_topic" value="reward_cloud"/>-->
+<!--            <arg name="map_topic" value="local_map_slow"/>-->
 <!--            <arg name="path_topic" value="control_path"/>-->
+            <arg name="rpz_topic" value="traversability"/>
             <arg name="publish_cloud" value="true"/>
             <arg name="rate" value="1.0"/>
         </include>

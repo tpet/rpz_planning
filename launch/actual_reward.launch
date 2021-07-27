@@ -4,6 +4,7 @@
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1"/>
     <arg name="map_topic" default="local_map"/>
+    <arg name="rpz_topic" default="traversability"/>
     <arg name="path_topic" default="path"/>
     <arg name="publish_cloud" default="false"/>
     <arg name="rate" default="1.0"/>
@@ -75,6 +76,7 @@
 
         <remap from="map" to="$(arg map_topic)"/>
         <remap from="path" to="$(arg path_topic)"/>
+        <remap from="rpz" to="$(arg rpz_topic)"/>
     </node>
 
 </launch>

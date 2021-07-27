@@ -172,7 +172,7 @@ Visualization Manager:
           Value: true
         rescue_randy_4:
           Value: true
-        simple_cave_02:
+        simple_cave_03:
           Value: true
         subt:
           Value: true
@@ -212,7 +212,7 @@ Visualization Manager:
             {}
           rescue_randy_4:
             {}
-          simple_cave_02:
+          simple_cave_03:
             {}
           subt:
             X1/map:
@@ -303,6 +303,14 @@ Visualization Manager:
           Transport Hint: raw
           Unreliable: false
           Value: false
+        - Class: rviz/MarkerArray
+          Enabled: true
+          Marker Topic: visualization_marker_array
+          Name: Cameras FOV
+          Namespaces:
+            {}
+          Queue Size: 100
+          Value: true
       Enabled: true
       Name: Cameras
     - Class: rviz/Group
@@ -549,6 +557,34 @@ Visualization Manager:
           Use Fixed Frame: true
           Use rainbow: true
           Value: true
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: z
+          Class: rviz/PointCloud2
+          Color: 255; 255; 255
+          Color Transformer: Intensity
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Min Color: 0; 0; 0
+          Name: Traversability
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 0.05000000074505806
+          Style: Boxes
+          Topic: /X1/traversability
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
       Enabled: true
       Name: Clouds
     - Class: rviz/Group
@@ -747,7 +783,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 181.1002960205078
+      Distance: 31.58388328552246
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -755,17 +791,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 7.837422847747803
-        Y: -3.513212203979492
-        Z: 28.733051300048828
+        X: -8.602537155151367
+        Y: 0.21233457326889038
+        Z: 26.162324905395508
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 7
-      Pitch: 1.0997967720031738
+      Pitch: 1.2897964715957642
       Target Frame: subt
-      Yaw: 3.1273038387298584
+      Yaw: 3.1323020458221436
     Saved:
       - Class: rviz/Orbit
         Distance: 10
