@@ -604,6 +604,9 @@ class Eval:
                                             actual_reward=self.actual_reward)
 
         # publish point cloud from ground truth mesh
+        if self.map_gt is None:
+            # rospy.logwarn('Map cloud is not received')
+            return
         points = self.map_gt  # (1, N, 3)
         if coverage_mask is not None:
             binary_coverage_mask = coverage_mask > 0

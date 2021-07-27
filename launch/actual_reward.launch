@@ -9,6 +9,7 @@
     <arg name="rate" default="1.0"/>
 
     <node name="actual_rewarder" pkg="rpz_planning" type="rewarder.py" output="screen">
+<!--    <node name="actual_rewarder" pkg="rpz_planning" type="local_rewarder.py" output="screen">-->
         <rosparam subst_value="true">
             map_frame: subt
             robot_frame: $(arg robot)/base_footprint
