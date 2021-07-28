@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 
 from __future__ import absolute_import, division, print_function
+
+import os.path
+
+import rospkg
 from geometry_msgs.msg import Point, Pose, PoseStamped, Pose2D, Quaternion, Transform, TransformStamped, Twist
 import math
 from matplotlib import colors
@@ -746,7 +750,7 @@ class Rewarder(object):
         self.path_timer = rospy.Timer(rospy.Duration(1. / self.eval_freq), self.run)
 
         # record the metrics
-        self.xls_file = "/home/ruslan/Desktop/data.xls"
+        self.xls_file = os.path.join(rospkg.RosPack().get_path('rpz_planning'), "notebooks/local_rewards_costs.xls")
         self.record_metrics = True
         if self.record_metrics:
             self.wb = xlwt.Workbook()
@@ -754,10 +758,14 @@ class Rewarder(object):
             self.ws_writer.write(0, 0, 'Time stamp')
             self.ws_writer.write(0, 1, 'Actual reward')
             self.ws_writer.write(0, 2, 'Expected reward')
-            self.ws_writer.write(0, 3, 'Actual cost')
-            self.ws_writer.write(0, 4, 'Expected cost')
-            self.ws_writer.write(0, 5, 'Actual path length')
-            self.ws_writer.write(0, 6, 'Expected path length')
+            self.ws_writer.write(0, 3, 'Actual cost: dist')
+            self.ws_writer.write(0, 4, 'Actual cost: turn')
+            self.ws_writer.write(0, 5, 'Actual cost: trav')
+            self.ws_writer.write(0, 6, 'Expected cost: dist')
+            self.ws_writer.write(0, 7, 'Expected cost: turn')
+            self.ws_writer.write(0, 8, 'Expected cost: trav')
+            self.ws_writer.write(0, 9, 'Actual path length')
+            self.ws_writer.write(0, 10, 'Expected path length')
             self.row_number = 1
 
     def lookup_transform(self, target_frame, source_frame, time,
@@ -1191,11 +1199,7 @@ class Rewarder(object):
         rp = rp * edges
         trav_cost = rp.abs().mean()
 
-        # TODO: experiment with trajectory costs
-        cost = dist_cost + turn_cost + trav_cost
-        rospy.loginfo('Path cost %.1f (dist. %.3f, turning %.3f, trav.: %.3f).',
-                       cost.item(), dist_cost.item(), turn_cost.item(), trav_cost.item())
-        return cost
+        return dist_cost, turn_cost, trav_cost
 
     @timing
     def path_received(self, msg):
@@ -1339,8 +1343,10 @@ class Rewarder(object):
         expected_reward, _ = self.path_reward(path_xyzrpy, map, cam_to_robot, frustums, vis_cams=False)
         actual_reward, actual_reward_cloud = self.path_reward(actual_path_xyzrpy, map, cam_to_robot, frustums, vis_cams=True)
         # costs
-        expected_cost = self.path_cost(path_xyzrpy)
-        actual_cost = self.path_cost(actual_path_xyzrpy)
+        expected_cost = {}
+        expected_cost['dist'], expected_cost['turn'], expected_cost['trav'] = self.path_cost(path_xyzrpy)
+        actual_cost = {}
+        actual_cost['dist'], actual_cost['turn'], actual_cost['trav'] = self.path_cost(actual_path_xyzrpy)
         # lengths
         expected_length = path_length(path_xyzrpy)
         actual_length = path_length(actual_path_xyzrpy)
@@ -1350,23 +1356,31 @@ class Rewarder(object):
         rospy.loginfo('Expected Path length: %.1f, N wps: %i, '
                       'reward: %.1f, cost: %.1f',
                       expected_length, path_xyzrpy.shape[0],
-                      expected_reward, expected_cost)
+                      expected_reward, expected_cost['dist']+expected_cost['turn']+expected_cost['trav'])
         rospy.loginfo('Actual Path length: %.1f, N wps: %i, '
                       'reward: %.1f, cost: %.1f',
                       actual_length, actual_path_xyzrpy.shape[0],
-                      actual_reward, actual_cost)
+                      actual_reward, actual_cost['dist']+actual_cost['turn']+actual_cost['trav'])
 
         # record data
         if self.record_metrics:
             self.ws_writer.write(self.row_number, 0, self.path_msg.header.stamp.to_sec())
             self.ws_writer.write(self.row_number, 1, f'{actual_reward}')
             self.ws_writer.write(self.row_number, 2, f'{expected_reward}')
-            if actual_cost.item() is not None:
-                self.ws_writer.write(self.row_number, 3, f'{actual_cost}')
-            if expected_cost.item() is not None:
-                self.ws_writer.write(self.row_number, 4, f'{expected_cost}')
-            self.ws_writer.write(self.row_number, 5, f'{actual_reward}')
-            self.ws_writer.write(self.row_number, 6, f'{expected_reward}')
+            if actual_cost['dist'] is not None:
+                self.ws_writer.write(self.row_number, 3, f'{actual_cost["dist"]}')
+            if actual_cost['turn'] is not None:
+                self.ws_writer.write(self.row_number, 4, f'{actual_cost["turn"]}')
+            if actual_cost['trav'] is not None:
+                self.ws_writer.write(self.row_number, 5, f'{actual_cost["trav"]}')
+            if expected_cost['dist'] is not None:
+                self.ws_writer.write(self.row_number, 6, f'{expected_cost["dist"]}')
+            if expected_cost['turn'] is not None:
+                self.ws_writer.write(self.row_number, 7, f'{expected_cost["turn"]}')
+            if expected_cost['trav'] is not None:
+                self.ws_writer.write(self.row_number, 8, f'{expected_cost["trav"]}')
+            self.ws_writer.write(self.row_number, 9, f'{actual_length}')
+            self.ws_writer.write(self.row_number, 10, f'{expected_length}')
             self.row_number += 1
             self.wb.save(self.xls_file)
 

@@ -10,7 +10,7 @@
     <arg name="rate" default="1.0"/>
 
     <node name="actual_rewarder" pkg="rpz_planning" type="rewarder.py" output="screen">
-<!--    <node name="actual_rewarder" pkg="rpz_planning" type="local_rewarder.py" output="screen">-->
+<!--    <node name="actual_rewarder" pkg="rpz_planning" type="local_coster_rewarder.py" output="screen">-->
         <rosparam subst_value="true">
             map_frame: subt
             robot_frame: $(arg robot)/base_footprint
@@ -20,6 +20,8 @@
             path_step: 1
             publish_cloud: $(arg publish_cloud)
             rate: $(arg rate)
+            linear_speed: 1.0
+            angular_speed: 1.0
             device: cuda:0
             <!-- device: cpu -->
         </rosparam>
