@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
 import rospy
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Float64
@@ -36,9 +38,12 @@ class RewardsAccumulator:
     """
     def __init__(self, reward_cloud_topic='reward_cloud'):
         # Set the device
+        device_id = rospy.get_param('~gpu_id', 0)
         if torch.cuda.is_available():
-            self.device = torch.device("cuda:0")
+            self.device = torch.device("cuda:" + str(device_id))
+            rospy.loginfo("Using GPU device id: %i, name: %s", device_id, torch.cuda.get_device_name(device_id))
         else:
+            rospy.loginfo("Using CPU")
             self.device = torch.device("cpu")
         self.global_map = None
         self.local_map = None

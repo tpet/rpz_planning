@@ -694,9 +694,13 @@ class Rewarder(object):
 
         self.num_cameras = rospy.get_param('~num_cameras', 1)
         self.keep_updating_cameras = rospy.get_param('~keep_updating_cameras', False)
-        device = rospy.get_param('~device', 'cuda:0' if torch.cuda.is_available() else 'cpu')
-        rospy.loginfo('Using device: %s', device)
-        self.device = torch.device(device)
+        device_id = rospy.get_param('~gpu_id', 0)
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda:" + str(device_id))
+            rospy.loginfo("Using GPU device id: %i, name: %s", device_id, torch.cuda.get_device_name(device_id))
+        else:
+            rospy.loginfo("Using CPU")
+            self.device = torch.device("cpu")
         # self.order = DimOrder.YAW_X_Y
         self.order = DimOrder.X_Y_YAW
         assert self.order in (DimOrder.X_Y_YAW, DimOrder.YAW_X_Y)
@@ -761,11 +765,12 @@ class Rewarder(object):
             self.ws_writer.write(0, 3, 'Actual cost: dist')
             self.ws_writer.write(0, 4, 'Actual cost: turn')
             self.ws_writer.write(0, 5, 'Actual cost: trav')
-            self.ws_writer.write(0, 6, 'Expected cost: dist')
-            self.ws_writer.write(0, 7, 'Expected cost: turn')
-            self.ws_writer.write(0, 8, 'Expected cost: trav')
-            self.ws_writer.write(0, 9, 'Actual path length')
-            self.ws_writer.write(0, 10, 'Expected path length')
+            self.ws_writer.write(0, 6, 'Actual cost: real_time')
+            self.ws_writer.write(0, 7, 'Expected cost: dist')
+            self.ws_writer.write(0, 8, 'Expected cost: turn')
+            self.ws_writer.write(0, 9, 'Expected cost: trav')
+            self.ws_writer.write(0, 10, 'Actual path length')
+            self.ws_writer.write(0, 11, 'Expected path length')
             self.row_number = 1
 
     def lookup_transform(self, target_frame, source_frame, time,
@@ -1311,20 +1316,25 @@ class Rewarder(object):
         actual_path_xyzrpy = [xyzrpy.unsqueeze(0)]
         wp_dists = torch.linalg.norm(path_xyzrpy[1:, :3] - path_xyzrpy[:-1, :3], dim=1)
         received_new_path = False
-
+        traj_time = 0.0
         while not received_new_path:
-            received_new_path = (self.path_msg.header.stamp - path_msg.header.stamp).to_sec() > 0
-            xyzrpy = self.get_robot_xyzrpy(self.path_msg.header.frame_id)
+            traj_time = (self.path_msg.header.stamp - path_msg.header.stamp).to_sec()
+            received_new_path = traj_time > 0
+            xyzrpy = self.get_robot_xyzrpy(target_frame=self.path_msg.header.frame_id)
 
-            cur_pose = xyzrpy[:3]
-            dp = torch.linalg.norm(cur_pose - prev_pose)
-            if dp > wp_dists.min():
-                actual_path_xyzrpy.append(xyzrpy.unsqueeze(0))
-                prev_pose = cur_pose
+            if xyzrpy is not None:
+                cur_pose = xyzrpy[:3]
+                dp = torch.linalg.norm(cur_pose - prev_pose)
+                if dp > wp_dists.min():
+                    actual_path_xyzrpy.append(xyzrpy.unsqueeze(0))
+                    prev_pose = cur_pose
 
-                if len(actual_path_xyzrpy) == path_xyzrpy.shape[0] or \
-                        path_length(torch.cat(actual_path_xyzrpy, dim=0)) >= path_length(path_xyzrpy):
-                    break
+                    if len(actual_path_xyzrpy) == path_xyzrpy.shape[0] or \
+                            path_length(torch.cat(actual_path_xyzrpy, dim=0)) >= path_length(path_xyzrpy):
+                        break
+        # xyzrpy = self.get_robot_xyzrpy(target_frame=self.path_msg.header.frame_id)
+        # if xyzrpy is not None:
+        #     actual_path_xyzrpy.append(xyzrpy[:3].unsqueeze(0))
 
         actual_path_xyzrpy = torch.cat(actual_path_xyzrpy, dim=0)
         path_xyzrpy = path_xyzrpy[:actual_path_xyzrpy.shape[0], :]
@@ -1347,6 +1357,7 @@ class Rewarder(object):
         expected_cost['dist'], expected_cost['turn'], expected_cost['trav'] = self.path_cost(path_xyzrpy)
         actual_cost = {}
         actual_cost['dist'], actual_cost['turn'], actual_cost['trav'] = self.path_cost(actual_path_xyzrpy)
+        actual_cost['real_time'] = traj_time
         # lengths
         expected_length = path_length(path_xyzrpy)
         actual_length = path_length(actual_path_xyzrpy)
@@ -1367,20 +1378,15 @@ class Rewarder(object):
             self.ws_writer.write(self.row_number, 0, self.path_msg.header.stamp.to_sec())
             self.ws_writer.write(self.row_number, 1, f'{actual_reward}')
             self.ws_writer.write(self.row_number, 2, f'{expected_reward}')
-            if actual_cost['dist'] is not None:
-                self.ws_writer.write(self.row_number, 3, f'{actual_cost["dist"]}')
-            if actual_cost['turn'] is not None:
-                self.ws_writer.write(self.row_number, 4, f'{actual_cost["turn"]}')
-            if actual_cost['trav'] is not None:
-                self.ws_writer.write(self.row_number, 5, f'{actual_cost["trav"]}')
-            if expected_cost['dist'] is not None:
-                self.ws_writer.write(self.row_number, 6, f'{expected_cost["dist"]}')
-            if expected_cost['turn'] is not None:
-                self.ws_writer.write(self.row_number, 7, f'{expected_cost["turn"]}')
-            if expected_cost['trav'] is not None:
-                self.ws_writer.write(self.row_number, 8, f'{expected_cost["trav"]}')
-            self.ws_writer.write(self.row_number, 9, f'{actual_length}')
-            self.ws_writer.write(self.row_number, 10, f'{expected_length}')
+            self.ws_writer.write(self.row_number, 3, f'{actual_cost["dist"]}')
+            self.ws_writer.write(self.row_number, 4, f'{actual_cost["turn"]}')
+            self.ws_writer.write(self.row_number, 5, f'{actual_cost["trav"]}')
+            self.ws_writer.write(self.row_number, 6, f'{actual_cost["real_time"]}')
+            self.ws_writer.write(self.row_number, 7, f'{expected_cost["dist"]}')
+            self.ws_writer.write(self.row_number, 8, f'{expected_cost["turn"]}')
+            self.ws_writer.write(self.row_number, 9, f'{expected_cost["trav"]}')
+            self.ws_writer.write(self.row_number, 10, f'{actual_length}')
+            self.ws_writer.write(self.row_number, 11, f'{expected_length}')
             self.row_number += 1
             self.wb.save(self.xls_file)
 

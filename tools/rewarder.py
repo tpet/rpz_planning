@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 from __future__ import absolute_import, division, print_function
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
 from geometry_msgs.msg import Point, Pose, PoseStamped, Pose2D, Quaternion, Transform, TransformStamped, Twist
 import math
 from matplotlib import colors
@@ -518,7 +520,7 @@ def compute_dist_mask(map, cam_to_map, dist_mean=3.0, dist_std=1.5):
 
 class Rewarder(object):
 
-    def __init__(self):
+    def __init__(self, device_id=0):
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.robot_frame = rospy.get_param('~robot_frame', 'base_link')
         self.max_age = rospy.get_param('~max_age', 100.0)
@@ -529,9 +531,13 @@ class Rewarder(object):
 
         self.num_cameras = rospy.get_param('~num_cameras', 1)
         self.keep_updating_cameras = rospy.get_param('~keep_updating_cameras', False)
-        device = rospy.get_param('~device', 'cuda:0' if torch.cuda.is_available() else 'cpu')
-        rospy.loginfo('Using device: %s', device)
-        self.device = torch.device(device)
+        # Set the device
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda:" + str(device_id))
+            rospy.loginfo("Using GPU device id: %i, name: %s", device_id, torch.cuda.get_device_name(device_id))
+        else:
+            rospy.loginfo("Using CPU")
+            self.device = torch.device("cpu")
         # self.order = DimOrder.YAW_X_Y
         self.order = DimOrder.X_Y_YAW
         assert self.order in (DimOrder.X_Y_YAW, DimOrder.YAW_X_Y)

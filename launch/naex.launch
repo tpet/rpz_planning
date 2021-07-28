@@ -7,6 +7,7 @@
     <arg name="cmd_vel" default="cmd_vel"/>
     <arg name="run_detector" default="true"/>
     <arg name="do_recording" default="false"/>
+    <arg name="gpu_id" default="0"/>
 
     <arg name="follow_opt_path" default="false"/>
     <arg if="$(eval follow_opt_path)" name="path" default="optimized_path"/>

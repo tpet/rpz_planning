@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
 import torch
 from pytorch3d.io import load_obj, load_ply
 from pytorch3d.structures import Meshes, Pointclouds
@@ -35,13 +36,15 @@ class Eval:
     Metrics for comparison are taken from here:
     https://pytorch3d.readthedocs.io/en/latest/modules/loss.html#pytorch3d.loss.point_mesh_edge_distance
     """
-    def __init__(self, path_to_mesh):
+    def __init__(self, path_to_mesh, device_id=0):
         self.tf = tf2_ros.Buffer()
         self.tl = tf2_ros.TransformListener(self.tf)
         # Set the device
         if torch.cuda.is_available():
-            self.device = torch.device("cuda:0")
+            self.device = torch.device("cuda:"+str(device_id))
+            rospy.loginfo("Using GPU device id: %i, name: %s", device_id, torch.cuda.get_device_name(device_id))
         else:
+            rospy.loginfo("Using CPU")
             self.device = torch.device("cpu")
         self.seed = 0  # for reprodusibility of experiments
         # parameters
@@ -632,7 +635,7 @@ if __name__ == '__main__':
     path_fo_gt_map_mesh = rospy.get_param('~gt_mesh')
     assert os.path.exists(path_fo_gt_map_mesh)
     rospy.loginfo('Using ground truth mesh file: %s', path_fo_gt_map_mesh)
-    proc = Eval(path_to_mesh=path_fo_gt_map_mesh)
+    proc = Eval(path_to_mesh=path_fo_gt_map_mesh, device_id=rospy.get_param('~gpu_id', 0))
     rospy.loginfo('Mapping evaluation node is initialized.')
     rospy.loginfo('You may need to heat Space for bagfile to start.')
     rospy.spin()
