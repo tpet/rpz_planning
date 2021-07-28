@@ -520,7 +520,7 @@ def compute_dist_mask(map, cam_to_map, dist_mean=3.0, dist_std=1.5):
 
 class Rewarder(object):
 
-    def __init__(self, device_id=0):
+    def __init__(self):
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.robot_frame = rospy.get_param('~robot_frame', 'base_link')
         self.max_age = rospy.get_param('~max_age', 100.0)
@@ -532,6 +532,7 @@ class Rewarder(object):
         self.num_cameras = rospy.get_param('~num_cameras', 1)
         self.keep_updating_cameras = rospy.get_param('~keep_updating_cameras', False)
         # Set the device
+        device_id = rospy.get_param('~gpu_id', 0)
         if torch.cuda.is_available():
             self.device = torch.device("cuda:" + str(device_id))
             rospy.loginfo("Using GPU device id: %i, name: %s", device_id, torch.cuda.get_device_name(device_id))
