@@ -3,6 +3,7 @@
 <launch>
     <arg name="robot" default="X1"/>
     <arg name="robot_type=" default="explorer_x1"/>
+    <arg name="gpu_id" default="0"/>
 
     <include file="$(find nifti_drivers_launchers)/launch/tf_server.launch">
         <arg name="tf_prefix" value="$(arg robot)/" />
@@ -47,8 +48,8 @@
         <param name="pc_topic" value="dynamic_point_cloud_bigbox_filtered"/>
         <param name="confidence_threshold" value="-3"/> 
         <param name="s2d_path" value="$(find dem_predictor)/data/net_weights_velo_s2d"/> 
-        <param name="d2rpz_path" value="$(find dem_predictor)/data/net_weights_d2rpz"/> 
+        <param name="d2rpz_path" value="$(find dem_predictor)/data/net_weights_d2rpz"/>
+        <param name="gpu_id" value="$(arg gpu_id)"/>
     </node>
 
 </launch>
-
