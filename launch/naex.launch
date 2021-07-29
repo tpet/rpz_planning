@@ -8,6 +8,7 @@
     <arg name="run_detector" default="true"/>
     <arg name="do_recording" default="false"/>
     <arg name="gpu_id" default="0"/>
+    <arg name="rviz" default="false"/>
 
     <arg name="follow_opt_path" default="false"/>
     <arg if="$(eval follow_opt_path)" name="path" default="optimized_path"/>
@@ -44,4 +45,8 @@
     <include if="$(arg do_recording)" file="$(find rpz_planning)/launch/record.launch" pass_all_args="true">
         <arg name="path" value="control_path"/>
     </include>
+
+    <!-- RVIZ -->
+    <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
+          args="-d $(dirname)/../config/subt.rviz"/>
 </launch>

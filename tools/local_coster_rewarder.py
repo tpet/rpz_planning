@@ -708,6 +708,8 @@ class Rewarder(object):
         self.path_step = rospy.get_param('~path_step', 2)
         self.linear_speed = rospy.get_param('~linear_speed', 1.0)
         self.angular_speed = rospy.get_param('~angular_speed', 1.0)
+        self.max_roll = rospy.get_param('~max_roll', 0.7)
+        self.max_pitch = rospy.get_param('~max_pitch', 0.7)
 
         # Latest point cloud map to cover
         self.map_lock = RLock()
@@ -1202,7 +1204,8 @@ class Rewarder(object):
         rp = xyzrpy[..., 1:, 3:5]
         # Use edge lenghts to scale roll and pitch penalties.
         rp = rp * edges
-        trav_cost = rp.abs().mean()
+        # trav_cost = rp.abs().mean()
+        trav_cost = (rp.abs().sum(dim=0) / torch.tensor([self.max_roll, self.max_pitch]).to(xyzrpy.device)).sum()
 
         return dist_cost, turn_cost, trav_cost
 
