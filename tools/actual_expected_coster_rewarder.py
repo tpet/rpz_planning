@@ -757,7 +757,7 @@ class Rewarder(object):
 
         # record the metrics
         self.xls_file = os.path.join(rospkg.RosPack().get_path('rpz_planning'), "notebooks/local_rewards_costs.xls")
-        self.record_metrics = True
+        self.record_metrics = rospy.get_param('~do_metrics_record', False)
         if self.record_metrics:
             self.wb = xlwt.Workbook()
             self.ws_writer = self.wb.add_sheet("Local rewards and costs")
