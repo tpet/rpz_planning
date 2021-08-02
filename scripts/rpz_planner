@@ -1,9 +1,19 @@
 #!/usr/bin/env python
 """RPZ compliant planner."""
 from __future__ import absolute_import, division, print_function
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
 # from exploration.msg import Path
 from PIL.ImageEnhance import Color
-from geometry_msgs.msg import Point, Pose, PoseStamped, Pose2D, Quaternion, Transform, TransformStamped, Twist
+from geometry_msgs.msg import (Point,
+                               Pose,
+                               PoseStamped,
+                               Pose2D,
+                               Quaternion,
+                               Transform,
+                               TransformStamped,
+                               Twist)
+from std_msgs.msg import Float64
 import math
 from matplotlib import colors
 from nav_msgs.msg import Path
@@ -24,12 +34,16 @@ import torch.nn.functional as fun
 from visualization_msgs.msg import Marker, MarkerArray
 from collections import OrderedDict
 # from yacs.config import CfgNode
-
-
 # https://github.com/rbgirshick/yacs
 # cfg = CfgNode()
 # cfg.visibility_sphere_radius = 100.
-
+try:
+    from rpz_planning import chamfer_distance_truncated
+    from pytorch3d.ops.knn import knn_points
+    USE_PYTORCH3D = True
+except:
+    print('Pytorch3d is probably not installed')
+    USE_PYTORCH3D = False
 np.set_printoptions(precision=2)
 
 
@@ -449,7 +463,7 @@ def smooth_rpz(rpz, sigma):
 @timing
 def interpolate_rpz(rpz_all, xyyaw, order=DimOrder.YAW_X_Y, wrap_yaw=True):
     # TODO: Interpolate roll, pitch, z for given x, y, yaw.
-    # TODO: https://pytorch.org/docs/master/nn.functional.html#grid-sampl
+    # TODO: https://pytorch.org/docs/master/generated/torch.nn.functional.grid_sample.html#torch.nn.functional.grid_sample
     # mode = 'bilinear' | 'nearest' | 'bicubic'
     # padding_mode = 'zeros' | 'border' | 'reflection'
     # Circular padding mode not supported.
@@ -512,6 +526,7 @@ def interpolate_rpz(rpz_all, xyyaw, order=DimOrder.YAW_X_Y, wrap_yaw=True):
 
     rpz_wrapped = rpz_wrapped[None]
     xyyaw_grid = xyyaw_grid[None, None, None]
+    assert torch.isnan(xyyaw_grid).any() == False
     rpz = fun.grid_sample(rpz_wrapped, xyyaw_grid,
                           padding_mode='border', align_corners=False)
     rpz = rpz[0, :, 0, 0, :].transpose(1, 0)
@@ -769,7 +784,7 @@ def compute_fov_mask_smooth(map, intrins, map_to_cam, std=10, eps=1e-6):
     return fov_mask
 
 
-def compute_vis_mask(map, cam_to_map, param=2.0, voxel_size=0.6):
+def compute_vis_mask(map, cam_to_map, param=1.0, voxel_size=0.6):
     assert isinstance(map, torch.Tensor)
     # (4, n_pts)
     assert map.dim() == 2
@@ -806,8 +821,8 @@ def compute_vis_mask(map, cam_to_map, param=2.0, voxel_size=0.6):
                 # store visibility value in a dictionary
                 visibilities_dict[key] = visibility
                 vis_mask[pose_ind, cam_ind, :] = visibility
-                rospy.loginfo('Computing point visibility from pose %i, camera %i at %s: %.3f s',
-                              pose_ind, cam_ind, origin.detach().cpu().numpy(), timer() - t_vis1)
+                rospy.logdebug('Computing point visibility from pose %i, camera %i at %s: %.3f s',
+                               pose_ind, cam_ind, origin.detach().cpu().numpy(), timer() - t_vis1)
             else:
                 vis_mask[pose_ind, cam_ind, :] = visibilities_dict[key]
     if len(visibilities_dict) > n_poses:
@@ -817,7 +832,7 @@ def compute_vis_mask(map, cam_to_map, param=2.0, voxel_size=0.6):
     return vis_mask
 
 
-def select_pts_to_optimize(path_pts, rpz_cloud, map):
+def select_pts_to_optimize(path_pts, rpz_cloud, map, local_map_selection=True, dist_th=0.1):
     assert isinstance(path_pts, torch.Tensor)
     assert isinstance(map, torch.Tensor)
     assert path_pts.ndim == 2
@@ -831,6 +846,19 @@ def select_pts_to_optimize(path_pts, rpz_cloud, map):
     if torch.sum(trav_mask) > 2:  # if there are at least two points of the path lying in traversable area
         path_pts = path_pts[trav_mask, :]
 
+    # keep only points from the path that are reasonably close to local map points
+    if local_map_selection:
+        path_pcl = path_pts[:, :3].unsqueeze(0)
+        map_pcl = map[:, :3].unsqueeze(0)
+        assert path_pcl.dim() == 3
+        assert map_pcl.dim() == 3
+        assert path_pcl.shape[0] == map_pcl.shape[0]
+        assert path_pcl.shape[2] == map_pcl.shape[2]  # (N, P1, D) and (N, P2, D)
+        path_map_dists = chamfer_distance_truncated(path_pcl, map_pcl, apply_point_reduction=False).squeeze()
+        map_mask = path_map_dists < dist_th
+        if torch.sum(map_mask) > 2:  # if there are at least two points that are close to local map
+            path_pts = path_pts[map_mask, :]
+
     rospy.logdebug('Points to optimize selection took %s:.3f sec', timer() - t0)
     return path_pts
 
@@ -841,6 +869,7 @@ class RPZPlanner(object):
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.robot_frame = rospy.get_param('~robot_frame', 'base_link')
         self.max_age = rospy.get_param('~max_age', 1.0)
+        self.debug = rospy.get_param('~debug', True)
 
         # Keep only points inside a box for clearance check.
         # keep_cloud_box = rospy.get_param('~keep_cloud_box', [[-4.0, 4.0],
@@ -859,9 +888,16 @@ class RPZPlanner(object):
 
         self.num_cameras = rospy.get_param('~num_cameras', 1)
         self.keep_updating_cameras = rospy.get_param('~keep_updating_cameras', False)
-        device = rospy.get_param('~device', 'cuda:0' if torch.cuda.is_available() else 'cpu')
-        rospy.loginfo('Using device: %s', device)
-        self.device = torch.device(device)
+
+        # Set the device
+        device_id = rospy.get_param('~gpu_id', 0)
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda:" + str(device_id))
+            rospy.loginfo("Using GPU device id: %i, name: %s", device_id, torch.cuda.get_device_name(device_id))
+        else:
+            rospy.loginfo("Using CPU")
+            self.device = torch.device("cpu")
+
         # self.order = DimOrder.YAW_X_Y
         self.order = DimOrder.X_Y_YAW
         assert self.order in (DimOrder.X_Y_YAW, DimOrder.YAW_X_Y)
@@ -870,6 +906,11 @@ class RPZPlanner(object):
         self.path_step = rospy.get_param('~path_step', 2)
         self.linear_speed = rospy.get_param('~linear_speed', 1.0)
         self.angular_speed = rospy.get_param('~angular_speed', 1.0)
+        self.max_roll = rospy.get_param('naex_planner/max_roll', 0.7)
+        self.max_pitch = rospy.get_param('naex_planner/max_pitch', 0.7)
+        self.dist_weight = rospy.get_param('~dist_weight', 1.0)
+        self.trav_weight = rospy.get_param('~trav_weight', 1.0)
+        self.turn_weight = rospy.get_param('~turn_weight', 1.0)
 
         # Latest RPZ manifold
         # TODO: frame vs map
@@ -885,6 +926,8 @@ class RPZPlanner(object):
         self.map_msg = None
         self.map = None  # n-by-3 cloud position array
         # self.map_x_index = None  # Index of above
+        self.global_map = None
+        self.global_rewards = None
 
         self.tf = tf2_ros.Buffer()
         self.tf_sub = tf2_ros.TransformListener(self.tf)
@@ -892,7 +935,13 @@ class RPZPlanner(object):
         self.viz_pub = rospy.Publisher('visualization', MarkerArray, queue_size=2)
         self.path_pub = rospy.Publisher('optimized_path', Path, queue_size=2)
         self.reward_cloud_pub = rospy.Publisher('reward_cloud', PointCloud2, queue_size=2)
+        self.global_reward_cloud_pub = rospy.Publisher('global_reward_cloud', PointCloud2, queue_size=2)
         # self.clearance_pub = rospy.Publisher('clearance', MarkerArray, queue_size=2)
+        self.rewards_ratio_pub = rospy.Publisher('rewards_ratio', Float64, queue_size=1)  # reward / reward0
+        self.costs_ratio_pub = rospy.Publisher('costs_ratio', Float64, queue_size=1)  # cost / cost0
+        self.rewards_ratios = 0.0
+        self.costs_ratios = 0.0
+        self.counter = 1
 
         # Allow multiple cameras.
         self.cam_info_lock = RLock()
@@ -1170,6 +1219,36 @@ class RPZPlanner(object):
         rospy.logdebug('Map with %i processed and stored (%.3f s).',
                        map.shape[-1], timer() - t)
 
+    def construct_global_map(self, map, dists_th=0.2):
+        assert map.dim() == 2
+        assert map.shape[0] == 4  # (4, N1)
+        # construct global map to store rewards history
+        t1 = timer()
+        map = map.to(self.device)
+        if self.global_map is None:
+            self.global_map = map
+
+        # determine new points from local_map based on proximity threshold
+        map_nn = knn_points(p1=map[:3, ...].transpose(1, 0).unsqueeze(0),
+                            p2=self.global_map[:3, ...].transpose(1, 0).unsqueeze(0), K=1)
+        dists, idxs = map_nn.dists.sqrt().squeeze(), map_nn.idx.squeeze()
+        common_pts_mask = dists <= dists_th
+        assert len(dists) == map.shape[1]
+        assert len(idxs) == map.shape[1]
+        new_map = map[:, ~common_pts_mask]
+
+        rospy.loginfo(f'Points distances, min: {map_nn.dists.sqrt().min()}, mean: {map_nn.dists.sqrt().mean()}')
+        rospy.loginfo(f'Adding {new_map.shape[1]} new points')
+        assert new_map.dim() == 2
+        assert new_map.shape[0] == 4  # (4, n)
+
+        # and accumulate new points to global map
+        self.global_map = torch.cat([self.global_map, new_map], dim=1)
+        assert self.global_map.dim() == 2
+        assert self.global_map.shape[0] == 4  # (4, N)
+        rospy.loginfo('Global cloud update took %.3f s', timer() - t1)
+        return idxs, common_pts_mask
+
     @timing
     def get_available_cameras(self):
         """
@@ -1241,10 +1320,15 @@ class RPZPlanner(object):
         rp = xyzrpy[..., 1:, 3:5]
         # Use edge lenghts to scale roll and pitch penalties.
         rp = rp * edges
-        trav_cost = rp.abs().mean()
+        # trav_cost = rp.abs().mean()
+        trav_cost = (rp.abs().sum(dim=0) / torch.tensor([self.max_roll, self.max_pitch]).to(xyzrpy.device)).sum()
 
+        # TODO: experiment with trajectory costs
+        dist_cost *= self.dist_weight
+        turn_cost *= self.turn_weight
+        trav_cost *= self.trav_weight
         cost = dist_cost + turn_cost + trav_cost
-        rospy.logdebug('Path cost %.1f (dist. %.1f, turning %.1f, trav.: %.1f).',
+        rospy.loginfo('Path cost %.1f (dist. %.3f, turning %.3f, trav.: %.3f).',
                        cost.item(), dist_cost.item(), turn_cost.item(), trav_cost.item())
         return cost
 
@@ -1324,14 +1408,13 @@ class RPZPlanner(object):
             assert isinstance(self.map_msg, PointCloud2)
             assert self.map_msg.header.frame_id == msg.header.frame_id
             map = self.map
+            # common_idxs, common_pts_mask = self.construct_global_map(map)
         assert map.shape[0] == 4
-        n_pts = map.shape[-1]
+        n_pts = map.shape[-1]  # (4 x N1)
 
         xyzrpy = path_msg_to_xyzrpy(msg)
         assert xyzrpy.shape == (n_poses, 6)
-
-        # TODO: Remove it from here.
-        rospy.loginfo('Original path cost: %.1f [~s].', self.path_cost(xyzrpy))
+        # rospy.logdebug('Original path cost: %.1f [~s].', self.path_cost(xyzrpy))
 
         t = timer()
         cam_to_robot = cam_to_robot.to(self.device)
@@ -1340,7 +1423,7 @@ class RPZPlanner(object):
             intrins[key] = intrins[key].to(self.device)
         rpz_all = rpz_all.to(self.device)
         map_to_grid = map_to_grid.to(self.device)
-        grid_to_map = grid_to_map.to(self.device)
+        # grid_to_map = grid_to_map.to(self.device)
         map = map.to(self.device)
         xyzrpy = xyzrpy.to(self.device)
         rospy.logdebug('Moving to %s: %.3f s', self.device, timer() - t)
@@ -1354,15 +1437,19 @@ class RPZPlanner(object):
 
         xyzrpy = select_pts_to_optimize(xyzrpy,
                                         self.rpz_cloud,
-                                        map.transpose(1, 0))
+                                        map.transpose(1, 0),
+                                        # local_map_selection=USE_PYTORCH3D,
+                                        local_map_selection=False,
+                                        dist_th=0.1)
+        n_poses = xyzrpy.shape[0]
 
         opt_i = slice(1 if 'start' in self.fixed_endpoints else None,
                       -1 if 'goal' in self.fixed_endpoints else None)
 
-        xy_opt = xyzrpy[opt_i, :2].detach()
-        xy_opt.requires_grad = True
         xy_start = xyzrpy[:1, :2].detach()
         xy_goal = xyzrpy[-1:, :2].detach()
+        xy_opt = xyzrpy[opt_i, :2].detach()
+        xy_opt.requires_grad = True
 
         optimizer = torch.optim.Adam([xy_opt], lr=0.05)
 
@@ -1375,8 +1462,10 @@ class RPZPlanner(object):
 
         vis_mask = None
 
-        reward_history = []
-        reward0 = -1
+        reward0 = -1.0
+        time_cost0 = -1.0
+        t0 = timer()
+
         for iter in range(self.num_iters):
             t_iter = timer()
             rospy.logdebug('Iteration %i started.', iter)
@@ -1396,11 +1485,13 @@ class RPZPlanner(object):
             elif self.order == DimOrder.YAW_X_Y:
                 xyyaw = torch.cat((yaw, xy), dim=-1)
 
+            assert xyyaw.shape == (n_poses, 3)
             xyyaw_grid = transform_xyyaw_tensor(map_to_grid, xyyaw, order=self.order)
             rpz = interpolate_rpz(rpz_all, xyyaw_grid, order=self.order)
 
             # Transform z?
             assert rpz.shape == (n_poses, 3)
+            assert xyyaw.shape == (n_poses, 3)
             if self.order == DimOrder.X_Y_YAW:
                 # Fix yaw from XY.
                 xyzrpy = torch.cat((xyyaw[:, :2], rpz[:, 2:], rpz[:, :2], xyyaw[:, 2:]), dim=-1)
@@ -1410,10 +1501,10 @@ class RPZPlanner(object):
             if torch.isnan(xyzrpy).any():
                 rospy.logwarn("Path contains NANs. Optimization will not be performed this time")
                 msg_out = msg
+                msg_out.header.stamp = rospy.Time.now()
                 self.path_pub.publish(msg_out)
                 break
             else:
-                # Publish current optimized path.
                 # TODO: Test yaw processing from map to grid and back.
                 # TODO: Alternative solution is to recompute yaw from XY again.
                 msg_out = xyzrpy_to_path_msg(xyzrpy)
@@ -1421,7 +1512,6 @@ class RPZPlanner(object):
                 for p in msg_out.poses:
                     assert isinstance(p, PoseStamped)
                     p.header = msg.header
-                self.path_pub.publish(msg_out)
 
             # Get camera to map transforms.
             t = timer()
@@ -1433,13 +1523,13 @@ class RPZPlanner(object):
             assert map_to_cam.shape == (n_poses, n_cams, 4, 4)
             rospy.logdebug('Camera to map transforms: %.3f s', timer() - t)
 
-            # TODO: Visibility / occlusion mask.
+            # Visibility / occlusion mask.
             if vis_mask is None:
                 t = timer()
-                vis_mask = compute_vis_mask(map, cam_to_map)
+                vis_mask = compute_vis_mask(map, cam_to_map, param=0.5)
                 with torch.no_grad():
                     reward_cloud['visibility'] = reduce_rewards(vis_mask).detach().cpu().numpy()
-                rospy.loginfo('Computing point visibility: %.3f s.', timer() - t)
+                rospy.logdebug('Point visibility computation took: %.3f s.', timer() - t)
 
             # compute smooth version of FOV mask
             # fov_mask = compute_fov_mask_smooth(map, intrins, map_to_cam)
@@ -1455,8 +1545,8 @@ class RPZPlanner(object):
             assert sensor_dist.shape == (n_poses, n_cams, n_pts)
             rospy.logdebug('Distance to sensors: %.3f s', timer() - t)
             # Distance based mask
-            dist_mean = 3.0
-            dist_std = 1.5
+            dist_mean = 3.0  # 3.0
+            dist_std = 1.5  # 1.5
             dist_mask = torch.exp(-(sensor_dist - dist_mean)**2 / dist_std**2)
             with torch.no_grad():
                 reward_cloud['distance'] = reduce_rewards(dist_mask).detach().cpu().numpy()
@@ -1468,49 +1558,84 @@ class RPZPlanner(object):
             # share and sum rewards over multiple sensors and view points
             # rewards = log_odds_conversion(rewards)
             rewards = reduce_rewards(rewards)
-
-            # instead of log odds: max of rewards over all sensors and wps poses
-            # rewards, _ = rewards.view(n_poses * n_cams, n_pts).max(dim=0)
-            # assert rewards.shape == (n_pts,)
+            assert rewards.shape == (n_pts,)
+            if self.global_rewards is None:
+                self.global_rewards = rewards
+            # self.global_rewards = torch.max(self.global_rewards[common_idxs[common_pts_mask]], rewards[common_pts_mask])
 
             reward = rewards.sum()
             assert isinstance(reward, torch.Tensor)
             assert reward.shape == ()
             rospy.logdebug('Total reward: %.1f', reward.detach().item())
-            reward_history.append(reward.detach().item())
 
             # Penalize path length change, high roll and pitch and yaw changes.
             time_cost = self.path_cost(xyzrpy)
 
             criterion = time_cost / reward
 
-            # Publish reward cloud for visualization.
-            reward_cloud['reward'] = rewards.detach().cpu().numpy()
-            reward_cloud_msg = msgify(PointCloud2, reward_cloud)
-            assert isinstance(reward_cloud_msg, PointCloud2)
-            reward_cloud_msg.header = msg.header
-            self.reward_cloud_pub.publish(reward_cloud_msg)
+            if iter == 0:
+                reward0 = reward
+                time_cost0 = time_cost
 
-            # Visualize cameras (first and last).
-            t = timer()
-            self.visualize_cams(robot_to_map[0].detach(), id=0)
-            self.visualize_cams(robot_to_map[n_poses // 2].detach(), id=1)
-            self.visualize_cams(robot_to_map[-1].detach(), id=2)
-            rospy.logdebug('Cameras visualized for %i poses (%.3f s).', 3, timer() - t)
+            # publish intermediate result during optimization process only in debug mode
+            if iter == (self.num_iters - 1) or self.debug:
+                # publish optimized path
+                msg_out.header.stamp = rospy.Time.now()
+                for p in msg_out.poses:
+                    assert isinstance(p, PoseStamped)
+                    p.header = msg.header
+                    p.header.stamp = msg_out.header.stamp
+                self.path_pub.publish(msg_out)
+                # Publish reward cloud for visualization.
+                reward_cloud['reward'] = rewards.detach().cpu().numpy()
+                reward_cloud_msg = msgify(PointCloud2, reward_cloud)
+                assert isinstance(reward_cloud_msg, PointCloud2)
+                reward_cloud_msg.header = msg.header
+                self.reward_cloud_pub.publish(reward_cloud_msg)
 
+                # Visualize cameras (first and last).
+                t = timer()
+                self.visualize_cams(robot_to_map[0].detach(), id=0)
+                self.visualize_cams(robot_to_map[n_poses // 2].detach(), id=1)
+                self.visualize_cams(robot_to_map[-1].detach(), id=2)
+                rospy.logdebug('Cameras visualized for %i poses (%.3f s).', 3, timer() - t)
+
+                # publish resultant reward and cost ratios
+                self.rewards_ratios += reward.detach().item() / reward0.detach().item()
+                self.rewards_ratio_pub.publish(self.rewards_ratios / self.counter)
+                self.costs_ratios += time_cost.detach().item() / time_cost0.detach().item()
+                self.costs_ratio_pub.publish(self.costs_ratios / self.counter)
+                self.counter += 1
+
+            # optimization step
             criterion.backward()
             optimizer.step()
 
-            if iter == 0:
-                reward0 = reward
-
-            rospy.loginfo('Iter. %i: time %.1f s, '
-                          'reward %.0f/%.0f, reward/s %.1f '
+            rospy.loginfo('Iter. %i: time cost %.1f / %.1f s, '
+                          'reward %.0f / %.0f, '
                           '(%.3f s).',
-                          iter, time_cost.detach().item(),
+                          iter, time_cost.detach().item(), time_cost0.detach().item(),
                           reward.detach().item(), reward0.detach().item(),
-                          1. / criterion.detach().item(),
                           timer() - t_iter)
+
+        rospy.loginfo('Trajectory optimization took %.1f s', timer() - t0)
+
+        # Publish reward cloud for visualization.
+        # pts_to_pub = self.global_map.detach().cpu()
+        # pts_to_pub = new_map.detach().cpu()
+        # if pts_to_pub.shape[1] > 0:
+        #     global_map = np.zeros(pts_to_pub.shape[1], dtype=[('x', np.float32),
+        #                                                       ('y', np.float32),
+        #                                                       ('z', np.float32),
+        #                                                       ('reward', np.float32)])
+        #     global_map['x'] = pts_to_pub[0, ...]
+        #     global_map['y'] = pts_to_pub[1, ...]
+        #     global_map['z'] = pts_to_pub[2, ...]
+        #     global_map['reward'] = pts_to_pub[3, ...]
+        #     global_cloud_msg = msgify(PointCloud2, global_map)
+        #     assert isinstance(global_cloud_msg, PointCloud2)
+        #     global_cloud_msg.header = msg.header
+        #     self.global_reward_cloud_pub.publish(global_cloud_msg)
 
 
 if __name__ == '__main__':
