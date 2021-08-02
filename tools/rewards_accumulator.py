@@ -27,6 +27,24 @@ def transform_points(points, T):
     return points
 
 
+def update_rewards(rewards1, rewards2, eps=1e-6):
+    assert isinstance(rewards1, torch.Tensor)
+    assert rewards1.dim() == 2
+    assert rewards1.shape[1] == 1  # (N1, 1)
+    assert isinstance(rewards2, torch.Tensor)
+    assert rewards2.dim() == 2
+    assert rewards1.shape == rewards2.shape
+    n_pts = rewards1.shape[0]
+    rewards = torch.cat([rewards1, rewards2], dim=1)
+    rewards = torch.clamp(rewards, eps, 1 - eps)
+    lo = torch.log(1. - rewards)
+    lo = lo.view(n_pts, 2)
+    lo = lo.sum(dim=1)
+    rewards = 1. - torch.exp(lo)
+    assert rewards.shape == (n_pts,)
+    return rewards
+
+
 class RewardsAccumulator:
     """
     This ROS node subscribes to local map rewards cloud with PointCloud2 msgs
@@ -117,12 +135,12 @@ class RewardsAccumulator:
         # determine new points from local_map based on proximity threshold
         with torch.no_grad():
             # map_nn = knn_points(p1=local_map.unsqueeze(0), p2=self.local_map.unsqueeze(0), K=1)
-            map_nn = knn_points(p1=local_map.unsqueeze(0), p2=self.global_map.unsqueeze(0), K=1)
+            map_nn = knn_points(p1=local_map[..., :3].unsqueeze(0), p2=self.global_map[..., :3].unsqueeze(0), K=1)
             dists, idxs = map_nn.dists.sqrt().squeeze(), map_nn.idx.squeeze()
-            proximity_mask = dists > self.dist_th
+            common_pts_mask = dists <= self.dist_th
         assert len(dists) == local_map.shape[0]
         assert len(idxs) == local_map.shape[0]
-        self.new_map = local_map[proximity_mask, :]
+        self.new_map = local_map[~common_pts_mask, :]
         self.local_map = local_map
 
         rospy.logdebug(f'Points distances, min: {map_nn.dists.sqrt().min()}, mean: {map_nn.dists.sqrt().mean()}')
@@ -133,14 +151,17 @@ class RewardsAccumulator:
         # and accumulate new points to global map
         self.global_map = torch.cat([self.global_map, self.new_map], dim=0)
         # accumulate rewards (max or log odds), compare global and latest local map rewards
-        rospy.logdebug(f'Global map probabilities: {torch.min(self.global_map[:, 3])} ~ {torch.max(self.global_map[:, 3])}')
-        print(local_map[~proximity_mask, 3].shape)
-        rospy.logdebug(f'Common map probabilities {torch.min(local_map[~proximity_mask, 3])} ~ {torch.max(local_map[~proximity_mask, 3])}')
-        self.global_map[idxs[~proximity_mask], 3] = torch.max(self.global_map[idxs[~proximity_mask], 3],
-                                                              local_map[~proximity_mask, 3])
+        # rospy.logdebug(f'Global map probabilities: {torch.min(self.global_map[:, 3])} ~ {torch.max(self.global_map[:, 3])}')
+        # rospy.logdebug(f'Common map probabilities {torch.min(local_map[common_pts_mask, 3])} ~ {torch.max(local_map[common_pts_mask, 3])}')
+        updated_rewards = update_rewards(self.global_map[idxs[common_pts_mask], 3:4], local_map[common_pts_mask, 3:4])
+        # new points reward + (updated rewards - previous reward)
+        # rospy.loginfo('Gained reward: %.1f',
+        #               self.new_map[..., 3].sum() + (updated_rewards - self.global_map[idxs[common_pts_mask], 3]).sum())
+        # rospy.loginfo('Local map rewards: %.1f', self.local_map[..., 3].sum())
+        self.global_map[idxs[common_pts_mask], 3] = updated_rewards
         assert self.global_map.dim() == 2
         assert self.global_map.shape[1] == 4  # (N, 4)
-        rospy.logdebug('Point cloud accumulation took: %.3f s', timer() - t0)
+        rospy.loginfo('Point cloud accumulation took: %.3f s', timer() - t0)
 
     def msgify_reward_cloud(self, cloud):
         assert cloud.shape[1] >= 4
@@ -172,7 +193,7 @@ class RewardsAccumulator:
             # publish total reward value
             total_reward = self.global_map[:, 3].sum().detach().item()
             rospy.loginfo('Total reward: %.1f', total_reward)
-            rospy.loginfo('New observations reward: %.1f', self.new_map[:, 3].sum().detach().item())
+            # rospy.loginfo('New observations reward: %.1f', self.new_map[:, 3].sum().detach().item())
             self.reward_pub.publish(Float64(total_reward))
             rate.sleep()
 

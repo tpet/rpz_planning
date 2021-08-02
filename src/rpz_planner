@@ -39,6 +39,7 @@ from collections import OrderedDict
 # cfg.visibility_sphere_radius = 100.
 try:
     from rpz_planning import chamfer_distance_truncated
+    from pytorch3d.ops.knn import knn_points
     USE_PYTORCH3D = True
 except:
     print('Pytorch3d is probably not installed')
@@ -925,6 +926,8 @@ class RPZPlanner(object):
         self.map_msg = None
         self.map = None  # n-by-3 cloud position array
         # self.map_x_index = None  # Index of above
+        self.global_map = None
+        self.global_rewards = None
 
         self.tf = tf2_ros.Buffer()
         self.tf_sub = tf2_ros.TransformListener(self.tf)
@@ -932,6 +935,7 @@ class RPZPlanner(object):
         self.viz_pub = rospy.Publisher('visualization', MarkerArray, queue_size=2)
         self.path_pub = rospy.Publisher('optimized_path', Path, queue_size=2)
         self.reward_cloud_pub = rospy.Publisher('reward_cloud', PointCloud2, queue_size=2)
+        self.global_reward_cloud_pub = rospy.Publisher('global_reward_cloud', PointCloud2, queue_size=2)
         # self.clearance_pub = rospy.Publisher('clearance', MarkerArray, queue_size=2)
         self.rewards_ratio_pub = rospy.Publisher('rewards_ratio', Float64, queue_size=1)  # reward / reward0
         self.costs_ratio_pub = rospy.Publisher('costs_ratio', Float64, queue_size=1)  # cost / cost0
@@ -1215,6 +1219,36 @@ class RPZPlanner(object):
         rospy.logdebug('Map with %i processed and stored (%.3f s).',
                        map.shape[-1], timer() - t)
 
+    def construct_global_map(self, map, dists_th=0.2):
+        assert map.dim() == 2
+        assert map.shape[0] == 4  # (4, N1)
+        # construct global map to store rewards history
+        t1 = timer()
+        map = map.to(self.device)
+        if self.global_map is None:
+            self.global_map = map
+
+        # determine new points from local_map based on proximity threshold
+        map_nn = knn_points(p1=map[:3, ...].transpose(1, 0).unsqueeze(0),
+                            p2=self.global_map[:3, ...].transpose(1, 0).unsqueeze(0), K=1)
+        dists, idxs = map_nn.dists.sqrt().squeeze(), map_nn.idx.squeeze()
+        common_pts_mask = dists <= dists_th
+        assert len(dists) == map.shape[1]
+        assert len(idxs) == map.shape[1]
+        new_map = map[:, ~common_pts_mask]
+
+        rospy.loginfo(f'Points distances, min: {map_nn.dists.sqrt().min()}, mean: {map_nn.dists.sqrt().mean()}')
+        rospy.loginfo(f'Adding {new_map.shape[1]} new points')
+        assert new_map.dim() == 2
+        assert new_map.shape[0] == 4  # (4, n)
+
+        # and accumulate new points to global map
+        self.global_map = torch.cat([self.global_map, new_map], dim=1)
+        assert self.global_map.dim() == 2
+        assert self.global_map.shape[0] == 4  # (4, N)
+        rospy.loginfo('Global cloud update took %.3f s', timer() - t1)
+        return idxs, common_pts_mask
+
     @timing
     def get_available_cameras(self):
         """
@@ -1374,13 +1408,13 @@ class RPZPlanner(object):
             assert isinstance(self.map_msg, PointCloud2)
             assert self.map_msg.header.frame_id == msg.header.frame_id
             map = self.map
+            # common_idxs, common_pts_mask = self.construct_global_map(map)
         assert map.shape[0] == 4
-        n_pts = map.shape[-1]
+        n_pts = map.shape[-1]  # (4 x N1)
 
         xyzrpy = path_msg_to_xyzrpy(msg)
         assert xyzrpy.shape == (n_poses, 6)
-
-        rospy.logdebug('Original path cost: %.1f [~s].', self.path_cost(xyzrpy))
+        # rospy.logdebug('Original path cost: %.1f [~s].', self.path_cost(xyzrpy))
 
         t = timer()
         cam_to_robot = cam_to_robot.to(self.device)
@@ -1389,7 +1423,7 @@ class RPZPlanner(object):
             intrins[key] = intrins[key].to(self.device)
         rpz_all = rpz_all.to(self.device)
         map_to_grid = map_to_grid.to(self.device)
-        grid_to_map = grid_to_map.to(self.device)
+        # grid_to_map = grid_to_map.to(self.device)
         map = map.to(self.device)
         xyzrpy = xyzrpy.to(self.device)
         rospy.logdebug('Moving to %s: %.3f s', self.device, timer() - t)
@@ -1428,7 +1462,6 @@ class RPZPlanner(object):
 
         vis_mask = None
 
-        reward_history = []
         reward0 = -1.0
         time_cost0 = -1.0
         t0 = timer()
@@ -1512,8 +1545,8 @@ class RPZPlanner(object):
             assert sensor_dist.shape == (n_poses, n_cams, n_pts)
             rospy.logdebug('Distance to sensors: %.3f s', timer() - t)
             # Distance based mask
-            dist_mean = 3.0
-            dist_std = 1.5
+            dist_mean = 3.0  # 3.0
+            dist_std = 1.5  # 1.5
             dist_mask = torch.exp(-(sensor_dist - dist_mean)**2 / dist_std**2)
             with torch.no_grad():
                 reward_cloud['distance'] = reduce_rewards(dist_mask).detach().cpu().numpy()
@@ -1525,16 +1558,15 @@ class RPZPlanner(object):
             # share and sum rewards over multiple sensors and view points
             # rewards = log_odds_conversion(rewards)
             rewards = reduce_rewards(rewards)
-
-            # instead of log odds: max of rewards over all sensors and wps poses
-            # rewards, _ = rewards.view(n_poses * n_cams, n_pts).max(dim=0)
-            # assert rewards.shape == (n_pts,)
+            assert rewards.shape == (n_pts,)
+            if self.global_rewards is None:
+                self.global_rewards = rewards
+            # self.global_rewards = torch.max(self.global_rewards[common_idxs[common_pts_mask]], rewards[common_pts_mask])
 
             reward = rewards.sum()
             assert isinstance(reward, torch.Tensor)
             assert reward.shape == ()
             rospy.logdebug('Total reward: %.1f', reward.detach().item())
-            reward_history.append(reward.detach().item())
 
             # Penalize path length change, high roll and pitch and yaw changes.
             time_cost = self.path_cost(xyzrpy)
@@ -1587,6 +1619,23 @@ class RPZPlanner(object):
                           timer() - t_iter)
 
         rospy.loginfo('Trajectory optimization took %.1f s', timer() - t0)
+
+        # Publish reward cloud for visualization.
+        # pts_to_pub = self.global_map.detach().cpu()
+        # pts_to_pub = new_map.detach().cpu()
+        # if pts_to_pub.shape[1] > 0:
+        #     global_map = np.zeros(pts_to_pub.shape[1], dtype=[('x', np.float32),
+        #                                                       ('y', np.float32),
+        #                                                       ('z', np.float32),
+        #                                                       ('reward', np.float32)])
+        #     global_map['x'] = pts_to_pub[0, ...]
+        #     global_map['y'] = pts_to_pub[1, ...]
+        #     global_map['z'] = pts_to_pub[2, ...]
+        #     global_map['reward'] = pts_to_pub[3, ...]
+        #     global_cloud_msg = msgify(PointCloud2, global_map)
+        #     assert isinstance(global_cloud_msg, PointCloud2)
+        #     global_cloud_msg.header = msg.header
+        #     self.global_reward_cloud_pub.publish(global_cloud_msg)
 
 
 if __name__ == '__main__':

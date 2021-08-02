@@ -4,7 +4,7 @@
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1"/>
     <arg name="debug_trajopt" default="false"/>
-    <arg name="trajopt_iters" default="50"/>
+    <arg name="trajopt_iters" default="25"/>
     <arg name="gpu_id" default="0"/>
 
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
@@ -21,12 +21,14 @@
             angular_speed: 1.0
             fixed_endpoints: ['start']
             gpu_id: $(arg gpu_id)
-            dist_weight: 1.0
-            trav_weight: 1.0
-            turn_weight: 0.37
+
 <!--            dist_weight: 1.0-->
 <!--            trav_weight: 1.0-->
-<!--            turn_weight: 1.0-->
+<!--            turn_weight: 0.37-->
+
+            dist_weight: 1.06
+            trav_weight: 1.08
+            turn_weight: 0.24
         </rosparam>
 
         <rosparam if="$(eval robot_type == 'marv')">
