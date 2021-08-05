@@ -526,7 +526,7 @@ def interpolate_rpz(rpz_all, xyyaw, order=DimOrder.YAW_X_Y, wrap_yaw=True):
 
     rpz_wrapped = rpz_wrapped[None]
     xyyaw_grid = xyyaw_grid[None, None, None]
-    assert torch.isnan(xyyaw_grid).any() == False
+    # assert torch.isnan(xyyaw_grid).any() == False
     rpz = fun.grid_sample(rpz_wrapped, xyyaw_grid,
                           padding_mode='border', align_corners=False)
     rpz = rpz[0, :, 0, 0, :].transpose(1, 0)
@@ -571,6 +571,24 @@ def reduce_rewards(rewards, eps=1e-6):
     lo = torch.log(1. - rewards)
     lo = lo.view(n_poses * n_cams, n_pts)
     lo = lo.sum(dim=0)
+    rewards = 1. - torch.exp(lo)
+    assert rewards.shape == (n_pts,)
+    return rewards
+
+
+def update_rewards(rewards1, rewards2, eps=1e-6):
+    assert isinstance(rewards1, torch.Tensor)
+    assert rewards1.dim() == 2
+    assert rewards1.shape[1] == 1  # (N1, 1)
+    assert isinstance(rewards2, torch.Tensor)
+    assert rewards2.dim() == 2
+    assert rewards1.shape == rewards2.shape
+    n_pts = rewards1.shape[0]
+    rewards = torch.cat([rewards1, rewards2], dim=1)
+    rewards = torch.clamp(rewards, eps, 1 - eps)
+    lo = torch.log(1. - rewards)
+    lo = lo.view(n_pts, 2)
+    lo = lo.sum(dim=1)
     rewards = 1. - torch.exp(lo)
     assert rewards.shape == (n_pts,)
     return rewards
@@ -1219,7 +1237,7 @@ class RPZPlanner(object):
         rospy.logdebug('Map with %i processed and stored (%.3f s).',
                        map.shape[-1], timer() - t)
 
-    def construct_global_map(self, map, dists_th=0.2):
+    def construct_global_map(self, map, dists_th=0.05, buffer_size=int(30_000)):
         assert map.dim() == 2
         assert map.shape[0] == 4  # (4, N1)
         # construct global map to store rewards history
@@ -1227,6 +1245,9 @@ class RPZPlanner(object):
         map = map.to(self.device)
         if self.global_map is None:
             self.global_map = map
+            self.global_map[3, ...] = 0.0
+        assert self.global_map.dim() == 2
+        assert self.global_map.shape[0] == 4
 
         # determine new points from local_map based on proximity threshold
         map_nn = knn_points(p1=map[:3, ...].transpose(1, 0).unsqueeze(0),
@@ -1236,18 +1257,19 @@ class RPZPlanner(object):
         assert len(dists) == map.shape[1]
         assert len(idxs) == map.shape[1]
         new_map = map[:, ~common_pts_mask]
-
-        rospy.loginfo(f'Points distances, min: {map_nn.dists.sqrt().min()}, mean: {map_nn.dists.sqrt().mean()}')
-        rospy.loginfo(f'Adding {new_map.shape[1]} new points')
         assert new_map.dim() == 2
-        assert new_map.shape[0] == 4  # (4, n)
+        assert new_map.shape[0] >= 3  # (>=3, n)
 
         # and accumulate new points to global map
         self.global_map = torch.cat([self.global_map, new_map], dim=1)
         assert self.global_map.dim() == 2
-        assert self.global_map.shape[0] == 4  # (4, N)
+        assert self.global_map.shape[0] >= 3  # (>=3, N)
+        self.global_map = self.global_map[:, -buffer_size:]
+        global_map_common_idx = idxs[common_pts_mask]
+        local_map_common_idx = common_pts_mask
         rospy.loginfo('Global cloud update took %.3f s', timer() - t1)
-        return idxs, common_pts_mask
+        # return self.global_map, local_map_common_idx, fun.one_hot(global_map_common_idx, num_classes=self.global_map.shape[1]).sum(axis=0)
+        return self.global_map, local_map_common_idx, global_map_common_idx
 
     @timing
     def get_available_cameras(self):
@@ -1291,8 +1313,6 @@ class RPZPlanner(object):
         assert intrins['hw'].shape[-1] == 2
 
         return cam_to_robot, frustums, intrins
-
-    # def reward(self, xyzrpy, cam_to_robot, frustums):
 
     def path_cost(self, xyzrpy):
         assert isinstance(xyzrpy, torch.Tensor)
@@ -1363,18 +1383,6 @@ class RPZPlanner(object):
         elif self.map_frame and msg.header.frame_id != self.map_frame:
             rospy.logwarn_once('Map frame %s will be used instead of path frame %s.',
                                self.map_frame, msg.header.frame_id)
-            # This transform works slowly.
-            # Consider providing input path and clouds in one coord frame
-            # Transform the path to global frame
-            # try:
-            #     for pose_stamped in msg:
-            #         pose_stamped = self.tf.transform(pose_stamped, self.map_frame, rospy.Duration(1))
-            #         pose_stamped.header.frame_id = self.map_frame
-            #     msg.header.frame_id = self.map_frame
-            #     print(msg.header.frame_id, self.map_frame, self.rpz_msg.header.frame_id)
-            # except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
-            #     rospy.logwarn("Transform from %s to %s is not yet available", self.map_frame, msg.header.frame_id)
-            #     return
 
         # Get frustums and intrinsics of available cameras.
         cam_to_robot, frustums, intrins = self.get_available_cameras()
@@ -1408,7 +1416,6 @@ class RPZPlanner(object):
             assert isinstance(self.map_msg, PointCloud2)
             assert self.map_msg.header.frame_id == msg.header.frame_id
             map = self.map
-            # common_idxs, common_pts_mask = self.construct_global_map(map)
         assert map.shape[0] == 4
         n_pts = map.shape[-1]  # (4 x N1)
 
@@ -1427,6 +1434,8 @@ class RPZPlanner(object):
         map = map.to(self.device)
         xyzrpy = xyzrpy.to(self.device)
         rospy.logdebug('Moving to %s: %.3f s', self.device, timer() - t)
+
+        self.global_map, local_map_common_idx, global_map_common_idx = self.construct_global_map(map)
 
         # Keep map coordinates, convert to grid just for RPZ interpolation.
         # Assume map-to-grid transform being 2D similarity with optional z offset.
@@ -1559,11 +1568,16 @@ class RPZPlanner(object):
             # rewards = log_odds_conversion(rewards)
             rewards = reduce_rewards(rewards)
             assert rewards.shape == (n_pts,)
-            if self.global_rewards is None:
-                self.global_rewards = rewards
-            # self.global_rewards = torch.max(self.global_rewards[common_idxs[common_pts_mask]], rewards[common_pts_mask])
 
-            reward = rewards.sum()
+            if self.global_map.shape[1] == len(rewards):
+                self.global_map[3, :] = rewards
+
+            new_rewards = rewards * (~local_map_common_idx)
+            updated_rewards = update_rewards(self.global_map[3, global_map_common_idx].unsqueeze(1),
+                                             rewards[local_map_common_idx].unsqueeze(1)) - self.global_map[3, global_map_common_idx]
+            reward = new_rewards.sum() + updated_rewards.sum()
+
+            # reward = rewards.sum()
             assert isinstance(reward, torch.Tensor)
             assert reward.shape == ()
             rospy.logdebug('Total reward: %.1f', reward.detach().item())
@@ -1571,7 +1585,7 @@ class RPZPlanner(object):
             # Penalize path length change, high roll and pitch and yaw changes.
             time_cost = self.path_cost(xyzrpy)
 
-            criterion = time_cost / reward
+            criterion = time_cost / (reward + 1.0)
 
             if iter == 0:
                 reward0 = reward
@@ -1601,14 +1615,14 @@ class RPZPlanner(object):
                 rospy.logdebug('Cameras visualized for %i poses (%.3f s).', 3, timer() - t)
 
                 # publish resultant reward and cost ratios
-                self.rewards_ratios += reward.detach().item() / reward0.detach().item()
+                self.rewards_ratios += (reward.detach().item() + 1e-6) / (reward0.detach().item() + 1e-6)
                 self.rewards_ratio_pub.publish(self.rewards_ratios / self.counter)
-                self.costs_ratios += time_cost.detach().item() / time_cost0.detach().item()
+                self.costs_ratios += (time_cost.detach().item() + 1e-6) / (time_cost0.detach().item() + 1e-6)
                 self.costs_ratio_pub.publish(self.costs_ratios / self.counter)
                 self.counter += 1
 
             # optimization step
-            criterion.backward()
+            criterion.backward(retain_graph=True)
             optimizer.step()
 
             rospy.loginfo('Iter. %i: time cost %.1f / %.1f s, '
@@ -1620,9 +1634,14 @@ class RPZPlanner(object):
 
         rospy.loginfo('Trajectory optimization took %.1f s', timer() - t0)
 
-        # Publish reward cloud for visualization.
+        # update global map rewards
+        if not torch.isnan(xyzrpy).any():
+            self.global_map[3, global_map_common_idx] = update_rewards(
+                self.global_map[3, global_map_common_idx].unsqueeze(1),
+                rewards[local_map_common_idx].unsqueeze(1))
+
+        # # Publish reward cloud for visualization.
         # pts_to_pub = self.global_map.detach().cpu()
-        # pts_to_pub = new_map.detach().cpu()
         # if pts_to_pub.shape[1] > 0:
         #     global_map = np.zeros(pts_to_pub.shape[1], dtype=[('x', np.float32),
         #                                                       ('y', np.float32),

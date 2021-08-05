@@ -4,7 +4,7 @@
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1"/>
     <arg name="debug_trajopt" default="false"/>
-    <arg name="trajopt_iters" default="25"/>
+    <arg name="trajopt_iters" default="10"/>
     <arg name="gpu_id" default="0"/>
 
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">

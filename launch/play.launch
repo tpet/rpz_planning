@@ -7,7 +7,7 @@
     <arg name="rviz" default="true"/>
     <arg name="start" default="0.0"/>
     <arg name="rate" default="1.0"/>
-    <arg name="trajopt_iters" default="25"/>
+    <arg name="trajopt_iters" default="10"/>
     <arg name="debug_trajopt" default="true"/>
     <arg name="rewards_accum" default="false"/>
 
