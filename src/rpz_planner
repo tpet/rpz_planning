@@ -936,10 +936,12 @@ class RPZPlanner(object):
         self.reward_cloud_pub = rospy.Publisher('reward_cloud', PointCloud2, queue_size=2)
         self.global_reward_cloud_pub = rospy.Publisher('global_reward_cloud', PointCloud2, queue_size=2)
         # self.clearance_pub = rospy.Publisher('clearance', MarkerArray, queue_size=2)
-        self.rewards_ratio_pub = rospy.Publisher('rewards_ratio', Float64, queue_size=1)  # reward / reward0
+        self.rewards_ratio_pub = rospy.Publisher('rewards_ratio', Float64, queue_size=1)  # gained_reward / gained_reward0
         self.costs_ratio_pub = rospy.Publisher('costs_ratio', Float64, queue_size=1)  # cost / cost0
+        self.criterions_ratio_pub = rospy.Publisher('criterions_ratio', Float64, queue_size=1)  # criterion / criterion0
         self.rewards_ratios = 0.0
         self.costs_ratios = 0.0
+        self.criterions_ratios = 0.0
         self.counter = 1
 
         # Allow multiple cameras.
@@ -1218,7 +1220,7 @@ class RPZPlanner(object):
         rospy.logdebug('Map with %i processed and stored (%.3f s).',
                        map.shape[-1], timer() - t)
 
-    def construct_global_map(self, map, dists_th=0.05, buffer_size=int(30_000)):
+    def construct_global_map(self, map, dists_th=0.22, buffer_size=30_000):
         assert map.dim() == 2
         assert map.shape[0] == 4  # (4, N1)
         # construct global map to store rewards history
@@ -1399,9 +1401,6 @@ class RPZPlanner(object):
             assert local_map.shape[0] == 4
             n_pts = local_map.shape[-1]  # (4 x N1)
 
-            # construct global map and keep local map indexes for rewards update
-            self.global_map, local_map_idx = self.construct_global_map(local_map)
-
         xyzrpy = path_msg_to_xyzrpy(msg)
         assert xyzrpy.shape == (n_poses, 6)
         # rospy.logdebug('Original path cost: %.1f [~s].', self.path_cost(xyzrpy))
@@ -1417,6 +1416,9 @@ class RPZPlanner(object):
         local_map = local_map.to(self.device)
         xyzrpy = xyzrpy.to(self.device)
         rospy.logdebug('Moving to %s: %.3f s', self.device, timer() - t)
+
+        # construct global map and keep local map indexes for rewards update
+        self.global_map, local_map_idx = self.construct_global_map(local_map)
 
         # Keep map coordinates, convert to grid just for RPZ interpolation.
         # Assume map-to-grid transform being 2D similarity with optional z offset.
@@ -1445,14 +1447,15 @@ class RPZPlanner(object):
         # Prepare reward cloud for visualization.
         reward_cloud = np.zeros((n_pts,), dtype=[('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
                                                  ('visibility', 'f4'), ('fov', 'f4'), ('distance', 'f4'),
-                                                 ('reward', 'f4')])
+                                                 ('reward', 'f4'), ('new_reward', 'f4')])
         for i, f in enumerate(['x', 'y', 'z']):
             reward_cloud[f] = local_map[i].detach().cpu().numpy()
 
         vis_mask = None
-
-        reward0 = -1.0
-        time_cost0 = -1.0
+        rewards = None
+        reward0 = None
+        time_cost0 = None
+        criterion0 = None
         t0 = timer()
 
         for iter in range(self.num_iters):
@@ -1560,7 +1563,7 @@ class RPZPlanner(object):
             rewards = reduce_rewards(rewards)
             assert rewards.shape == (n_pts,)
 
-            reward = rewards.sum()
+            reward = rewards.sum() - rewards_prev.sum()
             assert isinstance(reward, torch.Tensor)
             assert reward.shape == ()
             rospy.logdebug('Total reward: %.1f', reward.detach().item())
@@ -1568,11 +1571,13 @@ class RPZPlanner(object):
             # Penalize path length change, high roll and pitch and yaw changes.
             time_cost = self.path_cost(xyzrpy)
 
-            criterion = time_cost / (reward + 1.0)
+            criterion = time_cost / (reward + 1e-3)
+            # criterion = - rewards / time_cost
 
             if iter == 0:
                 reward0 = reward
                 time_cost0 = time_cost
+                criterion0 = criterion
 
             # publish intermediate result during optimization process only in debug mode
             if iter == (self.num_iters - 1) or self.debug:
@@ -1585,6 +1590,7 @@ class RPZPlanner(object):
                 self.path_pub.publish(msg_out)
                 # Publish reward cloud for visualization.
                 reward_cloud['reward'] = rewards.detach().cpu().numpy()
+                reward_cloud['new_reward'] = (rewards-rewards_prev).detach().cpu().numpy()
                 reward_cloud_msg = msgify(PointCloud2, reward_cloud)
                 assert isinstance(reward_cloud_msg, PointCloud2)
                 reward_cloud_msg.header = msg.header
@@ -1602,6 +1608,8 @@ class RPZPlanner(object):
                 self.rewards_ratio_pub.publish(self.rewards_ratios / self.counter)
                 self.costs_ratios += (time_cost.detach().item() + 1e-6) / (time_cost0.detach().item() + 1e-6)
                 self.costs_ratio_pub.publish(self.costs_ratios / self.counter)
+                self.criterions_ratios += (criterion.detach().item() + 1e-6) / (criterion0.detach().item() + 1e-6)
+                self.criterions_ratio_pub.publish(self.criterions_ratios / self.counter)
                 self.counter += 1
 
             # optimization step
@@ -1618,11 +1626,12 @@ class RPZPlanner(object):
         rospy.loginfo('Trajectory optimization took %.1f s', timer() - t0)
 
         # update global map rewards
-        if not torch.isnan(xyzrpy).any():
-            self.global_map[3, local_map_idx] = rewards.detach().cpu()
+        if rewards is not None:
+            self.global_map[3, local_map_idx] = rewards
 
         # Publish reward cloud for visualization.
-        pts_to_pub = self.global_map.detach()
+        t0 = timer()
+        pts_to_pub = self.global_map.detach().cpu()
         if pts_to_pub.shape[1] > 0:
             global_map = np.zeros(pts_to_pub.shape[1], dtype=[('x', np.float32),
                                                               ('y', np.float32),
@@ -1636,6 +1645,7 @@ class RPZPlanner(object):
             assert isinstance(global_cloud_msg, PointCloud2)
             global_cloud_msg.header = msg.header
             self.global_reward_cloud_pub.publish(global_cloud_msg)
+        rospy.loginfo('Global map publishing took %.3f s', timer() - t0)
 
 
 if __name__ == '__main__':
