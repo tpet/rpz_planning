@@ -7,7 +7,7 @@
     <arg name="trajopt_iters" default="10"/>
     <arg name="gpu_id" default="0"/>
 
-    <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
+    <node ns="$(arg robot)" name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
         <rosparam subst_value="true">
             map_frame: subt
             robot_frame: $(arg robot)/base_footprint
