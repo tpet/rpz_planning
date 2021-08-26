@@ -80,7 +80,7 @@ class Eval:
         self.map_frame = None
         self.map = None
         self.detections = {'poses': [], 'classes': []}
-        self.detections_dist_th = rospy.get_param('~detections_dist_th', 2.0)
+        self.detections_dist_th = rospy.get_param('~detections_dist_th', 5.0)
 
         # gt travelled distance by robot
         self.travelled_dist = None
@@ -103,6 +103,7 @@ class Eval:
         self.metrics_msg.exp_completeness = 0
         self.metrics_msg.artifacts_exp_completeness = 0
         self.metrics_msg.dets_score = 0
+        self.metrics_msg.mAP = 0
         self.metrics_msg.map_face_loss = -1
         self.metrics_msg.map_edge_loss = -1
         self.metrics_msg.map_chamfer_loss = -1
@@ -123,10 +124,11 @@ class Eval:
             self.ws_writer.write(0, 7, 'Map Chamfer loss')
             self.ws_writer.write(0, 8, 'Artifacts Exploration completeness')
             self.ws_writer.write(0, 9, 'Detections score')
-            self.ws_writer.write(0, 10, 'Total Expected reward')
-            self.ws_writer.write(0, 11, 'Total artifacts reward')
-            self.ws_writer.write(0, 12, 'Travelled distance')
-            self.ws_writer.write(0, 13, 'Total Actual reward')
+            self.ws_writer.write(0, 10, 'mAP')
+            self.ws_writer.write(0, 11, 'Total Expected reward')
+            self.ws_writer.write(0, 12, 'Total artifacts reward')
+            self.ws_writer.write(0, 13, 'Travelled distance')
+            self.ws_writer.write(0, 14, 'Total Actual reward')
             self.row_number = 1
 
         # subscribing to actual reward topic
@@ -357,32 +359,51 @@ class Eval:
         assert isinstance(msg, Float64)
         self.travelled_dist = float(msg.data)
 
-    def evaluate_detections(self, preds, gts, dist_th=5.0):
-        # TODO: the final score should also include false positives and true negatives
-        # compute precision and recall:
-        # https://jonathan-hui.medium.com/map-mean-average-precision-for-object-detection-45c121a31173
+    def evaluate_detections(self, preds, gts, darpa_dist_th=5.0):
         assert isinstance(preds, dict)
         assert isinstance(gts, dict)
         poses = torch.as_tensor(preds['poses']).to(self.device)
         poses_gt = torch.as_tensor(gts['poses']).to(self.device)
         assert poses.shape[1] == poses_gt.shape[1]
-        knn = knn_points(poses_gt[None], poses[None], K=1)
+        rospy.logdebug(f"Gt classes: {gts['names']}")
+        rospy.logdebug(f"Pred classes: {preds['classes']}")
+
+        knn = knn_points(poses[None], poses_gt[None], K=1)
         # currently the score just takes into account proximity of the predictions to ground truth
         # by a distance threshold and, if the predicted class matches ground truth the score is increased.
         score = 0.0
-        rospy.logdebug(f"Gt classes: {gts['names']}")
-        rospy.logdebug(f"Pred classes: {preds['classes']}")
         dists = knn.dists.squeeze(0)
         rospy.logdebug(f"KNN dists: {dists.detach().cpu().numpy()}")
-        # TODO: limit the number of evaluated hypothesis
-        assert len(dists) == len(gts['names'])
-        for i, d in enumerate(dists):
-            if d <= dist_th:
-                if preds['classes'][knn.idx.squeeze(0)[i]] in gts['names'][i]:  # for example backpack in backpack_2
-                    score += 1
-        # score /= len(gts['names'])
+        assert len(dists) == len(preds['classes'])
+        precisions, recalls = [], []
+        dist_th_list = np.arange(start=0.5, stop=darpa_dist_th+0.5, step=0.5).tolist()
+        assert darpa_dist_th in dist_th_list
+        for dist_th in dist_th_list:
+            TP, FP, FN = 0.0, 0.0, 0.0  # true positive, false positive, false negative
+            for i, d in enumerate(dists):
+                if d <= dist_th:
+                    if preds['classes'][i] in gts['names'][knn.idx.squeeze(0)[i]]:  # for example backpack in backpack_2
+                        if dist_th == darpa_dist_th:
+                            score += 1
+                        TP += 1
+                    else:
+                        FP += 1
+                else:
+                    FN += 1
+            # compute precision and recall:
+            # https://jonathan-hui.medium.com/map-mean-average-precision-for-object-detection-45c121a31173
+            precisions.append(TP / (TP + FP))
+            recalls.append(TP / (TP + FN))
+        precisions.append(1.0)
+        recalls.append(0.0)
+
+        precisions = np.array(precisions)
+        recalls = np.array(recalls)
+        mAP = np.sum((recalls[:-1] - recalls[1:]) * precisions[:-1])
+
         rospy.logdebug(f"Detections score: {score}")
-        return score
+        rospy.logdebug(f"Mean average precision: {mAP}")
+        return score, mAP
 
     @staticmethod
     def estimate_coverage(cloud, cloud_gt, coverage_dist_th=0.2):
@@ -529,8 +550,9 @@ class Eval:
 
             # number of correctly detected artifacts from confirmed hypothesis
             if len(self.detections['poses']) > 0:
-                self.metrics_msg.dets_score = self.evaluate_detections(self.detections, self.artifacts,
-                                                                       dist_th=detections_dist_th)
+                self.metrics_msg.dets_score,\
+                self.metrics_msg.mAP = self.evaluate_detections(self.detections, self.artifacts,
+                                                                     darpa_dist_th=detections_dist_th)
             t4 = timer()
             rospy.logdebug('Artifacts evaluation took: %.3f s\n', t4 - t3)
 
@@ -565,12 +587,13 @@ class Eval:
             # self.ws_writer.write(self.row_number, 7, f'{self.metrics_msg.map_chamfer_loss}')
             self.ws_writer.write(self.row_number, 8, f'{self.metrics_msg.artifacts_exp_completeness}')
             self.ws_writer.write(self.row_number, 9, f'{self.metrics_msg.dets_score}')
-            self.ws_writer.write(self.row_number, 10, f'{self.metrics_msg.total_reward}')
-            self.ws_writer.write(self.row_number, 11, f'{self.metrics_msg.artifacts_total_reward}')
+            self.ws_writer.write(self.row_number, 10, f'{self.metrics_msg.mAP}')
+            self.ws_writer.write(self.row_number, 11, f'{self.metrics_msg.total_reward}')
+            self.ws_writer.write(self.row_number, 12, f'{self.metrics_msg.artifacts_total_reward}')
             if travelled_dist is not None:
-                self.ws_writer.write(self.row_number, 12, f'{travelled_dist}')
+                self.ws_writer.write(self.row_number, 13, f'{travelled_dist}')
             if actual_reward is not None:
-                self.ws_writer.write(self.row_number, 13, f'{actual_reward}')
+                self.ws_writer.write(self.row_number, 14, f'{actual_reward}')
             self.row_number += 1
             self.wb.save(self.xls_file)
 
