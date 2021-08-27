@@ -74,12 +74,12 @@
         </node>
 
         <!-- Actual reward calculation -->
-        <include file="$(dirname)/actual_reward.launch" pass_all_args="true">
-            <arg name="map_topic" value="eval/cloud_from_gt_mesh"/>
-            <arg name="path_topic" value="travelled_dist_publisher/route"/>
-            <arg name="publish_cloud" value="true"/>
-            <arg name="rate" value="1.0"/>
-        </include>
+<!--        <include file="$(dirname)/actual_reward.launch" pass_all_args="true">-->
+<!--            <arg name="map_topic" value="eval/cloud_from_gt_mesh"/>-->
+<!--            <arg name="path_topic" value="travelled_dist_publisher/route"/>-->
+<!--            <arg name="publish_cloud" value="true"/>-->
+<!--            <arg name="rate" value="1.0"/>-->
+<!--        </include>-->
     </group>
 
     <!-- RVIZ -->

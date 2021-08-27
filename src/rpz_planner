@@ -825,6 +825,65 @@ def compute_vis_mask(map, cam_to_map, param=1.0, voxel_size=0.6):
     return vis_mask
 
 
+def compute_dist_mask(local_map, cam_to_map, dist_mean=None, dist_std=None):
+    # Bakcpack:
+    #     - human eye: 15 m
+    #     - Distance max: 7.42 m
+    #     - Distance where detects constantly: 6.42 m
+    # Drill:
+    #     - human eye: 10 m
+    #     - Distance max: 2.45 m
+    #     - Distance where detects constantly: 0.5 m
+    # Vent:
+    #     - human eye: 12 m
+    #     - Distance max: 8.5 m
+    #     - Distance where detects constantly: 8.5 m
+    # Rope:
+    #     - human eye: 10 m
+    #     - Distance max: 2.04 m
+    #     - Distance where detects constantly: 1.42 m
+    # Helmet:
+    #     - human eye: 10 m
+    #     - Distance max: 3.06 m
+    #     - Distance where detects constantly: 2.3 m
+    # Fire extinsguisher:
+    #     - human eye: 10 m
+    #     - Distance max: 7.65 m
+    #     - Distance where detects constantly: 7.15 m
+    # Survivor:
+    #     - human eye: 10 m
+    #     - Distance max: 11.2 m
+    #     - Distance where detects constantly: 11.2 m
+    # Cellphone:
+    #     - human eye: 10 m
+    #     - Distance max: 3.4 m
+    #     - Distance where detects constantly: 1.52 m
+    if dist_mean is None or dist_std is None:
+        dist_max = np.max([7.42, 3.4, 11.2])  # Distance max: backpack, phone, survivor
+        dist_mean = np.mean([6.42, 1.52, 11.2])  # Distance where detects constantly: backpack, phone, survivor
+        dist_std = dist_max - dist_mean
+
+    assert isinstance(local_map, torch.Tensor)
+    # (4, n_pts)
+    assert local_map.dim() == 2
+    assert local_map.shape[0] == 4
+    n_pts = local_map.shape[1]
+    assert isinstance(cam_to_map, torch.Tensor)
+    # (n_poses, n_cams, 4, 4)
+    assert cam_to_map.dim() == 4
+    n_poses, n_cams = cam_to_map.shape[:2]
+    assert cam_to_map.shape[1:] == (n_cams, 4, 4)
+
+    t = timer()
+    sensor_dist = torch.norm(cam_to_map[..., 3, None] - local_map, dim=-2)
+    assert sensor_dist.shape == (n_poses, n_cams, n_pts)
+    rospy.logdebug('Distance to sensors: %.3f s', timer() - t)
+    # Distance based mask
+    dist_mask = torch.exp(-(sensor_dist - dist_mean) ** 2 / dist_std ** 2)
+
+    return dist_mask
+
+
 def select_pts_to_optimize(path_pts, rpz_cloud):
     assert isinstance(path_pts, torch.Tensor)
     assert path_pts.ndim == 2
@@ -1506,14 +1565,8 @@ class RPZPlanner(object):
 
             # Compute point to sensor distances.
             # TODO: Optimize, avoid exhaustive distance computation.
-            t = timer()
-            sensor_dist = torch.norm(cam_to_map[..., 3, None] - local_map, dim=-2)
-            assert sensor_dist.shape == (n_poses, n_cams, n_pts)
-            rospy.logdebug('Distance to sensors: %.3f s', timer() - t)
-            # Distance based mask
-            dist_mean = 3.0  # 3.0
-            dist_std = 1.5  # 1.5
-            dist_mask = torch.exp(-(sensor_dist - dist_mean)**2 / dist_std**2)
+            dist_mask = compute_dist_mask(local_map, cam_to_map)
+
             with torch.no_grad():
                 reward_cloud['distance'] = reduce_rewards(dist_mask).detach().cpu().numpy()
 

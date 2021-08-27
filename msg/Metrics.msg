@@ -8,6 +8,5 @@ float64 map_edge_loss
 float64 map_chamfer_loss
 float64 artifacts_exp_completeness
 float64 dets_score
-float64 mAP
 float64 total_reward
 float64 artifacts_total_reward

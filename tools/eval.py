@@ -25,6 +25,7 @@ import numpy as np
 import xlwt
 import rospkg
 from scipy.spatial.transform import Rotation
+from tf.transformations import euler_from_matrix
 # problems with Cryptodome: pip install pycryptodomex
 # https://github.com/DP-3T/reference_implementation/issues/1
 
@@ -81,6 +82,8 @@ class Eval:
         self.map = None
         self.detections = {'poses': [], 'classes': []}
         self.detections_dist_th = rospy.get_param('~detections_dist_th', 5.0)
+        self.robot_frame = 'X1'
+        self.robot_gt_frame = self.robot_frame+'_ground_truth'
 
         # gt travelled distance by robot
         self.travelled_dist = None
@@ -103,7 +106,7 @@ class Eval:
         self.metrics_msg.exp_completeness = 0
         self.metrics_msg.artifacts_exp_completeness = 0
         self.metrics_msg.dets_score = 0
-        self.metrics_msg.mAP = 0
+        self.mAP = 0.0
         self.metrics_msg.map_face_loss = -1
         self.metrics_msg.map_edge_loss = -1
         self.metrics_msg.map_chamfer_loss = -1
@@ -129,6 +132,8 @@ class Eval:
             self.ws_writer.write(0, 12, 'Total artifacts reward')
             self.ws_writer.write(0, 13, 'Travelled distance')
             self.ws_writer.write(0, 14, 'Total Actual reward')
+            self.ws_writer.write(0, 15, 'Localization accuracy: pos')
+            self.ws_writer.write(0, 16, 'Localization accuracy: ang')
             self.row_number = 1
 
         # subscribing to actual reward topic
@@ -359,6 +364,20 @@ class Eval:
         assert isinstance(msg, Float64)
         self.travelled_dist = float(msg.data)
 
+    def evaluate_localization_accuracy(self):
+        try:
+            transform = self.tf.lookup_transform(self.robot_frame, self.robot_gt_frame,
+                                                 rospy.Time.now(), rospy.Duration(3))
+        except tf2_ros.LookupException:
+            rospy.logwarn('No transform between robot frame and its ground truth')
+            return None
+        T = numpify(transform.transform)
+        dt = T[:3, 3]
+        droll, dpitch, dyaw = euler_from_matrix(T)
+        pose_diff = np.linalg.norm(dt)
+        ang_diff = np.abs(droll) + np.abs(dpitch) + np.abs(dyaw)
+        return pose_diff, ang_diff
+
     def evaluate_detections(self, preds, gts, darpa_dist_th=5.0):
         assert isinstance(preds, dict)
         assert isinstance(gts, dict)
@@ -379,7 +398,7 @@ class Eval:
         dist_th_list = np.arange(start=0.5, stop=darpa_dist_th+0.5, step=0.5).tolist()
         assert darpa_dist_th in dist_th_list
         for dist_th in dist_th_list:
-            TP, FP, FN = 0.0, 0.0, 0.0  # true positive, false positive, false negative
+            TP, FP1, FP2, FN = 0.0, 0.0, 0.0, 0.0  # true positive, false positive, false negative
             for i, d in enumerate(dists):
                 if d <= dist_th:
                     if preds['classes'][i] in gts['names'][knn.idx.squeeze(0)[i]]:  # for example backpack in backpack_2
@@ -387,9 +406,11 @@ class Eval:
                             score += 1
                         TP += 1
                     else:
-                        FP += 1
+                        FP1 += 1
                 else:
-                    FN += 1
+                    FP2 += 1
+            FP = FP1 + FP2
+            FN = len(gts['names']) - FP1 - TP
             # compute precision and recall:
             # https://jonathan-hui.medium.com/map-mean-average-precision-for-object-detection-45c121a31173
             precisions.append(TP / (TP + FP))
@@ -550,9 +571,8 @@ class Eval:
 
             # number of correctly detected artifacts from confirmed hypothesis
             if len(self.detections['poses']) > 0:
-                self.metrics_msg.dets_score,\
-                self.metrics_msg.mAP = self.evaluate_detections(self.detections, self.artifacts,
-                                                                     darpa_dist_th=detections_dist_th)
+                self.metrics_msg.dets_score, self.mAP = self.evaluate_detections(self.detections, self.artifacts,
+                                                                            darpa_dist_th=detections_dist_th)
             t4 = timer()
             rospy.logdebug('Artifacts evaluation took: %.3f s\n', t4 - t3)
 
@@ -575,6 +595,10 @@ class Eval:
             rospy.logdebug('Mapping accuracy evaluation took: %.3f s\n', t5 - t4)
             rospy.loginfo('Evaluation took: %.3f s\n', t5 - t1)
 
+            localization_accuracy = {'pos': None, 'ang': None}
+            localization_accuracy['pos'], localization_accuracy['ang'] = self.evaluate_localization_accuracy()
+            rospy.loginfo('Localization pos accuracy: %.3f', localization_accuracy['pos'])
+
         # record data
         if self.record_metrics:
             self.ws_writer.write(self.row_number, 0, time_stamp.to_sec())
@@ -587,13 +611,16 @@ class Eval:
             # self.ws_writer.write(self.row_number, 7, f'{self.metrics_msg.map_chamfer_loss}')
             self.ws_writer.write(self.row_number, 8, f'{self.metrics_msg.artifacts_exp_completeness}')
             self.ws_writer.write(self.row_number, 9, f'{self.metrics_msg.dets_score}')
-            self.ws_writer.write(self.row_number, 10, f'{self.metrics_msg.mAP}')
+            self.ws_writer.write(self.row_number, 10, f'{self.mAP}')
             self.ws_writer.write(self.row_number, 11, f'{self.metrics_msg.total_reward}')
             self.ws_writer.write(self.row_number, 12, f'{self.metrics_msg.artifacts_total_reward}')
             if travelled_dist is not None:
                 self.ws_writer.write(self.row_number, 13, f'{travelled_dist}')
             if actual_reward is not None:
                 self.ws_writer.write(self.row_number, 14, f'{actual_reward}')
+            if localization_accuracy['pos'] is not None:
+                self.ws_writer.write(self.row_number, 15, f'{localization_accuracy["pos"]}')
+                self.ws_writer.write(self.row_number, 16, f'{localization_accuracy["ang"]}')
             self.row_number += 1
             self.wb.save(self.xls_file)
 
