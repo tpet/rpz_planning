@@ -134,6 +134,8 @@ class Eval:
             self.ws_writer.write(0, 14, 'Total Actual reward')
             self.ws_writer.write(0, 15, 'Localization error: pos')
             self.ws_writer.write(0, 16, 'Localization error: ang')
+            self.ws_writer.write(0, 17, 'Detected artifacts')
+            self.ws_writer.write(0, 18, 'Attifacts Localization error')
             self.row_number = 1
 
         # subscribing to actual reward topic
@@ -391,8 +393,10 @@ class Eval:
         # currently the score just takes into account proximity of the predictions to ground truth
         # by a distance threshold and, if the predicted class matches ground truth the score is increased.
         score = 0.0
-        dists = knn.dists.squeeze(0)
+        dists = knn.dists.squeeze(0).sqrt()
         rospy.logdebug(f"KNN dists: {dists.detach().cpu().numpy()}")
+        artifacts_localization_accuracy = dists.mean()
+        rospy.loginfo('Artifacts localization error: %.3f', artifacts_localization_accuracy)
         assert len(dists) == len(preds['classes'])
         precisions, recalls = [], []
         dist_th_list = np.arange(start=0.5, stop=darpa_dist_th+0.5, step=0.5).tolist()
@@ -424,7 +428,7 @@ class Eval:
 
         rospy.logdebug(f"Detections score: {score}")
         rospy.logdebug(f"Mean average precision: {mAP}")
-        return score, mAP
+        return score, mAP, artifacts_localization_accuracy
 
     @staticmethod
     def estimate_coverage(cloud, cloud_gt, coverage_dist_th=0.2):
@@ -570,9 +574,12 @@ class Eval:
             self.metrics_msg.artifacts_exp_completeness /= len(artifacts['clouds'])
 
             # number of correctly detected artifacts from confirmed hypothesis
+            artifacts_localization_error = None
             if len(self.detections['poses']) > 0:
-                self.metrics_msg.dets_score, self.mAP = self.evaluate_detections(self.detections, self.artifacts,
-                                                                            darpa_dist_th=detections_dist_th)
+                self.metrics_msg.dets_score,\
+                self.mAP,\
+                artifacts_localization_error = self.evaluate_detections(self.detections, self.artifacts,
+                                                                        darpa_dist_th=detections_dist_th)
             t4 = timer()
             rospy.logdebug('Artifacts evaluation took: %.3f s\n', t4 - t3)
 
@@ -595,10 +602,10 @@ class Eval:
             rospy.logdebug('Mapping accuracy evaluation took: %.3f s\n', t5 - t4)
             rospy.loginfo('Evaluation took: %.3f s\n', t5 - t1)
 
-            localization_accuracy = {'pos': None, 'ang': None}
-            localization_accuracy['pos'], localization_accuracy['ang'] = self.evaluate_localization_accuracy()
-            if localization_accuracy['pos'] is not None:
-                rospy.loginfo('Localization pos accuracy: %.3f', localization_accuracy['pos'])
+            localization_error = {'pos': None, 'ang': None}
+            localization_error['pos'], localization_error['ang'] = self.evaluate_localization_accuracy()
+            if localization_error['pos'] is not None:
+                rospy.loginfo('Localization pos error: %.3f', localization_error['pos'])
 
         # record data
         if self.record_metrics:
@@ -619,9 +626,12 @@ class Eval:
                 self.ws_writer.write(self.row_number, 13, f'{travelled_dist}')
             if actual_reward is not None:
                 self.ws_writer.write(self.row_number, 14, f'{actual_reward}')
-            if localization_accuracy['pos'] is not None:
-                self.ws_writer.write(self.row_number, 15, f'{localization_accuracy["pos"]}')
-                self.ws_writer.write(self.row_number, 16, f'{localization_accuracy["ang"]}')
+            if localization_error['pos'] is not None:
+                self.ws_writer.write(self.row_number, 15, f'{localization_error["pos"]}')
+                self.ws_writer.write(self.row_number, 16, f'{localization_error["ang"]}')
+            self.ws_writer.write(self.row_number, 17, str(self.detections['classes']))
+            if artifacts_localization_error is not None:
+                self.ws_writer.write(self.row_number, 18, f'{artifacts_localization_error}')
             self.row_number += 1
             self.wb.save(self.xls_file)
 
