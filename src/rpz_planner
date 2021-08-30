@@ -940,6 +940,8 @@ class RPZPlanner(object):
         self.num_iters = rospy.get_param('~num_iters', 10)
         self.map_step = rospy.get_param('~map_step', 4)
         self.path_step = rospy.get_param('~path_step', 2)
+        self.min_n_wps_to_opt = rospy.get_param('~min_n_wps_to_opt', 6)
+        self.min_gained_reward_to_opt = rospy.get_param('~min_gained_reward_to_opt', 150.0)
         self.linear_speed = rospy.get_param('~linear_speed', 1.0)
         self.angular_speed = rospy.get_param('~angular_speed', 1.0)
         self.max_roll = rospy.get_param('naex_planner/max_roll', 0.7)
@@ -1403,16 +1405,6 @@ class RPZPlanner(object):
             rospy.logwarn_once('Map frame %s will be used instead of path frame %s.',
                                self.map_frame, msg.header.frame_id)
 
-        # Get frustums and intrinsics of available cameras.
-        cam_to_robot, frustums, intrins = self.get_available_cameras()
-        if cam_to_robot is None:
-            rospy.logwarn('Skipping path. No cameras available.')
-            return
-        # n_cams, 4, n_planes
-        n_cams, _, n_planes = frustums.shape
-        assert cam_to_robot.shape == (n_cams, 4, 4)
-        rospy.logdebug('Optimizing %i / %i cameras.', n_cams, self.num_cameras)
-
         # Get RPZ subspace and map for optimization.
         with self.rpz_lock:
             if self.rpz_msg is None:
@@ -1440,6 +1432,16 @@ class RPZPlanner(object):
 
             # construct global map and keep local map indexes for rewards update
             self.global_map, local_map_idx = self.construct_global_map(local_map)
+
+        # Get frustums and intrinsics of available cameras.
+        cam_to_robot, frustums, intrins = self.get_available_cameras()
+        if cam_to_robot is None:
+            rospy.logwarn('Skipping path. No cameras available.')
+            return
+        # n_cams, 4, n_planes
+        n_cams, _, n_planes = frustums.shape
+        assert cam_to_robot.shape == (n_cams, 4, 4)
+        rospy.logdebug('Optimizing %i / %i cameras.', n_cams, self.num_cameras)
 
         xyzrpy = path_msg_to_xyzrpy(msg)
         assert xyzrpy.shape == (n_poses, 6)
@@ -1524,7 +1526,7 @@ class RPZPlanner(object):
                 xyzrpy = torch.cat((xyyaw[:, 1:], rpz[:, 2:], rpz[:, :2], xyyaw[:, :1]), dim=-1)
 
             if torch.isnan(xyzrpy).any():
-                rospy.logwarn("Path contains NANs. Optimization will not be performed this time")
+                rospy.logwarn("Optimization will not be performed this time: Path contains NANs")
                 msg_out = msg
                 msg_out.header.stamp = rospy.Time.now()
                 self.path_pub.publish(msg_out)
@@ -1582,18 +1584,30 @@ class RPZPlanner(object):
 
             # include rewards history from global map
             assert len(local_map_idx) == n_pts
-            rewards_prev = self.global_map[3, local_map_idx].to(self.device).view(-1, n_pts)
-            rewards = torch.cat([rewards_prev, rewards], dim=0)
+            rewards_prev = self.global_map[3, local_map_idx].to(self.device)
+            rewards = torch.cat([rewards_prev.view(-1, n_pts), rewards], dim=0)
 
             # share and sum rewards over multiple sensors and view points
             # rewards = log_odds_conversion(rewards)
             rewards = reduce_rewards(rewards)
             assert rewards.shape == (n_pts,)
 
+            if n_poses < self.min_n_wps_to_opt:
+                rospy.logwarn("Optimization will not be performed this time: Path is too short.")
+                msg_out.header.stamp = rospy.Time.now()
+                self.path_pub.publish(msg_out)
+                break
+
             reward = rewards.sum() - rewards_prev.sum()
             assert isinstance(reward, torch.Tensor)
             assert reward.shape == ()
-            rospy.logdebug('Total reward: %.1f', reward.detach().item())
+
+            if reward < self.min_gained_reward_to_opt:
+                rospy.logwarn("Optimization will not be performed this time: Path viewpoints do not cover new area. "
+                              "Gained reward: %.1f", reward.detach().item())
+                msg_out.header.stamp = rospy.Time.now()
+                self.path_pub.publish(msg_out)
+                break
 
             # Penalize path length change, high roll and pitch and yaw changes.
             time_cost = self.path_cost(xyzrpy)
@@ -1631,6 +1645,7 @@ class RPZPlanner(object):
                 rospy.logdebug('Cameras visualized for %i poses (%.3f s).', 3, timer() - t)
 
                 # publish resultant reward and cost ratios
+                # rospy.loginfo('N wps: %i, rewards ratio: %.3f', n_poses, (reward.detach().item() + 1e-6) / (reward0.detach().item() + 1e-6))
                 self.rewards_ratios += (reward.detach().item() + 1e-6) / (reward0.detach().item() + 1e-6)
                 self.rewards_ratio_pub.publish(self.rewards_ratios / self.counter)
                 self.costs_ratios += (time_cost.detach().item() + 1e-6) / (time_cost0.detach().item() + 1e-6)
@@ -1656,7 +1671,8 @@ class RPZPlanner(object):
         if rewards is not None:
             self.global_map[3, local_map_idx] = rewards.detach().cpu()
 
-        # Publish reward cloud for visualization.
+        # if self.debug:
+        # Publish reward cloud for visualization: takes around ~2 ms
         t0 = timer()
         pts_to_pub = self.global_map.detach().cpu()
         if pts_to_pub.shape[1] > 0:

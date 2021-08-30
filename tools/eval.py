@@ -132,8 +132,8 @@ class Eval:
             self.ws_writer.write(0, 12, 'Total artifacts reward')
             self.ws_writer.write(0, 13, 'Travelled distance')
             self.ws_writer.write(0, 14, 'Total Actual reward')
-            self.ws_writer.write(0, 15, 'Localization accuracy: pos')
-            self.ws_writer.write(0, 16, 'Localization accuracy: ang')
+            self.ws_writer.write(0, 15, 'Localization error: pos')
+            self.ws_writer.write(0, 16, 'Localization error: ang')
             self.row_number = 1
 
         # subscribing to actual reward topic
