@@ -132,8 +132,8 @@ class Eval:
             self.ws_writer.write(0, 12, 'Total artifacts reward')
             self.ws_writer.write(0, 13, 'Travelled distance')
             self.ws_writer.write(0, 14, 'Total Actual reward')
-            self.ws_writer.write(0, 15, 'Localization accuracy: pos')
-            self.ws_writer.write(0, 16, 'Localization accuracy: ang')
+            self.ws_writer.write(0, 15, 'Localization error: pos')
+            self.ws_writer.write(0, 16, 'Localization error: ang')
             self.row_number = 1
 
         # subscribing to actual reward topic
@@ -597,7 +597,8 @@ class Eval:
 
             localization_accuracy = {'pos': None, 'ang': None}
             localization_accuracy['pos'], localization_accuracy['ang'] = self.evaluate_localization_accuracy()
-            rospy.loginfo('Localization pos accuracy: %.3f', localization_accuracy['pos'])
+            if localization_accuracy['pos'] is not None:
+                rospy.loginfo('Localization pos accuracy: %.3f', localization_accuracy['pos'])
 
         # record data
         if self.record_metrics:
