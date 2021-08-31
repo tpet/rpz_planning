@@ -42,7 +42,7 @@ class Eval:
     """
 
     def __init__(self, path_to_mesh, device_id=0):
-        self.tf = tf2_ros.Buffer()
+        self.tf = tf2_ros.Buffer(cache_time=rospy.Duration(100))
         self.tl = tf2_ros.TransformListener(self.tf)
         # Set the device
         if torch.cuda.is_available():
@@ -375,10 +375,10 @@ class Eval:
     def evaluate_localization_accuracy(self):
         try:
             transform = self.tf.lookup_transform(self.robot_frame, self.robot_gt_frame,
-                                                 rospy.Time.now(), rospy.Duration(3))
-        except tf2_ros.LookupException:
+                                                 rospy.Time.now(), rospy.Duration(1))
+        except (tf2_ros.LookupException, tf2_ros.ExtrapolationException):
             rospy.logwarn('No transform between robot frame and its ground truth')
-            return None
+            return None, None
         T = numpify(transform.transform)
         dt = T[:3, 3]
         droll, dpitch, dyaw = euler_from_matrix(T)
