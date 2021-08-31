@@ -4,6 +4,7 @@
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1"/>
     <arg name="debug_trajopt" default="false"/>
+    <arg name="use_rewards_history" default="true"/>
     <arg name="trajopt_iters" default="10"/>
     <arg name="gpu_id" default="0"/>
 
@@ -18,7 +19,8 @@
             map_step: 2
             path_step: 2
             min_n_wps_to_opt: 6
-            min_gained_reward_to_opt: 150.0
+            min_gained_reward_to_opt: 250.0
+            use_rewards_history: $(arg use_rewards_history)
             linear_speed: 1.0
             angular_speed: 1.0
             fixed_endpoints: ['start']

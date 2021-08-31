@@ -982,6 +982,7 @@ class RPZPlanner(object):
         self.costs_ratios = 0.0
         self.criterions_ratios = 0.0
         self.counter = 1
+        self.use_rewards_history = rospy.get_param('~use_rewards_history', True)
 
         # Allow multiple cameras.
         self.cam_info_lock = RLock()
@@ -1430,8 +1431,9 @@ class RPZPlanner(object):
             assert local_map.shape[0] == 4
             n_pts = local_map.shape[-1]  # (4 x N1)
 
-            # construct global map and keep local map indexes for rewards update
-            self.global_map, local_map_idx = self.construct_global_map(local_map)
+            if self.use_rewards_history:
+                # construct global map and keep local map indexes for rewards update
+                self.global_map, local_map_idx = self.construct_global_map(local_map)
 
         # Get frustums and intrinsics of available cameras.
         cam_to_robot, frustums, intrins = self.get_available_cameras()
@@ -1577,15 +1579,18 @@ class RPZPlanner(object):
             assert rewards.shape == (n_poses, n_cams, n_pts)
             rewards = rewards.view(n_poses * n_cams, n_pts)
 
-            # initialize global map rewards with first observations
-            if not self.global_map_initialized:
-                self.global_map[3, :] = reduce_rewards(rewards)
-                self.global_map_initialized = True
+            if self.use_rewards_history:
+                # initialize global map rewards with first observations
+                if not self.global_map_initialized:
+                    self.global_map[3, :] = reduce_rewards(rewards)
+                    self.global_map_initialized = True
 
-            # include rewards history from global map
-            assert len(local_map_idx) == n_pts
-            rewards_prev = self.global_map[3, local_map_idx].to(self.device)
-            rewards = torch.cat([rewards_prev.view(-1, n_pts), rewards], dim=0)
+                # include rewards history from global map
+                assert len(local_map_idx) == n_pts
+                rewards_prev = self.global_map[3, local_map_idx].to(self.device)
+                rewards = torch.cat([rewards_prev.view(-1, n_pts), rewards], dim=0)
+            else:
+                rewards_prev = 0.0
 
             # share and sum rewards over multiple sensors and view points
             # rewards = log_odds_conversion(rewards)
@@ -1598,13 +1603,13 @@ class RPZPlanner(object):
                 self.path_pub.publish(msg_out)
                 break
 
-            reward = rewards.sum() - rewards_prev.sum()
+            reward = (rewards - rewards_prev).sum()
             assert isinstance(reward, torch.Tensor)
             assert reward.shape == ()
 
             if reward < self.min_gained_reward_to_opt:
                 rospy.logwarn("Optimization will not be performed this time: Path viewpoints do not cover new area. "
-                              "Gained reward: %.1f", reward.detach().item())
+                              "Gained reward: %.1f < %.1f", reward.detach().item(), self.min_gained_reward_to_opt)
                 msg_out.header.stamp = rospy.Time.now()
                 self.path_pub.publish(msg_out)
                 break
@@ -1655,7 +1660,7 @@ class RPZPlanner(object):
                 self.counter += 1
 
             # optimization step
-            criterion.backward(retain_graph=True)
+            criterion.backward(retain_graph=self.use_rewards_history)
             optimizer.step()
 
             rospy.loginfo('Iter. %i: time cost %.1f / %.1f s, '
@@ -1667,28 +1672,29 @@ class RPZPlanner(object):
 
         rospy.loginfo('Trajectory optimization took %.1f s', timer() - t0)
 
-        # update global map rewards
-        if rewards is not None:
-            self.global_map[3, local_map_idx] = rewards.detach().cpu()
+        if self.use_rewards_history:
+            # update global map rewards
+            if rewards is not None:
+                self.global_map[3, local_map_idx] = rewards.detach().cpu()
 
-        # if self.debug:
-        # Publish reward cloud for visualization: takes around ~2 ms
-        t0 = timer()
-        pts_to_pub = self.global_map.detach().cpu()
-        if pts_to_pub.shape[1] > 0:
-            global_map = np.zeros(pts_to_pub.shape[1], dtype=[('x', np.float32),
-                                                              ('y', np.float32),
-                                                              ('z', np.float32),
-                                                              ('reward', np.float32)])
-            global_map['x'] = pts_to_pub[0, ...]
-            global_map['y'] = pts_to_pub[1, ...]
-            global_map['z'] = pts_to_pub[2, ...]
-            global_map['reward'] = pts_to_pub[3, ...]
-            global_cloud_msg = msgify(PointCloud2, global_map)
-            assert isinstance(global_cloud_msg, PointCloud2)
-            global_cloud_msg.header = msg.header
-            self.global_reward_cloud_pub.publish(global_cloud_msg)
-        rospy.loginfo('Global map publishing took %.3f s', timer() - t0)
+            # if self.debug:
+            # Publish reward cloud for visualization: takes around ~2 ms
+            t0 = timer()
+            pts_to_pub = self.global_map.detach().cpu()
+            if pts_to_pub.shape[1] > 0:
+                global_map = np.zeros(pts_to_pub.shape[1], dtype=[('x', np.float32),
+                                                                  ('y', np.float32),
+                                                                  ('z', np.float32),
+                                                                  ('reward', np.float32)])
+                global_map['x'] = pts_to_pub[0, ...]
+                global_map['y'] = pts_to_pub[1, ...]
+                global_map['z'] = pts_to_pub[2, ...]
+                global_map['reward'] = pts_to_pub[3, ...]
+                global_cloud_msg = msgify(PointCloud2, global_map)
+                assert isinstance(global_cloud_msg, PointCloud2)
+                global_cloud_msg.header = msg.header
+                self.global_reward_cloud_pub.publish(global_cloud_msg)
+            rospy.loginfo('Global map publishing took %.3f s', timer() - t0)
 
 
 if __name__ == '__main__':

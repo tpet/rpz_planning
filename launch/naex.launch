@@ -18,6 +18,7 @@
     <arg name="run_trajopt" default="true" />
     <arg name="run_trav" default="true" />
     <arg name="debug_trajopt" default="false"/>
+    <arg name="use_rewards_history" default="true"/>
     <arg name="trajopt_iters" default="25"/>  <!-- for 25 iters takes around ~1 sec to compute an opt path-->
 
     <!-- Subt frame publisher-->

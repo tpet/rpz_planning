@@ -261,10 +261,10 @@ class Eval:
                         artifact_frames.append(frame)
         rospy.logdebug('Found TF frames: %s', all_frames)
         rospy.loginfo('Found Artifacts TF frames in %.3f [sec]: %s', (timer() - t0), artifact_frames)
-        if len(artifact_frames) == 0:  # if artifacts are not found just hard code them and hope for the best
-            artifact_frames = ['backpack_1', 'backpack_2', 'backpack_3', 'backpack_4',
-                               'phone_1', 'phone_2', 'phone_3', 'phone_4',
-                               'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'rescue_randy_4']
+        # if len(artifact_frames) == 0:  # if artifacts are not found just hard code them and hope for the best
+        #     artifact_frames = ['backpack_1', 'backpack_2', 'backpack_3', 'backpack_4',
+        #                        'phone_1', 'phone_2', 'phone_3', 'phone_4',
+        #                        'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'rescue_randy_4']
         artifacts = {'poses': [], 'names': [], 'clouds': [], 'cloud_merged': None}
         artifacts_cloud_merged = []
         for i, artifact_name in enumerate(artifact_frames):
@@ -710,7 +710,7 @@ class Eval:
 if __name__ == '__main__':
     rospy.init_node('map_eval', log_level=rospy.INFO)
     path_fo_gt_map_mesh = rospy.get_param('~gt_mesh')
-    assert os.path.exists(path_fo_gt_map_mesh)
+    # assert os.path.exists(path_fo_gt_map_mesh)
     rospy.loginfo('Using ground truth mesh file: %s', path_fo_gt_map_mesh)
     proc = Eval(path_to_mesh=path_fo_gt_map_mesh, device_id=rospy.get_param('~gpu_id', 0))
     rospy.loginfo('Mapping evaluation node is initialized.')
