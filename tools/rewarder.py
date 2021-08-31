@@ -953,7 +953,7 @@ class Rewarder(object):
 
         with self.map_lock:
             if self.map_msg is None:
-                rospy.logwarn('Map cloud is not yet received.')
+                rospy.logwarn('Rewarder: Map cloud is not yet received.')
                 return
             assert isinstance(self.map_msg, PointCloud2)
             assert self.map_msg.header.frame_id == self.path_msg.header.frame_id

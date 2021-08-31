@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
 import torch
 from pytorch3d.io import load_obj, load_ply
@@ -26,6 +27,8 @@ import xlwt
 import rospkg
 from scipy.spatial.transform import Rotation
 from tf.transformations import euler_from_matrix
+
+
 # problems with Cryptodome: pip install pycryptodomex
 # https://github.com/DP-3T/reference_implementation/issues/1
 
@@ -37,12 +40,13 @@ class Eval:
     Metrics for comparison are taken from here:
     https://pytorch3d.readthedocs.io/en/latest/modules/loss.html#pytorch3d.loss.point_mesh_edge_distance
     """
+
     def __init__(self, path_to_mesh, device_id=0):
         self.tf = tf2_ros.Buffer()
         self.tl = tf2_ros.TransformListener(self.tf)
         # Set the device
         if torch.cuda.is_available():
-            self.device = torch.device("cuda:"+str(device_id))
+            self.device = torch.device("cuda:" + str(device_id))
             rospy.loginfo("Using GPU device id: %i, name: %s", device_id, torch.cuda.get_device_name(device_id))
         else:
             rospy.loginfo("Using CPU")
@@ -83,7 +87,7 @@ class Eval:
         self.detections = {'poses': [], 'classes': []}
         self.detections_dist_th = rospy.get_param('~detections_dist_th', 5.0)
         self.robot_frame = 'X1'
-        self.robot_gt_frame = self.robot_frame+'_ground_truth'
+        self.robot_gt_frame = self.robot_frame + '_ground_truth'
 
         # gt travelled distance by robot
         self.travelled_dist = None
@@ -135,7 +139,7 @@ class Eval:
             self.ws_writer.write(0, 15, 'Localization error: pos')
             self.ws_writer.write(0, 16, 'Localization error: ang')
             self.ws_writer.write(0, 17, 'Detected artifacts')
-            self.ws_writer.write(0, 18, 'Attifacts Localization error')
+            self.ws_writer.write(0, 18, 'Artifacts Localization error')
             self.row_number = 1
 
         # subscribing to actual reward topic
@@ -194,9 +198,9 @@ class Eval:
         gt_mesh_faces_idx = gt_mesh_faces_idx.to(self.device)
         gt_mesh_verts = gt_mesh_verts.to(self.device)
         # TODO: correct coordinates mismatch in Blender (swap here X and Y)
-        R = torch.tensor([[ 0., 1., 0.],
+        R = torch.tensor([[0., 1., 0.],
                           [-1., 0., 0.],
-                          [ 0., 0., 1.]]).to(self.device)
+                          [0., 0., 1.]]).to(self.device)
         gt_mesh_verts = torch.matmul(R, gt_mesh_verts.transpose(1, 0)).transpose(1, 0)
         assert gt_mesh_verts.shape[1] == 3
 
@@ -221,9 +225,9 @@ class Eval:
         marker.pose.position.x = 0
         marker.pose.position.y = 0
         marker.pose.position.z = 0
-        r = np.array([[ 0., 0., 1.],
+        r = np.array([[0., 0., 1.],
                       [-1., 0., 0.],
-                      [ 0., -1., 0.]])
+                      [0., -1., 0.]])
         q = Rotation.from_matrix(r).as_quat()
         marker.pose.orientation.x = q[0]
         marker.pose.orientation.y = q[1]
@@ -266,7 +270,8 @@ class Eval:
         for i, artifact_name in enumerate(artifact_frames):
             try:
                 artifact_frame = artifact_name
-                transform = self.tf.lookup_transform(self.map_gt_frame, artifact_frame, rospy.Time(0), rospy.Duration(3))
+                transform = self.tf.lookup_transform(self.map_gt_frame, artifact_frame, rospy.Time(0),
+                                                     rospy.Duration(3))
             except tf2_ros.LookupException:
                 rospy.logerr('Ground truth artifacts poses are not available')
                 return artifacts
@@ -302,7 +307,8 @@ class Eval:
             artifacts['names'].append(artifact_name)
             # center of an artifact point cloud in map_gt_frame
             artifacts['poses'].append(cloud[:3, :].mean(axis=1))
-            artifacts['clouds'].append(torch.as_tensor(cloud.transpose([1, 0]), dtype=torch.float32).unsqueeze(0).to(self.device))
+            artifacts['clouds'].append(
+                torch.as_tensor(cloud.transpose([1, 0]), dtype=torch.float32).unsqueeze(0).to(self.device))
         artifacts_cloud_merged_np = artifacts_cloud_merged[0]
         for cloud in artifacts_cloud_merged[1:]:
             artifacts_cloud_merged_np = np.concatenate([artifacts_cloud_merged_np, cloud], axis=1)
@@ -399,7 +405,7 @@ class Eval:
         rospy.loginfo('Artifacts localization error: %.3f', artifacts_localization_accuracy)
         assert len(dists) == len(preds['classes'])
         precisions, recalls = [], []
-        dist_th_list = np.arange(start=0.5, stop=darpa_dist_th+0.5, step=0.5).tolist()
+        dist_th_list = np.arange(start=0.5, stop=darpa_dist_th + 0.5, step=0.5).tolist()
         assert darpa_dist_th in dist_th_list
         for dist_th in dist_th_list:
             TP, FP1, FP2, FN = 0.0, 0.0, 0.0, 0.0  # true positive, false positive, false negative
@@ -459,31 +465,93 @@ class Eval:
         else:
             return exp_completeness, coverage_mask
 
-    def evaluation(self, map, map_gt_cloud, map_gt_mesh, artifacts,
-                   coverage_dist_th=0.5,
-                   artifacts_coverage_dist_th=0.1,
-                   detections_dist_th=2.0,
-                   travelled_dist=None,
-                   actual_reward=None):
-        if map is None:
-            rospy.logwarn('Evaluation: Map cloud is not yet received')
-            return None
+    def exploration_evaluation(self, map, map_gt_cloud, map_gt_mesh, coverage_dist_th=0.5):
         if map_gt_cloud is None:
-            rospy.logwarn('Evaluation: Ground truth map cloud is not yet received')
+            rospy.logwarn_once('Evaluation: Ground truth map cloud is not yet received')
             return None
         if map_gt_mesh is None:
-            rospy.logwarn('Evaluation: Ground truth map mesh is not yet received')
+            rospy.logwarn_once('Evaluation: Ground truth map mesh is not yet received')
             return None
-        if artifacts is None:
-            rospy.logwarn('Evaluation: Artifacts cloud is not yet received')
-            return None
-
-        assert isinstance(map, torch.Tensor)
-        assert map.dim() == 3
-        assert map.size()[2] >= 3  # (1, N1, >=3)
         assert isinstance(map_gt_cloud, torch.Tensor)
         assert map_gt_cloud.dim() == 3
         assert map_gt_cloud.size()[2] == 3  # (1, N2, 3)
+
+        t1 = timer()
+
+        map_sampled = map.clone()
+        if self.do_points_sampling_from_map:
+            if self.n_sample_points < map.shape[1]:
+                torch.manual_seed(self.seed)
+                map_sampled = map[:, torch.randint(map.shape[1], (self.n_sample_points,)), :]
+        # self.publish_pointcloud(map_sampled.squeeze(0).transpose(1, 0).detach().cpu().numpy(),
+        #                         '~map_sampled', rospy.Time.now(), self.map_gt_frame)
+
+        point_cloud = Pointclouds(map_sampled[..., :3]).to(self.device)
+
+        # distance between a point and mesh is computed as a distance from point to triangle
+        # if point's projection is inside triangle, then the distance is computed along
+        # a normal to triangular plane. Otherwise as a distance to closest edge of the triangle:
+        # https://github.com/facebookresearch/pytorch3d/blob/fe39cc7b806afeabe64593e154bfee7b4153f76f/pytorch3d/csrc/utils/geometry_utils.h#L635
+        self.metrics_msg.exp_face_loss = face_point_distance_truncated(meshes=map_gt_mesh,
+                                                                       pcls=point_cloud).detach().cpu().numpy()
+
+        # self.metrics_msg.exp_edge_loss = edge_point_distance_truncated(meshes=map_gt_mesh,
+        #                                                                pcls=point_cloud).detach().cpu().numpy()
+        # # exp_loss_face_trimesh = self.map_gt_trimesh.nearest.on_surface(map_sampled.squeeze().detach().cpu())[1].mean()
+        # # rospy.loginfo(f'Trimesh Exploration Face loss: {exp_loss_face_trimesh:.3f}')
+        # self.metrics_msg.exp_chamfer_loss = chamfer_distance_truncated(x=map_gt_cloud,
+        #                                                                y=map[..., :3]).detach().cpu().numpy()
+
+        t2 = timer()
+        rospy.logdebug('Explored space evaluation took: %.3f s\n', t2 - t1)
+
+        # coverage metric (exploration completeness)
+        # The metric is evaluated as the fraction of ground truth points considered as covered.
+        # A ground truth point is considered as covered if its nearest neighbour
+        # there is a point from the constructed map that is located within a distance threshold
+        # from the ground truth point.
+        exp_completeness, coverage_mask = self.estimate_coverage(map, map_gt_cloud,
+                                                                 coverage_dist_th=coverage_dist_th)
+        self.metrics_msg.exp_completeness = exp_completeness.detach().cpu().numpy()
+
+        # total expected reward for the whole exploration route based on visibility information:
+        #   - distance range
+        #   - occlusions
+        #   - cameras fov
+        if map.shape[2] == 4:  # if map contains reward values
+            self.metrics_msg.total_reward = coverage_mask.sum().detach().cpu().numpy()
+
+        t3 = timer()
+        rospy.logdebug('Coverage estimation took: %.3f s\n', t3 - t2)
+
+        # `exp_loss_face`, `exp_loss_edge` and `exp_loss_chamfer` describe exploration progress
+        # current map accuracy could be evaluated by computing vice versa distances:
+        # - from points in cloud to mesh faces/edges:
+        self.metrics_msg.map_face_loss = point_face_distance_truncated(meshes=map_gt_mesh,
+                                                                       pcls=point_cloud).detach().cpu().numpy()
+
+        # self.metrics_msg.map_edge_loss = point_edge_distance_truncated(meshes=map_gt_mesh,
+        #                                                                pcls=point_cloud).detach().cpu().numpy()
+        #
+        # # - from points in cloud to nearest neighbours of points sampled from mesh:
+        # self.metrics_msg.map_chamfer_loss = chamfer_distance_truncated(x=map[..., :3], y=map_gt_cloud,
+        #                                                                apply_point_reduction=True,
+        #                                                                batch_reduction='mean',
+        #                                                                point_reduction='mean').detach().cpu().numpy()
+
+        t4 = timer()
+        rospy.logdebug('Mapping accuracy evaluation took: %.3f s\n', t4 - t3)
+        rospy.loginfo('Exploration evaluation took: %.3f s\n', t4 - t1)
+
+        return coverage_mask
+
+    def artifacts_exploration_evaluation(self, map, artifacts):
+        if artifacts is None:
+            rospy.logwarn('Evaluation: Artifacts cloud is not yet received')
+            return None
+        assert isinstance(map, torch.Tensor)
+        assert map.dim() == 3
+        assert map.size()[2] >= 3  # (1, N1, >=3)
         assert isinstance(artifacts, dict)
         assert isinstance(artifacts['clouds'], list)
         assert isinstance(artifacts['poses'], list)
@@ -495,6 +563,47 @@ class Eval:
             assert cloud.dim() == 3
             assert cloud.size()[2] >= 3  # (1, n, >=3)
 
+        t0 = timer()
+        self.metrics_msg.artifacts_exp_completeness = 0.0
+        self.metrics_msg.artifacts_total_reward = 0.0
+        for i, cloud in enumerate(artifacts['clouds']):
+            # number of artifact points that are covered
+            cloud = cloud[..., :3]
+            artifact_exp_completeness, \
+            artifact_coverage_mask = self.estimate_coverage(map, cloud,
+                                                            coverage_dist_th=self.artifacts_coverage_dist_th)
+            assert artifact_coverage_mask.shape[:2] == cloud.shape[:2]
+
+            if artifact_exp_completeness > 0:
+                self.metrics_msg.artifacts_exp_completeness += artifact_exp_completeness.detach().cpu().numpy()
+                rospy.loginfo(f'Explored {artifact_exp_completeness:.3f} '
+                              f'points of artifact {artifacts["names"][i]}')
+                if map.shape[2] == 4:  # if map contains reward values
+                    self.metrics_msg.artifacts_total_reward += artifact_coverage_mask.sum().detach().cpu().numpy()
+
+        self.metrics_msg.artifacts_exp_completeness /= len(artifacts['clouds'])
+
+        # number of correctly detected artifacts from confirmed hypothesis
+        artifacts_localization_error = None
+        if len(self.detections['poses']) > 0:
+            self.metrics_msg.dets_score, \
+            self.mAP, \
+            artifacts_localization_error = self.evaluate_detections(self.detections, self.artifacts,
+                                                                    darpa_dist_th=self.detections_dist_th)
+        rospy.logdebug('Artifacts evaluation took: %.3f s\n', timer() - t0)
+        return artifacts_localization_error
+
+    def evaluation(self, map, map_gt_cloud, map_gt_mesh, artifacts,
+                   travelled_dist=None,
+                   actual_reward=None):
+        if map is None:
+            rospy.logwarn('Evaluation: Map cloud is not yet received')
+            return None
+
+        assert isinstance(map, torch.Tensor)
+        assert map.dim() == 3
+        assert map.size()[2] >= 3  # (1, N1, >=3)
+
         # Discard old messages.
         time_stamp = rospy.Time.now()
         age = (time_stamp - self.pc_msg.header.stamp).to_sec()
@@ -505,103 +614,13 @@ class Eval:
         rospy.loginfo(f'Received map of size {map.size()} for evaluation...')
         # compare point cloud to mesh here
         with torch.no_grad():
-            t1 = timer()
+            coverage_mask = self.exploration_evaluation(map, map_gt_cloud, map_gt_mesh,
+                                                        coverage_dist_th=self.coverage_dist_th)
 
-            map_sampled = map.clone()
-            if self.do_points_sampling_from_map:
-                if self.n_sample_points < map.shape[1]:
-                    torch.manual_seed(self.seed)
-                    map_sampled = map[:, torch.randint(map.shape[1], (self.n_sample_points,)), :]
-            # self.publish_pointcloud(map_sampled.squeeze(0).transpose(1, 0).detach().cpu().numpy(),
-            #                         '~map_sampled', rospy.Time.now(), self.map_gt_frame)
+            # compute metrics for artifacts
+            artifacts_localization_error = self.artifacts_exploration_evaluation(map, artifacts)
 
-            point_cloud = Pointclouds(map_sampled[..., :3]).to(self.device)
-
-            # distance between a point and mesh is computed as a distance from point to triangle
-            # if point's projection is inside triangle, then the distance is computed along
-            # a normal to triangular plane. Otherwise as a distance to closest edge of the triangle:
-            # https://github.com/facebookresearch/pytorch3d/blob/fe39cc7b806afeabe64593e154bfee7b4153f76f/pytorch3d/csrc/utils/geometry_utils.h#L635
-            self.metrics_msg.exp_face_loss = face_point_distance_truncated(meshes=map_gt_mesh,
-                                                                           pcls=point_cloud).detach().cpu().numpy()
-
-            # self.metrics_msg.exp_edge_loss = edge_point_distance_truncated(meshes=map_gt_mesh,
-            #                                                                pcls=point_cloud).detach().cpu().numpy()
-            # # exp_loss_face_trimesh = self.map_gt_trimesh.nearest.on_surface(map_sampled.squeeze().detach().cpu())[1].mean()
-            # # rospy.loginfo(f'Trimesh Exploration Face loss: {exp_loss_face_trimesh:.3f}')
-            # self.metrics_msg.exp_chamfer_loss = chamfer_distance_truncated(x=map_gt_cloud,
-            #                                                                y=map[..., :3]).detach().cpu().numpy()
-
-            t2 = timer()
-            rospy.logdebug('Explored space evaluation took: %.3f s\n', t2 - t1)
-
-            # coverage metric (exploration completeness)
-            # The metric is evaluated as the fraction of ground truth points considered as covered.
-            # A ground truth point is considered as covered if its nearest neighbour
-            # there is a point from the constructed map that is located within a distance threshold
-            # from the ground truth point.
-            exp_completeness, coverage_mask = self.estimate_coverage(map, map_gt_cloud,
-                                                                     coverage_dist_th=coverage_dist_th)
-            self.metrics_msg.exp_completeness = exp_completeness.detach().cpu().numpy()
-
-            # total expected reward for the whole exploration route based on visibility information:
-            #   - 1-5m range
-            #   - occlusion
-            #   - cameras fov
-            if map.shape[2] == 4:  # if map contains reward values
-                self.metrics_msg.total_reward = coverage_mask.sum().detach().cpu().numpy()
-
-            t3 = timer()
-            rospy.logdebug('Coverage estimation took: %.3f s\n', t3 - t2)
-
-            # compute the same metrics for each individual artifact
-            self.metrics_msg.artifacts_exp_completeness = 0.0
-            self.metrics_msg.artifacts_total_reward = 0.0
-            for i, cloud in enumerate(artifacts['clouds']):
-                # number of artifact points that are covered
-                cloud = cloud[..., :3]
-                artifact_exp_completeness,\
-                artifact_coverage_mask = self.estimate_coverage(map, cloud,
-                                                                coverage_dist_th=artifacts_coverage_dist_th)
-                assert artifact_coverage_mask.shape[:2] == cloud.shape[:2]
-
-                if artifact_exp_completeness > 0:
-                    self.metrics_msg.artifacts_exp_completeness += artifact_exp_completeness.detach().cpu().numpy()
-                    rospy.loginfo(f'Explored {artifact_exp_completeness:.3f} '
-                                  f'points of artifact {artifacts["names"][i]}')
-                    if map.shape[2] == 4:  # if map contains reward values
-                        self.metrics_msg.artifacts_total_reward += artifact_coverage_mask.sum().detach().cpu().numpy()
-
-            self.metrics_msg.artifacts_exp_completeness /= len(artifacts['clouds'])
-
-            # number of correctly detected artifacts from confirmed hypothesis
-            artifacts_localization_error = None
-            if len(self.detections['poses']) > 0:
-                self.metrics_msg.dets_score,\
-                self.mAP,\
-                artifacts_localization_error = self.evaluate_detections(self.detections, self.artifacts,
-                                                                        darpa_dist_th=detections_dist_th)
-            t4 = timer()
-            rospy.logdebug('Artifacts evaluation took: %.3f s\n', t4 - t3)
-
-            # `exp_loss_face`, `exp_loss_edge` and `exp_loss_chamfer` describe exploration progress
-            # current map accuracy could be evaluated by computing vice versa distances:
-            # - from points in cloud to mesh faces/edges:
-            self.metrics_msg.map_face_loss = point_face_distance_truncated(meshes=map_gt_mesh,
-                                                                           pcls=point_cloud).detach().cpu().numpy()
-
-            # self.metrics_msg.map_edge_loss = point_edge_distance_truncated(meshes=map_gt_mesh,
-            #                                                                pcls=point_cloud).detach().cpu().numpy()
-            #
-            # # - from points in cloud to nearest neighbours of points sampled from mesh:
-            # self.metrics_msg.map_chamfer_loss = chamfer_distance_truncated(x=map[..., :3], y=map_gt_cloud,
-            #                                                                apply_point_reduction=True,
-            #                                                                batch_reduction='mean',
-            #                                                                point_reduction='mean').detach().cpu().numpy()
-
-            t5 = timer()
-            rospy.logdebug('Mapping accuracy evaluation took: %.3f s\n', t5 - t4)
-            rospy.loginfo('Evaluation took: %.3f s\n', t5 - t1)
-
+            # evaluate robot localization error
             localization_error = {'pos': None, 'ang': None}
             localization_error['pos'], localization_error['ang'] = self.evaluate_localization_accuracy()
             if localization_error['pos'] is not None:
@@ -661,9 +680,6 @@ class Eval:
                                             map_gt_cloud=self.map_gt,
                                             map_gt_mesh=self.map_gt_mesh,
                                             artifacts=self.artifacts,
-                                            coverage_dist_th=self.coverage_dist_th,
-                                            artifacts_coverage_dist_th=self.artifacts_coverage_dist_th,
-                                            detections_dist_th=self.detections_dist_th,
                                             travelled_dist=self.travelled_dist,
                                             actual_reward=self.actual_reward)
 
