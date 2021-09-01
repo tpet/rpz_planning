@@ -859,9 +859,9 @@ def compute_dist_mask(local_map, cam_to_map, dist_mean=None, dist_std=None):
     #     - Distance max: 3.4 m
     #     - Distance where detects constantly: 1.52 m
     if dist_mean is None or dist_std is None:
-        dist_max = np.max([7.42, 3.4, 11.2])  # Distance max: backpack, phone, survivor
-        dist_mean = np.mean([6.42, 1.52, 11.2])  # Distance where detects constantly: backpack, phone, survivor
-        dist_std = dist_max - dist_mean
+        # dist_max = np.max([7.42, 3.4, 11.2])  # Distance max: backpack, phone, survivor
+        dist_mean = 6.38  # np.mean([6.42, 1.52, 11.2])  # Distance where detects constantly: backpack, phone, survivor
+        dist_std = 4.82  # dist_max - dist_mean
 
     assert isinstance(local_map, torch.Tensor)
     # (4, n_pts)
@@ -1661,6 +1661,7 @@ class RPZPlanner(object):
 
             # optimization step
             criterion.backward(retain_graph=self.use_rewards_history)
+            # criterion.backward()
             optimizer.step()
 
             rospy.loginfo('Iter. %i: time cost %.1f / %.1f s, '

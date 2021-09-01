@@ -19,7 +19,7 @@
     <arg name="run_trav" default="true" />
     <arg name="debug_trajopt" default="false"/>
     <arg name="use_rewards_history" default="true"/>
-    <arg name="trajopt_iters" default="25"/>  <!-- for 25 iters takes around ~1 sec to compute an opt path-->
+    <arg name="trajopt_iters" default="10"/>  <!-- for 10 iters takes around ~0.5 sec to compute an opt path-->
 
     <!-- Subt frame publisher-->
     <node name="subt_frame_publisher" pkg="subt_virtual" type="subt_frame_publisher">

@@ -2,6 +2,7 @@
 <launch>
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1"/>
+    <arg name="bag_postfix" default=""/>
     <arg name="path" default="path"/>
 
     <!-- Map construction topics: new points and localization in tfs -->
@@ -91,7 +92,7 @@
 
     <!-- Recorder node: input topics are specified here as input arguments -->
     <node name="record_data" pkg="rosbag" type="record"
-          args="-o $(find rpz_planning)/$(arg robot_type)_opt_path_$(arg follow_opt_path)
+          args="-o $(find rpz_planning)/$(arg robot_type)_opt_path_$(arg follow_opt_path)_$(arg bag_postfix)
                 $(arg mapping_topics) $(arg detections_localization_topics) $(arg camera_info_topics)
                 --duration $(arg record_duration)"/>
 </launch>
