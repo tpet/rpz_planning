@@ -261,10 +261,10 @@ class Eval:
                         artifact_frames.append(frame)
         rospy.logdebug('Found TF frames: %s', all_frames)
         rospy.loginfo('Found Artifacts TF frames in %.3f [sec]: %s', (timer() - t0), artifact_frames)
-        if len(artifact_frames) == 0:  # if artifacts are not found just hard code them and hope for the best
-            artifact_frames = ['backpack_1', 'backpack_2', 'backpack_3', 'backpack_4',
-                               'phone_1', 'phone_2', 'phone_3', 'phone_4',
-                               'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'rescue_randy_4']
+        # if len(artifact_frames) == 0:  # if artifacts are not found just hard code them and hope for the best
+        #     artifact_frames = ['backpack_1', 'backpack_2', 'backpack_3', 'backpack_4',
+        #                        'phone_1', 'phone_2', 'phone_3', 'phone_4',
+        #                        'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'rescue_randy_4']
         artifacts = {'poses': [], 'names': [], 'clouds': [], 'cloud_merged': None}
         artifacts_cloud_merged = []
         for i, artifact_name in enumerate(artifact_frames):
