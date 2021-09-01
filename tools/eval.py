@@ -710,7 +710,7 @@ class Eval:
 if __name__ == '__main__':
     rospy.init_node('map_eval', log_level=rospy.INFO)
     path_fo_gt_map_mesh = rospy.get_param('~gt_mesh')
-    assert os.path.exists(path_fo_gt_map_mesh)
+    # assert os.path.exists(path_fo_gt_map_mesh)
     rospy.loginfo('Using ground truth mesh file: %s', path_fo_gt_map_mesh)
     proc = Eval(path_to_mesh=path_fo_gt_map_mesh, device_id=rospy.get_param('~gpu_id', 0))
     rospy.loginfo('Mapping evaluation node is initialized.')
