@@ -6,6 +6,7 @@
     <arg name="debug_trajopt" default="false"/>
     <arg name="use_rewards_history" default="true"/>
     <arg name="trajopt_iters" default="10"/>
+    <arg name="use_rewards_history" default="true"/>
     <arg name="gpu_id" default="0"/>
 
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
@@ -18,17 +19,13 @@
             num_iters: $(arg trajopt_iters)
             map_step: 2
             path_step: 2
-            min_n_wps_to_opt: 6
-            min_gained_reward_to_opt: 250.0
+            min_n_wps_to_opt: 8
+            min_gained_reward_to_opt: 1200.0
             use_rewards_history: $(arg use_rewards_history)
             linear_speed: 1.0
             angular_speed: 1.0
             fixed_endpoints: ['start']
             gpu_id: $(arg gpu_id)
-
-<!--            dist_weight: 1.0-->
-<!--            trav_weight: 1.0-->
-<!--            turn_weight: 0.37-->
 
             dist_weight: 1.06
             trav_weight: 1.08

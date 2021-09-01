@@ -942,6 +942,7 @@ class RPZPlanner(object):
         self.path_step = rospy.get_param('~path_step', 2)
         self.min_n_wps_to_opt = rospy.get_param('~min_n_wps_to_opt', 8)
         self.min_gained_reward_to_opt = rospy.get_param('~min_gained_reward_to_opt', 250.0)
+        self.use_rewards_history = rospy.get_param('~use_rewards_history', True)
         self.linear_speed = rospy.get_param('~linear_speed', 1.0)
         self.angular_speed = rospy.get_param('~angular_speed', 1.0)
         self.max_roll = rospy.get_param('naex_planner/max_roll', 0.7)
@@ -998,7 +999,8 @@ class RPZPlanner(object):
         self.cam_info_subs = [rospy.Subscriber('camera_info_%i' % i, CameraInfo,
                                                lambda msg, i=i: self.cam_info_received(msg, i), queue_size=2)
                               for i in range(self.num_cameras)]
-        self.global_map_timer = rospy.Timer(rospy.Duration(1./10.), self.update_global_map_rewards)
+        if self.use_rewards_history:
+            self.global_map_timer = rospy.Timer(rospy.Duration(1./10.), self.update_global_map_rewards)
         self.rpz_sub = rospy.Subscriber('rpz', PointCloud2, self.rpz_received, queue_size=2)
         self.map_sub = rospy.Subscriber('map', PointCloud2, self.map_received, queue_size=2)
         self.path_sub = rospy.Subscriber('path', Path, self.path_received, queue_size=2)
@@ -1144,7 +1146,7 @@ class RPZPlanner(object):
                 self.cam_info_subs[i].unregister()
                 rospy.logwarn('Camera %i (%s) unsubscribed.', i, msg.header.frame_id)
 
-    def update_global_map(self, map, dists_th=0.22, buffer_size=30000):
+    def update_global_map(self, map, dists_th=0.05, buffer_size=30000):
         assert map.dim() == 2
         assert map.shape[0] == 4  # (4, N1)
         # construct global map to store rewards history
@@ -1432,7 +1434,7 @@ class RPZPlanner(object):
 
         # Visibility / occlusion mask.
         if vis_mask is None:
-            vis_mask = compute_vis_mask(map, cam_to_map, param=0.5)
+            vis_mask = compute_vis_mask(map, cam_to_map, param=1.0)
 
         # compute smooth version of FOV mask
         # fov_mask = compute_fov_mask_smooth(map, intrins, map_to_cam)
@@ -1515,8 +1517,9 @@ class RPZPlanner(object):
             assert local_map.shape[0] == 4
             n_pts = local_map.shape[-1]  # (4 x N1)
 
-            # construct global map and keep local map indexes for rewards update
-            self.global_map, self.local_map_idx = self.update_global_map(local_map)
+            if self.use_rewards_history:
+                # construct global map and keep local map indexes for rewards update
+                self.global_map, self.local_map_idx = self.update_global_map(local_map)
 
         xyzrpy = path_msg_to_xyzrpy(msg)
         robot_to_map = xyzrpy_matrix(xyzrpy)
@@ -1614,11 +1617,14 @@ class RPZPlanner(object):
             # compute path reward and cloud masks
             rewards, vis_mask, fov_mask, dist_mask = self.path_reward(xyzrpy, local_map, vis_mask=vis_mask)
 
-            # include rewards history from global map
-            assert len(self.local_map_idx) == n_pts
-            rewards_prev = self.global_map[3, self.local_map_idx].to(self.device).view(-1, n_pts)
-            rewards = rewards.view(n_poses * n_cams, n_pts)
-            rewards = torch.cat([rewards_prev, rewards], dim=0)
+            if self.use_rewards_history:
+                # include rewards history from global map
+                assert len(self.local_map_idx) == n_pts
+                rewards_prev = self.global_map[3, self.local_map_idx].to(self.device).view(-1, n_pts)
+                rewards = rewards.view(n_poses * n_cams, n_pts)
+                rewards = torch.cat([rewards_prev, rewards], dim=0)
+            else:
+                rewards_prev = 0.0
 
             # share and sum rewards over multiple sensors and view points
             # rewards = log_odds_conversion(rewards)
@@ -1703,23 +1709,24 @@ class RPZPlanner(object):
 
         rospy.loginfo('Trajectory optimization took %.1f s', timer() - t0)
 
-        # Publish reward cloud for visualization.
-        t0 = timer()
-        pts_to_pub = self.global_map.detach()
-        if pts_to_pub.shape[1] > 0:
-            global_map = np.zeros(pts_to_pub.shape[1], dtype=[('x', np.float32),
-                                                              ('y', np.float32),
-                                                              ('z', np.float32),
-                                                              ('reward', np.float32)])
-            global_map['x'] = pts_to_pub[0, ...]
-            global_map['y'] = pts_to_pub[1, ...]
-            global_map['z'] = pts_to_pub[2, ...]
-            global_map['reward'] = pts_to_pub[3, ...]
-            global_cloud_msg = msgify(PointCloud2, global_map)
-            assert isinstance(global_cloud_msg, PointCloud2)
-            global_cloud_msg.header = msg.header
-            self.global_reward_cloud_pub.publish(global_cloud_msg)
-        rospy.loginfo('Global map publishing took %.3f s', timer() - t0)
+        if self.use_rewards_history:
+            # Publish reward cloud for visualization.
+            t0 = timer()
+            pts_to_pub = self.global_map.detach()
+            if pts_to_pub.shape[1] > 0:
+                global_map = np.zeros(pts_to_pub.shape[1], dtype=[('x', np.float32),
+                                                                  ('y', np.float32),
+                                                                  ('z', np.float32),
+                                                                  ('reward', np.float32)])
+                global_map['x'] = pts_to_pub[0, ...]
+                global_map['y'] = pts_to_pub[1, ...]
+                global_map['z'] = pts_to_pub[2, ...]
+                global_map['reward'] = pts_to_pub[3, ...]
+                global_cloud_msg = msgify(PointCloud2, global_map)
+                assert isinstance(global_cloud_msg, PointCloud2)
+                global_cloud_msg.header = msg.header
+                self.global_reward_cloud_pub.publish(global_cloud_msg)
+            rospy.loginfo('Global map publishing took %.3f s', timer() - t0)
 
 
 if __name__ == '__main__':

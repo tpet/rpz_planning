@@ -8,6 +8,7 @@
     <arg name="start" default="0.0"/>
     <arg name="rate" default="1.0"/>
     <arg name="trajopt_iters" default="10"/>
+    <arg name="use_rewards_history" default="true"/>
     <arg name="debug_trajopt" default="true"/>
 
     <param name="use_sim_time" value="true"/>
