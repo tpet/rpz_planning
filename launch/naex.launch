@@ -10,9 +10,7 @@
     <arg name="gpu_id" default="0"/>
     <arg name="rviz" default="false"/>
 
-    <arg name="follow_opt_path" default="false"/>
-    <arg if="$(eval follow_opt_path)" name="path" default="optimized_path"/>
-    <arg unless="$(eval follow_opt_path)" name="path" default="path"/>
+    <arg name="path" default="path_to_follow"/>
 
     <arg name="record_duration" default="60m"/>
     <arg name="bag_postfix" default=""/>
@@ -35,7 +33,9 @@
     <!-- Navigation and Exploration -->
     <include file="$(find naex)/launch/naex.launch" pass_all_args="true"/>
     <include if="$(arg run_trav)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
-    <include if="$(arg run_trajopt)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true"/>
+    <include if="$(arg run_trajopt)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true">
+        <arg name="path" value="planned_path"/>
+    </include>
 
     <!-- Artifacts detector -->
     <include if="$(arg run_detector)" file="$(find rpz_planning)/launch/detector_x1.launch"/>

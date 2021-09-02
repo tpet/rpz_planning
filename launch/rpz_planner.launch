@@ -8,6 +8,7 @@
     <arg name="trajopt_iters" default="10"/>
     <arg name="use_rewards_history" default="true"/>
     <arg name="gpu_id" default="0"/>
+    <arg name="path" default="path"/>
 
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
         <rosparam subst_value="true">
@@ -20,7 +21,7 @@
             map_step: 2
             path_step: 2
             min_n_wps_to_opt: 8
-            min_gained_reward_to_opt: 1200.0
+            min_gained_reward_to_opt: 300.0
             use_rewards_history: $(arg use_rewards_history)
             linear_speed: 1.0
             angular_speed: 1.0
@@ -30,6 +31,9 @@
             dist_weight: 1.06
             trav_weight: 1.08
             turn_weight: 0.24
+
+            dist_mean: 4.0
+            dist_std: 2.0
         </rosparam>
 
         <rosparam if="$(eval robot_type == 'marv')">
@@ -83,7 +87,13 @@
                from="camera_info_5" to="viz/camera_5/camera_info"/>
 
         <remap from="map" to="local_map"/>
-        <remap from="path" to="path"/>
+        <remap from="path" to="$(arg path)"/>
         <remap from="rpz" to="traversability"/>
+
+        <remap from="max_roll" to="naex_planner/max_roll"/>
+        <remap from="max_pitch" to="naex_planner/max_pitch"/>
+
+        <remap from="dist_mean" to="naex_planner/full_coverage_dist"/>
+        <remap from="dist_std" to="naex_planner/coverage_dist_spread"/>
     </node>
 </launch>
