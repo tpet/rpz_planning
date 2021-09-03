@@ -3,25 +3,24 @@
 <launch>
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1"/>
-    <arg name="debug_trajopt" default="false"/>
     <arg name="use_rewards_history" default="true"/>
     <arg name="trajopt_iters" default="10"/>
     <arg name="use_rewards_history" default="true"/>
     <arg name="gpu_id" default="0"/>
     <arg name="path" default="path"/>
+    <arg name="follow_opt_path" default="true"/>
 
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
         <rosparam subst_value="true">
             map_frame: subt
             robot_frame: $(arg robot)/base_footprint
             max_age: 1.0
-            debug: $(arg debug_trajopt)
             num_cameras: 1
             num_iters: $(arg trajopt_iters)
             map_step: 2
             path_step: 2
-            min_n_wps_to_opt: 8
-            min_gained_reward_to_opt: 300.0
+            min_n_wps_to_opt: 6
+            min_gained_reward_to_opt: 200.0
             use_rewards_history: $(arg use_rewards_history)
             linear_speed: 1.0
             angular_speed: 1.0
@@ -34,6 +33,8 @@
 
             dist_mean: 4.0
             dist_std: 2.0
+
+            follow_opt_path: $(arg follow_opt_path)
         </rosparam>
 
         <rosparam if="$(eval robot_type == 'marv')">

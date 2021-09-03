@@ -907,7 +907,6 @@ class RPZPlanner(object):
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.robot_frame = rospy.get_param('~robot_frame', 'base_link')
         self.max_age = rospy.get_param('~max_age', 1.0)
-        self.debug = rospy.get_param('~debug', True)
 
         # Keep only points inside a box for clearance check.
         # keep_cloud_box = rospy.get_param('~keep_cloud_box', [[-4.0, 4.0],
@@ -954,6 +953,7 @@ class RPZPlanner(object):
         self.turn_weight = rospy.get_param('~turn_weight', 1.0)
         self.dist_mean = rospy.get_param('~dist_mean', 4.0)
         self.dist_std = rospy.get_param('~dist_std', 2.0)
+        self.follow_opt_path = rospy.get_param('~follow_opt_path', True)
 
         # Latest RPZ manifold
         # TODO: frame vs map
@@ -1657,6 +1657,7 @@ class RPZPlanner(object):
             if gained_reward < self.min_gained_reward_to_opt:
                 rospy.logwarn("Optimization will not be performed this time: Path viewpoints do not cover new area. "
                               "Gained reward: %.1f < %.1f", gained_reward.detach().item(), self.min_gained_reward_to_opt)
+                msg_out = msg
                 msg_out.header.stamp = rospy.Time.now()
                 self.path_pub.publish(msg_out)
                 break
@@ -1673,14 +1674,15 @@ class RPZPlanner(object):
                 criterion0 = criterion
 
             # publish intermediate result during optimization process only in debug mode
-            if iter == (self.num_iters - 1) or self.debug:
+            if iter == (self.num_iters - 1):
                 # publish optimized path
                 msg_out.header.stamp = rospy.Time.now()
                 for p in msg_out.poses:
                     assert isinstance(p, PoseStamped)
                     p.header = msg.header
                     p.header.stamp = msg_out.header.stamp
-                self.path_pub.publish(msg_out)
+                if self.follow_opt_path:
+                    self.path_pub.publish(msg_out)
                 # Publish reward cloud for visualization.
                 reward_cloud['reward'] = rewards.detach().cpu().numpy()
                 reward_cloud['new_reward'] = (rewards-rewards_prev).detach().cpu().numpy()

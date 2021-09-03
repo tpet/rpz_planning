@@ -2,14 +2,12 @@
 <launch>
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1"/>
-<!--    <arg name="bag" default="$(find rpz_planning)/data/bags/trajopt_input/marv_opt_path_false_2021-06-30-14-44-51.bag"/>-->
     <arg name="bag" default="$(find rpz_planning)/data/bags/trajopt_input/explorer_x1_2021-06-03-09-59-43.bag"/>
     <arg name="rviz" default="true"/>
     <arg name="start" default="0.0"/>
     <arg name="rate" default="1.0"/>
     <arg name="trajopt_iters" default="10"/>
     <arg name="use_rewards_history" default="true"/>
-    <arg name="debug_trajopt" default="true"/>
 
     <param name="use_sim_time" value="true"/>
 

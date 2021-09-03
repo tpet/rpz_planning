@@ -9,16 +9,14 @@
     <arg name="do_recording" default="false"/>
     <arg name="gpu_id" default="0"/>
     <arg name="rviz" default="false"/>
-
+    <arg name="follow_opt_path" default="true"/>
     <arg name="path" default="path_to_follow"/>
-
     <arg name="record_duration" default="60m"/>
     <arg name="bag_postfix" default=""/>
     <arg name="run_trajopt" default="true" />
     <arg name="run_trav" default="true" />
-    <arg name="debug_trajopt" default="false"/>
     <arg name="use_rewards_history" default="true"/>
-    <arg name="trajopt_iters" default="10"/>  <!-- for 10 iters takes around ~0.5 sec to compute an opt path-->
+    <arg name="trajopt_iters" default="25"/>  <!-- for 10 iters takes around ~0.5 sec to compute an opt path-->
 
     <!-- Subt frame publisher-->
     <node name="subt_frame_publisher" pkg="subt_virtual" type="subt_frame_publisher">
