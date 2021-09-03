@@ -68,6 +68,8 @@ class Eval:
         self.artifacts_coverage_dist_th = rospy.get_param('~artifacts_coverage_dist_th', 0.1)
         self.artifacts_hypothesis_topic = rospy.get_param('~artifacts_hypothesis_topic',
                                                           'detection_localization/dbg_confirmed_hypotheses_pcl')
+        self.artifacts_names = ["rescue_randy", "phone", "backpack", "drill", "extinguisher",
+                                "vent", "helmet", "rope", "cube"]
         self.max_age = rospy.get_param('~max_age', 1.0)
         self.rate = rospy.get_param('~eval_rate', 1.0)
         # exploration metrics publishers
@@ -248,15 +250,13 @@ class Eval:
         # get artifacts list from tf tree
         all_frames = []
         artifact_frames = []
-        artifact_names = ['backpack', 'black_and_decker_cordless_drill',
-                          'climbing_helmet_with_light.mtl', 'climbing_rope', 'fire_extinguisher',
-                          'gas', 'phone', 'rescue_randy']
+
         t0 = timer()
         rospy.loginfo('Looking for artifacts ...')
         while len(artifact_frames) == 0 and (timer() - t0) < frames_lookup_time:
             all_frames = self.tf._getFrameStrings()
             for frame in all_frames:
-                for name in artifact_names:
+                for name in self.artifacts_names:
                     if name in frame:
                         artifact_frames.append(frame)
         rospy.logdebug('Found TF frames: %s', all_frames)
@@ -344,11 +344,10 @@ class Eval:
 
     def get_detections(self, pc_msg):
         assert isinstance(pc_msg, PointCloud)
-        artifacts_names = ["rescue_randy", "phone", "backpack", "drill", "extinguisher",
-                           "vent", "helmet", "rope", "cube"]
         # transform poses to map_gt_frame
         try:
-            transform = self.tf.lookup_transform(self.map_gt_frame, pc_msg.header.frame_id, rospy.Time(0))
+            transform = self.tf.lookup_transform(self.map_gt_frame, pc_msg.header.frame_id,
+                                                 rospy.Time(0), rospy.Duration(3))
         except tf2_ros.LookupException:
             rospy.logwarn('No transform between map gt frame and its detections frame')
             return
@@ -361,7 +360,7 @@ class Eval:
         self.detections['poses'] = np.array(poses)
         class_numbers = pc_msg.channels[-1].values  # most probable class values
         # convert numbers to names
-        self.detections['classes'] = [artifacts_names[int(n)] for n in class_numbers]
+        self.detections['classes'] = [self.artifacts_names[int(n)] for n in class_numbers]
         # assert len(self.detections['classes']) == len(self.detections['poses'])
 
     def get_actual_reward(self, msg):

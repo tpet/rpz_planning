@@ -10,6 +10,7 @@
     <arg name="mapping_topics" value="/$(arg robot)/updated_map
                                       /$(arg robot)/reward_cloud
                                       /$(arg robot)/$(arg path)
+                                      /$(arg robot)/global_actual_reward
                                       /tf
                                       /tf_static"/>
 

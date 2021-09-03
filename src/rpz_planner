@@ -987,6 +987,7 @@ class RPZPlanner(object):
         self.rewards_ratios = 0.0
         self.costs_ratios = 0.0
         self.criterions_ratios = 0.0
+        self.actual_reward_pub = rospy.Publisher('global_actual_reward', Float64, queue_size=1)
         self.counter = 1
         self.gm_time = None
         self.gm_time_prev = None
@@ -1229,6 +1230,9 @@ class RPZPlanner(object):
                         rewards = torch.cat([rewards_prev, rewards], dim=0)
                         # update global map's rewards
                         self.global_map[3, local_map_idx] = reduce_rewards(rewards).cpu()
+                        global_actual_reward = self.global_map[3, ...].sum()
+                        rospy.loginfo('Global actual reward: %.1f', global_actual_reward)
+                        self.actual_reward_pub.publish(global_actual_reward)
 
                 self.gm_time_prev = timer()
         except (tf2_ros.LookupException,
