@@ -401,7 +401,7 @@ class Eval:
         rospy.logdebug(f"Gt classes: {gts['names']}")
         rospy.logdebug(f"Pred classes: {preds['classes']}")
 
-        knn = knn_points(poses[None], poses_gt[None], K=1)
+        knn = knn_points(poses_gt[None], poses[None], K=1)
         # currently the score just takes into account proximity of the predictions to ground truth
         # by a distance threshold and, if the predicted class matches ground truth the score is increased.
         score = 0.0
@@ -409,7 +409,7 @@ class Eval:
         rospy.logdebug(f"KNN dists: {dists.detach().cpu().numpy()}")
         artifacts_localization_accuracy = dists.mean()
         rospy.loginfo('Artifacts localization error: %.3f', artifacts_localization_accuracy)
-        assert len(dists) == len(preds['classes'])
+        assert len(dists) == len(gts['names'])
         precisions, recalls = [], []
         dist_th_list = np.arange(start=0.5, stop=darpa_dist_th + 0.5, step=0.5).tolist()
         assert darpa_dist_th in dist_th_list
@@ -417,7 +417,7 @@ class Eval:
             TP, FP1, FP2, FN = 0.0, 0.0, 0.0, 0.0  # true positive, false positive, false negative
             for i, d in enumerate(dists):
                 if d <= dist_th:
-                    if preds['classes'][i] in gts['names'][knn.idx.squeeze(0)[i]]:  # for example backpack in backpack_2
+                    if preds['classes'][knn.idx.squeeze(0)[i]] in gts['names'][i]:  # for example backpack in backpack_2
                         if dist_th == darpa_dist_th:
                             score += 1
                         TP += 1
@@ -429,8 +429,8 @@ class Eval:
             FN = len(gts['names']) - FP1 - TP
             # compute precision and recall:
             # https://jonathan-hui.medium.com/map-mean-average-precision-for-object-detection-45c121a31173
-            precisions.append(TP / (TP + FP))
-            recalls.append(TP / (TP + FN))
+            precisions.append(TP / (TP + FP + 1e-3))
+            recalls.append(TP / (TP + FN + 1e-3))
         precisions.append(1.0)
         recalls.append(0.0)
 
