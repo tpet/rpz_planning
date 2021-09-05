@@ -19,6 +19,7 @@ from std_msgs.msg import Float64
 from rpz_planning.msg import Metrics
 from visualization_msgs.msg import Marker
 from timeit import default_timer as timer
+import time
 from ros_numpy import msgify, numpify
 import tf2_ros
 # import trimesh
@@ -251,6 +252,8 @@ class Eval:
         all_frames = []
         artifact_frames = []
 
+        # time.sleep(frames_lookup_time)
+
         t0 = timer()
         rospy.loginfo('Looking for artifacts ...')
         while len(artifact_frames) == 0 and (timer() - t0) < frames_lookup_time:
@@ -260,14 +263,18 @@ class Eval:
                     if name in frame:
                         artifact_frames.append(frame)
         rospy.logdebug('Found TF frames: %s', all_frames)
-        rospy.loginfo('Found Artifacts TF frames in %.3f [sec]: %s', (timer() - t0), artifact_frames)
-        # if len(artifact_frames) == 0:  # if artifacts are not found just hard code them and hope for the best
-        #     artifact_frames = ['backpack_1', 'backpack_2', 'backpack_3', 'backpack_4',
-        #                        'phone_1', 'phone_2', 'phone_3', 'phone_4',
-        #                        'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'rescue_randy_4']
+        rospy.loginfo('Found %i Artifacts TF frames in %.3f [sec]: %s',
+                      len(artifact_frames), (timer() - t0), artifact_frames)
+        if len(artifact_frames) != 18:  # if artifacts are not found just hard code them and hope for the best
+            artifact_frames = ['backpack_1', 'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'phone_2',
+                               'extinguisher_1', 'extinguisher_2', 'drill_1', 'vent_1', 'vent_2', 'helmet_1',
+                               'helmet_2', 'phone_1', 'drill_2', 'gas_2', 'gas_1', 'rope_2', 'rope_1']
+
         artifacts = {'poses': [], 'names': [], 'clouds': [], 'cloud_merged': None}
         artifacts_cloud_merged = []
         for i, artifact_name in enumerate(artifact_frames):
+            if 'gas' in artifact_name:
+                break
             try:
                 artifact_frame = artifact_name
                 transform = self.tf.lookup_transform(self.map_gt_frame, artifact_frame, rospy.Time(0),
