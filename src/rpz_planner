@@ -733,6 +733,8 @@ def compute_fov_mask(map, frustums, map_to_cam, ramp_size=1.0):
     # assert fov_dist.shape == (n_poses, n_cams, n_pts)
     # fov_mask = torch.nn.functional.relu(fov_dist)
     fov_mask = torch.clamp(fov_dist / ramp_size + 1., 0.0, 1.0)
+    fov_mask = reduce_rewards(fov_mask)
+    assert fov_mask.shape == (n_pts,)
     return fov_mask
 
 
@@ -773,6 +775,8 @@ def compute_fov_mask_smooth(map, intrins, map_to_cam, std=10, eps=1e-6):
     # assert height_constraints.shape == (n_poses, n_cams, n_pts)
     fov_mask = depth_constraints * (width_constraints * height_constraints)
     # assert fov_mask.shape == (n_poses, n_cams, n_pts)
+    fov_mask = reduce_rewards(fov_mask)
+    # assert fov_mask.shape == (n_pts,)
     rospy.logdebug('FOV mask computation time: %.3f s', timer() - t)
     return fov_mask
 
@@ -822,11 +826,13 @@ def compute_vis_mask(map, cam_to_map, param=1.0, voxel_size=0.6):
         visibilities_dict.popitem(last=True)
     assert len(visibilities_dict) <= n_poses
     assert vis_mask.shape == (n_poses, n_cams, n_pts)
+    vis_mask = reduce_rewards(vis_mask)
+    assert vis_mask.shape == (n_pts,)
     return vis_mask
 
 
 @timing
-def compute_dist_mask(local_map, cam_to_map, dist_mean, dist_std):
+def compute_dist_mask(local_map, cam_to_map):
     # Bakcpack:
     #     - human eye: 15 m
     #     - Distance max: 7.42 m
@@ -860,10 +866,16 @@ def compute_dist_mask(local_map, cam_to_map, dist_mean, dist_std):
     #     - Distance max: 3.4 m
     #     - Distance where detects constantly: 1.52 m
 
-    # if dist_mean is None or dist_std is None:
-    #     # dist_max = np.max([7.42, 3.4, 11.2])  # Distance max: backpack, phone, survivor
-    #     dist_mean = 6.38  # np.mean([6.42, 1.52, 11.2])  # Distance where detects constantly: backpack, phone, survivor
-    #     dist_std = 4.82  # dist_max - dist_mean
+    det_ranges = {
+        "Backpack": {"min": 1.0, "max": 7.42, "const": 6.42},
+        "Drill": {"min": 0.3, "max": 2.45, "const": 0.5},
+        "Vent": {"min": 1.25, "max": 8.5, "const": 8.5},
+        "Rope": {"min": 0.4, "max": 2.04, "const": 1.42},
+        "Helmet": {"min": 0.8, "max": 3.06, "const": 2.3},
+        "Fire extinsguisher": {"min": 1.2, "max": 7.65, "const": 7.15},
+        "Survivor": {"min": 2.2, "max": 11.2, "const": 11.2},
+        "Cellphone": {"min": 0.2, "max": 3.4, "const": 1.52}
+    }
 
     assert isinstance(local_map, torch.Tensor)
     # (4, n_pts)
@@ -880,9 +892,17 @@ def compute_dist_mask(local_map, cam_to_map, dist_mean, dist_std):
     sensor_dist = torch.norm(cam_to_map[..., 3, None] - local_map, dim=-2)
     assert sensor_dist.shape == (n_poses, n_cams, n_pts)
     rospy.logdebug('Distance to sensors: %.3f s', timer() - t)
-    # Distance based mask
-    dist_mask = torch.exp(-(sensor_dist - dist_mean) ** 2 / dist_std ** 2)
-
+    # Distance based mask for each artifact
+    dist_masks = []
+    for artifact in det_ranges.keys():
+        dist_mean = 0.5*(det_ranges[artifact]["max"] - 0.0)
+        dist_std = 0.5*(det_ranges[artifact]["max"] - det_ranges[artifact]["min"])
+        artifact_dist_mask = torch.exp(-(sensor_dist - dist_mean) ** 2 / dist_std ** 2)
+        artifact_dist_mask = reduce_rewards(artifact_dist_mask)
+        assert artifact_dist_mask.shape == (n_pts,)
+        dist_masks.append(artifact_dist_mask[None])
+    dist_mask = torch.cat(dist_masks, dim=0).mean(dim=0)
+    assert dist_mask.shape == (n_pts,)
     return dist_mask
 
 
@@ -1221,15 +1241,16 @@ class RPZPlanner(object):
                         # initialize global map rewards with first observations
                         if not self.global_map_initialized:
                             # share and sum rewards over multiple sensors and view points
-                            self.global_map[3, :] = reduce_rewards(rewards).cpu()
+                            self.global_map[3, :] = rewards.cpu()
                             self.global_map_initialized = True
                         # include rewards history from global map
                         assert len(self.local_map_idx) == n_pts
                         rewards_prev = self.global_map[3, local_map_idx].to(self.device).view(-1, n_pts)
                         rewards = rewards.view(-1, n_pts)
-                        rewards = torch.cat([rewards_prev, rewards], dim=0)
+                        rewards = reduce_rewards(torch.cat([rewards_prev, rewards], dim=0))
+                        assert rewards.shape == (n_pts,)
                         # update global map's rewards
-                        self.global_map[3, local_map_idx] = reduce_rewards(rewards).cpu()
+                        self.global_map[3, local_map_idx] = rewards.cpu()
                         global_actual_reward = self.global_map[3, ...].sum()
                         rospy.loginfo('Global actual reward: %.1f', global_actual_reward)
                         self.actual_reward_pub.publish(global_actual_reward)
@@ -1448,19 +1469,21 @@ class RPZPlanner(object):
         # Visibility / occlusion mask.
         if vis_mask is None:
             vis_mask = compute_vis_mask(map, cam_to_map, param=1.0)
+            assert vis_mask.shape == (n_pts,)
 
         # compute smooth version of FOV mask
         # fov_mask = compute_fov_mask_smooth(map, intrins, map_to_cam)
         fov_mask = compute_fov_mask(map, frustums, map_to_cam)
-        assert fov_mask.shape == (n_poses, n_cams, n_pts)
+        assert fov_mask.shape == (n_pts,)
 
         # Compute point to sensor distances.
         # TODO: Optimize, avoid exhaustive distance computation.
-        dist_mask = compute_dist_mask(map, cam_to_map, dist_mean=self.dist_mean, dist_std=self.dist_std)
+        dist_mask = compute_dist_mask(map, cam_to_map)
+        assert dist_mask.shape == (n_pts,)
 
         # Compute rewards
         rewards = vis_mask * fov_mask * dist_mask
-        assert rewards.shape == (n_poses, n_cams, n_pts)
+        assert rewards.shape == (n_pts,)
         return rewards, vis_mask, fov_mask, dist_mask
 
     @timing
@@ -1636,15 +1659,14 @@ class RPZPlanner(object):
             if self.use_rewards_history:
                 # include rewards history from global map
                 assert len(self.local_map_idx) == n_pts
-                rewards_prev = self.global_map[3, self.local_map_idx].to(self.device).view(-1, n_pts)
-                rewards = rewards.view(n_poses * n_cams, n_pts)
-                rewards = torch.cat([rewards_prev, rewards], dim=0)
+                rewards_prev = self.global_map[3, self.local_map_idx].to(self.device)
+                rewards = torch.cat([rewards_prev.view(1, n_pts), rewards.view(1, n_pts)], dim=0)
+                # share and sum rewards over multiple sensors and view points
+                # rewards = log_odds_conversion(rewards)
+                rewards = reduce_rewards(rewards)
             else:
                 rewards_prev = 0.0
 
-            # share and sum rewards over multiple sensors and view points
-            # rewards = log_odds_conversion(rewards)
-            rewards = reduce_rewards(rewards)
             assert rewards.shape == (n_pts,)
 
             if n_poses < self.min_n_wps_to_opt:
@@ -1690,9 +1712,9 @@ class RPZPlanner(object):
                 # Publish reward cloud for visualization.
                 reward_cloud['reward'] = rewards.detach().cpu().numpy()
                 reward_cloud['new_reward'] = (rewards-rewards_prev).detach().cpu().numpy()
-                reward_cloud['distance'] = reduce_rewards(dist_mask).detach().cpu().numpy()
-                reward_cloud['visibility'] = reduce_rewards(vis_mask).detach().cpu().numpy()
-                reward_cloud['fov'] = reduce_rewards(fov_mask).detach().cpu().numpy()
+                reward_cloud['distance'] = dist_mask.detach().cpu().numpy()
+                reward_cloud['visibility'] = vis_mask.detach().cpu().numpy()
+                reward_cloud['fov'] = fov_mask.detach().cpu().numpy()
                 reward_cloud_msg = msgify(PointCloud2, reward_cloud)
                 assert isinstance(reward_cloud_msg, PointCloud2)
                 reward_cloud_msg.header = msg.header
