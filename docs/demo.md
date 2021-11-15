@@ -17,11 +17,11 @@ Setup ROS workspace with the dependencies:
 ```bash
 mkdir -p ~/trajopt_ws/src/ && cd ~/trajopt_ws/src/
 
-git clone -b stable https://bitbucket.org/salanvoj/dem_predictor.git
+git clone -b sim https://bitbucket.org/salanvoj/dem_predictor.git
 
 git clone https://gitlab.fel.cvut.cz/cras/subt/tradr-robot/tradr-ugv-base/
 
-git clone -b eval https://github.com/tpet/rpz_planning/
+git clone https://github.com/tpet/rpz_planning/
 ```
 
 Build the packages in workspace:

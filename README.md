@@ -6,13 +6,13 @@ This is a quick-start section, which describes how to use the `rpz_planner` as a
 without installation of the entire exploration pipeline.
 If you would like to explore, how the trajectory optimization works using a prerecorded data
 (as a ROS bag-file), please, follow the instructions in
-[docs/demo.md](https://github.com/tpet/rpz_planning/docs/demo.md).
+[docs/demo.md](https://github.com/tpet/rpz_planning/blob/master/docs/demo.md).
 
 ## Prerequisites
 
-- [Singularity](https://github.com/tpet/rpz_planning/docs/singularity.md)
-- [DARPA Subt simulator](https://github.com/tpet/rpz_planning/docs/darpa_subt.d)
-- [Exloration pipeline](https://github.com/tpet/rpz_planning/docs/naex.md)
+- [Singularity](https://github.com/tpet/rpz_planning/blob/master/docs/singularity.md)
+- [DARPA Subt simulator](https://github.com/tpet/rpz_planning/blob/master/docs/darpa_subt.d)
+- [Exloration pipeline](https://github.com/tpet/rpz_planning/blob/master/docs/naex.md)
 
 ## Exploration with trajectory optimization
 

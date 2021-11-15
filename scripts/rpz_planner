@@ -1237,8 +1237,8 @@ class RPZPlanner(object):
         assert len(idxs) == map.shape[1]
         new_map = map[:, ~common_pts_mask]
 
-        rospy.loginfo(f'Points distances, min: {map_nn.dists.sqrt().min()}, mean: {map_nn.dists.sqrt().mean()}')
-        rospy.loginfo(f'Adding {new_map.shape[1]} new points')
+        rospy.loginfo('Points distances, min: {0}, mean: {1}'.format(map_nn.dists.sqrt().min(), map_nn.dists.sqrt().mean()))
+        rospy.loginfo('Adding {0} new points'.format(new_map.shape[1]))
         assert new_map.dim() == 2
         assert new_map.shape[0] == 4  # (4, n)
 
