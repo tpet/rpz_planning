@@ -46,8 +46,8 @@
         <param name="threshold_output" value="False"/>
         <param name="map_frame" value="subt"/>
         <param name="pc_topic" value="dynamic_point_cloud_bigbox_filtered"/>
-        <param name="confidence_threshold" value="-3"/> 
-        <param name="s2d_path" value="$(find dem_predictor)/data/net_weights_velo_s2d"/> 
+        <param name="confidence_threshold" value="-3"/>
+        <param name="s2d_path" value="$(find dem_predictor)/data/net_weights_velo_s2d"/>
         <param name="d2rpz_path" value="$(find dem_predictor)/data/net_weights_d2rpz"/>
         <param name="gpu_id" value="$(arg gpu_id)"/>
     </node>

@@ -36,8 +36,8 @@ catkin build dem_predictor nifti_vision_data rpz_planning
 The trajectory optimization takes into account traversability information
 (local map roll, pitch and height values), as well as observation rewards.
 
-Download an example bag-file
-from [http://ptak.felk.cvut.cz/darpa-subt/data/rpz_planning/marv_2021-04-29-12-48-13.bag](http://ptak.felk.cvut.cz/darpa-subt/data/rpz_planning/marv_2021-04-29-12-48-13.bag)
+Download an example bag-file from
+[http://ptak.felk.cvut.cz/darpa-subt/data/rpz_planning/bags/trajopt_input/marv_2021-04-29-12-48-13.bag](http://ptak.felk.cvut.cz/darpa-subt/data/rpz_planning/bags/trajopt_input/marv_2021-04-29-12-48-13.bag)
 and place it in the `rpz_planning/data` directory. Then launch the demo:
 
 ```bash
