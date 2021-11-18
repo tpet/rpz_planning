@@ -10,6 +10,7 @@
     <arg name="trajopt_iters" default="25"/>
     <arg name="debug_trajopt" default="true"/>
     <arg name="rewards_accum" default="false"/>
+    <arg name="gpu_id" default="0"/>
 
     <param name="use_sim_time" value="true"/>
 
@@ -41,11 +42,7 @@
     </node>
 
     <!-- RPZ planner -->
-    <include ns="$(arg robot)" file="$(dirname)/rpz_planner.launch"
-             pass_all_args="true">
-        <arg name="robot_type" value="$(arg robot_type)"/>
-        <arg name="trajopt_iters" value="$(arg trajopt_iters)"/>
-    </include>
+    <include ns="$(arg robot)" file="$(dirname)/rpz_planner.launch" pass_all_args="true"/>
 
 <!--    <include ns="$(arg robot)" file="$(dirname)/actual_reward.launch" pass_all_args="true"/>-->
 
