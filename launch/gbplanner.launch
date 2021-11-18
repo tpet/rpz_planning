@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<launch>
+    <arg name="robot" default="X1" doc="Robot name, also ROS graph and TF namespace."/>
+    <arg name="robot_type" default="explorer_x1" doc="Robot type, from {absolem, dtr, explorer_x1, marv, x1, x2}."/>
+    <arg name="robots" default="$(arg robot)"/>
+    <arg name="gpu_id" default="0"/>
+    <arg name="rviz" default="false"/>
+
+    <!-- Config files -->
+    <arg name="robot_name" default="smb"/>
+    <arg name="launch_prefix" default=""/> <!-- gdb -ex run //args -->
+    <arg name="gbplanner_config_file" default="$(find gbplanner)/config/$(arg robot_name)/gbplanner_config.yaml"/>
+    <arg name="pci_file" default="$(find gbplanner)/config/$(arg robot_name)/planner_control_interface_sim_config.yaml"/>
+    <arg name="voxblox_config_file" default="$(find gbplanner)/config/$(arg robot_name)/voxblox_sim_config.yaml"/>
+    <arg name="map_config_file" default="$(arg voxblox_config_file)"/>
+
+    <!-- Subt frame publisher-->
+    <node name="subt_frame_publisher" pkg="subt_virtual" type="subt_frame_publisher">
+        <param name="robot_name" value="$(arg robot)"/>
+    </node>
+
+    <!-- Robot ground truth frame publisher-->
+    <node name="ground_truth_publisher" pkg="subt_virtual" type="ground_truth_publisher">
+        <param name="robot_name" value="$(arg robot)" />
+    </node>
+
+    <!-- Navigation and Exploration -->
+    <group ns="$(arg robot)">
+        <include file="$(find naex)/launch/tf.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/preproc.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/odom.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/slam.launch" pass_all_args="true">
+            <arg if="$(eval robot_type == 'dtr')"
+                 name="points_slow_filtered" value="points_filtered_batch"/>
+        </include>
+        <include file="$(find naex)/launch/planner.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/follower.launch" pass_all_args="true"/>
+
+<!--         <include file="$(find smb_path_tracker)/launch/pure_pursuit_tracker.launch"/> -->
+    </group>
+
+    <!-- Static TF -->
+    <node pkg="tf" type="static_transform_publisher" name="tf_53" args="0 0 0 0 0 0 world navigation 100" />
+
+    <!-- Graph based planning -->
+    <node pkg="gbplanner" type="gbplanner_node" name="gbplanner_node" output="screen" launch-prefix="$(arg launch_prefix)">
+        <remap from="odometry" to="/X1/odom" />
+        <remap from="pointcloud" to="/X1/point_map" />
+        <rosparam command="load" file="$(arg gbplanner_config_file)" />
+        <rosparam command="load" file="$(arg map_config_file)" />
+    </node>
+
+    <!-- Planner and Control Interface -->
+    <node pkg="pci_general" type="pci_general_ros_node" name="pci_general_ros_node" output="screen">
+        <remap from="command/trajectory" to="$(arg robot_name)/command/trajectory" />
+        <remap from="planner_server" to="gbplanner" />
+        <remap from="planner_homing_server" to="gbplanner/homing" />
+        <remap from="odometry" to="/X1/odom"/>
+        <rosparam command="load" file="$(arg pci_file)" />
+    </node>
+
+    <!-- RVIZ -->
+    <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
+          args="-d $(find gbplanner)/config/rviz/smb.rviz"/>
+</launch>

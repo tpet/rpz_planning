@@ -68,7 +68,6 @@ From: rpz_planning.simg
 	touch /usr/bin/nvidia-smi
 
 %runscript
-    echo "Running demo example on bag file"
     /bin/bash -c "source /opt/ros/melodic/setup.bash && \
     			  source /opt/ros/cras_subt/devel/setup.bash --extend && \
     			  source /opt/ros/trajopt_ws/devel/setup.bash --extend && \
