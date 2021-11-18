@@ -17,6 +17,7 @@ data/
 env/
 
 # Singularity images
-rpz_planning
 *.img
 *.simg
+*.sif
+rpz_gbplanner/

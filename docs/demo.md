@@ -1,7 +1,7 @@
 ## Prerequisites
 
 Before running the demo, make sure you followed the installation instructions in
-[install.md](https://github.com/tpet/rpz_planning/blob/master/docs/install.md)
+[install.md](https://github.com/tpet/rpz_planning/blob/devel/docs/install.md)
 
 ## Singularity
 

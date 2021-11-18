@@ -1,0 +1,76 @@
+Bootstrap: localimage
+From: rpz_planning.simg
+
+%post
+    # temporal fix
+    mkdir -p /tmp/singularity-cache/apt/archives/partial
+
+    apt-get -y update
+    apt-get -y install python-catkin-tools \
+                       libgoogle-glog-dev \
+                       ros-melodic-joy \
+                       ros-melodic-twist-mux \
+                       ros-melodic-interactive-marker-twist-server
+
+    # create ROS ws: clone planner and dependencies
+
+    ## EXPLORATION
+    mkdir -p /opt/ros/gbplanner2_ws/src/exploration && cd /opt/ros/gbplanner2_ws/src/exploration
+    git clone https://github.com/ntnu-arl/gbplanner_ros.git -b gbplanner2
+    git clone https://github.com/ntnu-arl/pci_general.git -b main
+    git clone https://github.com/ntnu-arl/adaptive_obb_ros.git
+
+    ## MISC
+    mkdir -p /opt/ros/gbplanner2_ws/src/misc
+    cd /opt/ros/gbplanner2_ws/src/misc && git clone https://github.com/catkin/catkin_simple.git
+    cd /opt/ros/gbplanner2_ws/src/misc/catkin_simple && git checkout 0e62848b12da76c8cc58a1add42b4f894d1ac21e
+
+    cd /opt/ros/gbplanner2_ws/src/misc && git clone https://github.com/ethz-asl/eigen_catkin.git
+    cd /opt/ros/gbplanner2_ws/src/misc/eigen_catkin && git checkout 00b5eb254bad8de9cd68d238aa994e443062cf30
+
+    cd /opt/ros/gbplanner2_ws/src/misc && git clone https://github.com/ethz-asl/eigen_checks.git
+    cd /opt/ros/gbplanner2_ws/src/misc/eigen_checks && git checkout 22a6247a3df11bc285d43d1a030f4e874a413997
+
+    cd /opt/ros/gbplanner2_ws/src/misc && git clone https://github.com/ethz-asl/gflags_catkin.git
+    cd /opt/ros/gbplanner2_ws/src/misc/gflags_catkin && git checkout 5324e74119996a6e2da12d20e5388c17480ebd79
+
+    cd /opt/ros/gbplanner2_ws/src/misc && git clone https://github.com/ethz-asl/glog_catkin.git
+    cd /opt/ros/gbplanner2_ws/src/misc/glog_catkin && git checkout dcb4559be6b9f9248c543df6789d46271c13efcf
+
+    cd /opt/ros/gbplanner2_ws/src/misc && git clone https://github.com/ethz-asl/minkindr.git
+    cd /opt/ros/gbplanner2_ws/src/misc/minkindr && git checkout bc4503c34970a13b7ef06f62505e3333395ce02c
+
+    cd /opt/ros/gbplanner2_ws/src/misc && git clone https://github.com/ethz-asl/minkindr_ros.git
+    cd /opt/ros/gbplanner2_ws/src/misc/minkindr_ros && git checkout 88e0bd476f82027453f04fdf7c40c7c9a358aa1b
+
+    cd /opt/ros/gbplanner2_ws/src/misc && git clone https://github.com/ethz-asl/mav_comm.git -b master
+
+    cd /opt/ros/gbplanner2_ws/src/misc && git clone https://github.com/ethz-asl/yaml_cpp_catkin.git -b master
+
+    ## MAPPING
+    mkdir -p /opt/ros/gbplanner2_ws/src/mapping
+    cd /opt/ros/gbplanner2_ws/src/mapping && git clone https://github.com/ntnu-arl/voxblox.git -b dev/noetic
+
+    ## SIM
+    mkdir -p /opt/ros/gbplanner2_ws/src/sim && cd /opt/ros/gbplanner2_ws/src/sim
+    git clone https://github.com/ntnu-arl/rotors_simulator.git -b dev/rmf_obelix
+    git clone https://github.com/ntnu-arl/lidar_simulator.git -b psuedo_bpearl
+    git clone https://github.com/ntnu-arl/smb_simulator.git
+    git clone https://github.com/ntnu-arl/subt_cave_sim.git -b master
+
+    # build ROS ws
+    cd /opt/ros/gbplanner2_ws/ && \
+    /bin/bash -c "source /opt/ros/melodic/setup.bash && \
+ 				  catkin config -DCMAKE_BUILD_TYPE=Release && \
+                  catkin build"
+
+%setup
+	touch /usr/bin/nvidia-smi
+
+%runscript
+    echo "Running demo example on bag file"
+    /bin/bash -c "source /opt/ros/melodic/setup.bash && \
+    			  source /opt/ros/cras_subt/devel/setup.bash --extend && \
+    			  source /opt/ros/trajopt_ws/devel/setup.bash --extend && \
+    			  source /opt/ros/gbplanner2_ws/devel/setup.bash --extend && \
+    			  roslaunch gbplanner smb_sim.launch"
