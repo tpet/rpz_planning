@@ -1007,7 +1007,7 @@ class RPZPlanner(object):
             # for k, stamp in enumerate(stamps):
             for i in range(self.num_cameras):
                 if self.cam_infos[i] is None:
-                    rospy.loginfo('Camera %i not yet available.', i)
+                    rospy.logdebug('Camera %i not yet available.', i)
                     continue
                 # cam_corner_dirs = self.cam_corner_dirs[i]
                 # if pose is not None:

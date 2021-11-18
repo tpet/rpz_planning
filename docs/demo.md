@@ -1,37 +1,29 @@
 ## Prerequisites
 
-Setup access to Gitlab workspace. Follow the instructions in the doc:
+Before running the demo, make sure you followed the installation instructions in
+[install.md](https://github.com/tpet/rpz_planning/blob/master/docs/install.md)
 
-[How to - GitLab and setting up workspace](https://docs.google.com/document/d/1Jwnu1jSB3GD0ZptfKwZy1fdjjVrTzuNYB_ebzWgul9U/edit#)
+## Singularity
 
-## Setup
-
-Setup ROS workspace with the dependencies:
-
-- [`dem_predictor`](https://bitbucket.org/salanvoj/dem_predictor/src/stable/):
-  ROS node for traversability estimation from point cloud input
-  (make sure to clone the version from `stable` branch),
-- [`nifti_vision_data`](https://gitlab.fel.cvut.cz/cras/subt/tradr-robot/tradr-ugv-base/-/tree/master/):
-  ROS node for dealing with `/tf_static` problems with rosbags.
-
+Simply run the command:
 ```bash
-mkdir -p ~/trajopt_ws/src/ && cd ~/trajopt_ws/src/
-
-git clone -b sim https://bitbucket.org/salanvoj/dem_predictor.git
-
-git clone https://gitlab.fel.cvut.cz/cras/subt/tradr-robot/tradr-ugv-base/
-
-git clone https://github.com/tpet/rpz_planning/
+./singularity/rpz_planning.sif
 ```
 
-Build the packages in workspace:
-
+Another option, is to log into the container mounting your catkin workspace with the package:
 ```bash
-cd ~/trajopt_ws
-catkin build dem_predictor nifti_vision_data rpz_planning
+singularity shell --nv --bind $HOME/trajopt_ws/src/:/opt/ros/trajopt_ws/src/ rpz_planning.sif
 ```
 
-## Trajectory Optimization
+From the singularity container:
+```bash
+source /opt/ros/melodic/setup.bash && \
+source /opt/ros/cras_subt/devel/setup.bash --extend && \
+source /opt/ros/trajopt_ws/devel/setup.bash --extend && \
+roslaunch rpz_planning play.launch bag:=$HOME/subt/trajopt_ws/src/rpz_planning/data/marv_2021-04-29-12-48-13.bag
+```
+
+## Locally
 
 The trajectory optimization takes into account traversability information
 (local map roll, pitch and height values), as well as observation rewards.
@@ -43,3 +35,4 @@ and place it in the `rpz_planning/data` directory. Then launch the demo:
 ```bash
 roslaunch rpz_planning play.launch
 ```
+

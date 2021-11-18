@@ -1,0 +1,27 @@
+Bootstrap: localimage
+From: subt_tradr_robot.simg
+
+%post
+    # fix ROS public key issue: https://answers.ros.org/question/379190/apt-update-signatures-were-invalid-f42ed6fbab17c654/
+    curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add -
+    apt-get -y update
+
+    mkdir -p /opt/ros/trajopt_ws/src && cd /opt/ros/trajopt_ws/src && \
+    git clone https://github.com/tpet/rpz_planning.git
+    git clone -b sim https://bitbucket.org/salanvoj/dem_predictor.git
+
+    cd /opt/ros/trajopt_ws/ && \
+    /bin/bash -c "source /opt/ros/melodic/setup.bash && \
+ 				  catkin build dem_predictor rpz_planning"
+
+ 	echo "Built ROS workspace"
+
+%setup
+	touch /usr/bin/nvidia-smi
+
+%runscript
+    echo "Running demo example on bag file"
+    /bin/bash -c "source /opt/ros/melodic/setup.bash && \
+    			  source /opt/ros/cras_subt/devel/setup.bash --extend && \
+    			  source /opt/ros/trajopt_ws/devel/setup.bash --extend && \
+    			  roslaunch rpz_planning play.launch bag:=$HOME/subt/trajopt_ws/src/rpz_planning/data/marv_2021-04-29-12-48-13.bag"

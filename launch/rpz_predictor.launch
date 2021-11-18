@@ -5,51 +5,52 @@
     <arg name="robot_type=" default="explorer_x1"/>
     <arg name="gpu_id" default="0"/>
 
-    <include file="$(find nifti_drivers_launchers)/launch/tf_server.launch">
-        <arg name="tf_prefix" value="$(arg robot)/" />
-    </include>
+    <group ns="$(arg robot)">
+        <include file="$(find nifti_drivers_launchers)/launch/tf_server.launch">
+            <arg name="tf_prefix" value="$(arg robot)/" />
+        </include>
 
-    <include file="$(find tradr_odometry)/launch/base_link_leveller.launch">
-        <arg name="tf_prefix" value="$(arg robot)/" />
-    </include>
+        <include file="$(find tradr_odometry)/launch/base_link_leveller.launch">
+            <arg name="tf_prefix" value="$(arg robot)/" />
+        </include>
 
-    <node name="box_filter" pkg="cloud_proc" type="cloud_proc" output="log">
-        <rosparam param="filters" subst_value="true">
-            - cloud_proc.DiscardOld:
-                max_age: 5.0
-            - cloud_proc.Box:
-                keep: 1
-                lower: [-13.0, -13.0, -1.5]
-                upper: [ 13.0,  13.0,  1.0]
-                fields: ["x", "y", "z"]
-                timeout: 1.0
-                frame: $(arg robot)/base_link_zero_roll_pitch
-        </rosparam>
+        <node name="box_filter" pkg="cloud_proc" type="cloud_proc" output="log">
+            <rosparam param="filters" subst_value="true">
+                - cloud_proc.DiscardOld:
+                    max_age: 5.0
+                - cloud_proc.Box:
+                    keep: 1
+                    lower: [-13.0, -13.0, -1.5]
+                    upper: [ 13.0,  13.0,  1.0]
+                    fields: ["x", "y", "z"]
+                    timeout: 1.0
+                    frame: $(arg robot)/base_link_zero_roll_pitch
+            </rosparam>
 
-        <remap from="in" to="points_slow"/>
-        <remap from="out" to="dynamic_point_cloud_bigbox"/>
-    </node>
-
-
-    <node name="rpz_front_rgbd_points_voxels" pkg="nodelet" type="nodelet" args="standalone pcl/VoxelGrid" output="log">
-        <rosparam subst_value="true">
-            leaf_size: 0.1
-            filter_field_name: ""
-        </rosparam>
-        <remap from="~input" to="dynamic_point_cloud_bigbox"/>
-        <remap from="~output" to="dynamic_point_cloud_bigbox_filtered"/>
-    </node>
+            <remap from="in" to="points_slow"/>
+            <remap from="out" to="dynamic_point_cloud_bigbox"/>
+        </node>
 
 
-    <node name="traversability_predictor" pkg="dem_predictor" type="whole_pipeline.py" output="screen">
-        <param name="highres_z" value="True"/>
-        <param name="threshold_output" value="False"/>
-        <param name="map_frame" value="subt"/>
-        <param name="pc_topic" value="dynamic_point_cloud_bigbox_filtered"/>
-        <param name="confidence_threshold" value="-3"/>
-        <param name="s2d_path" value="$(find dem_predictor)/data/net_weights_velo_s2d"/>
-        <param name="d2rpz_path" value="$(find dem_predictor)/data/net_weights_d2rpz"/>
-        <param name="gpu_id" value="$(arg gpu_id)"/>
-    </node>
+        <node name="rpz_front_rgbd_points_voxels" pkg="nodelet" type="nodelet" args="standalone pcl/VoxelGrid" output="log">
+            <rosparam subst_value="true">
+                leaf_size: 0.1
+                filter_field_name: ""
+            </rosparam>
+            <remap from="~input" to="dynamic_point_cloud_bigbox"/>
+            <remap from="~output" to="dynamic_point_cloud_bigbox_filtered"/>
+        </node>
 
+
+        <node name="traversability_predictor" pkg="dem_predictor" type="whole_pipeline.py" output="screen">
+            <param name="highres_z" value="True"/>
+            <param name="threshold_output" value="False"/>
+            <param name="map_frame" value="subt"/>
+            <param name="pc_topic" value="dynamic_point_cloud_bigbox_filtered"/>
+            <param name="confidence_threshold" value="-3"/>
+            <param name="s2d_path" value="$(find dem_predictor)/data/net_weights_velo_s2d"/>
+            <param name="d2rpz_path" value="$(find dem_predictor)/data/net_weights_d2rpz"/>
+            <param name="gpu_id" value="$(arg gpu_id)"/>
+        </node>
+    </group>
 </launch>

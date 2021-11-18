@@ -15,3 +15,8 @@ data/
 *.ply
 
 env/
+
+# Singularity images
+rpz_planning
+*.img
+*.simg
