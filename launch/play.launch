@@ -2,7 +2,7 @@
 <launch>
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="marv"/>
-   <arg name="bag" default="$(find rpz_planning)/data/marv_2021-04-29-12-48-13.bag"/>-->
+    <arg name="bag" default="$(find rpz_planning)/data/marv_2021-04-29-12-48-13.bag"/>
     <arg name="rviz" default="true"/>
     <arg name="start" default="0.0"/>
     <arg name="rate" default="1.0"/>
@@ -41,7 +41,7 @@
     </node>
 
     <!-- RPZ planner -->
-    <include ns="$(arg robot)" file="$(dirname)/rpz_planner.launch" pass_all_args="true"/>
+    <include file="$(dirname)/rpz_planner.launch" pass_all_args="true"/>
 
 <!--    <include ns="$(arg robot)" file="$(dirname)/actual_reward.launch" pass_all_args="true"/>-->
 

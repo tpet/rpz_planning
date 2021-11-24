@@ -13,7 +13,7 @@
     <arg unless="$(eval follow_opt_path)" name="path" default="path"/>
 
     <arg name="record_duration" default="60m"/>
-    <arg name="run_trajopt" default="false" />
+    <arg name="run_trajopt" default="true" />
     <arg name="debug_trajopt" default="false"/>
     <arg name="trajopt_iters" default="25"/>  <!-- for 25 iters takes around ~1 sec to compute an opt path-->
 
