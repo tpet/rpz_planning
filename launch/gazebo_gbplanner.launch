@@ -38,8 +38,7 @@
 
   <include file="$(find smb_gazebo)/launch/spawn_smb.launch">
     <arg name="joystick" value="false"/>
-    <arg name="static_odom_to_world" value="false"/>
-    <arg name="odometry_topic" value="/odom1"/>
+    <arg name="odom_to_tf" value="false"/>
     <arg name="x" value="0.0" />
     <arg name="y" value="0.0" />
     <arg name="z" value="0.5" />
@@ -77,8 +76,8 @@
 
   <include file="$(find naex)/launch/slam.launch" pass_all_args="true">
      <arg name="robot" value=""/>
-<!--     <arg name="points" value="velodyne_points_slow_filtered"/>-->
-      <arg name="points" value="lidar_front_points_slow_filtered"/>
+     <arg name="points" value="velodyne_points_slow_filtered"/>
+<!--      <arg name="points" value="lidar_front_points_slow_filtered"/>-->
    </include>
    <!-- Odometry provider from tfs -->
     <node name="odometry_provider" pkg="nav_utils" type="tf_to_odom">
@@ -88,6 +87,7 @@
         <param name="timer_freq" value="50" />
     </node>
 
+    <!-- Path tracker -->
   <include file="$(find smb_path_tracker)/launch/pure_pursuit_tracker.launch">
     <arg name="odometry_topic" value="$(arg odometry_topic)"/>
   </include>
