@@ -8,6 +8,7 @@
     <arg name="launch_prefix" default=""/> <!-- gdb -ex run //args -->
     <param name="use_sim_time" value="$(arg use_sim_time)"/>
     <arg name="odometry_topic" default="/odom"/>
+    <arg name="run_trajopt" default="false" />
 
     <!-- Config files -->
     <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/smb/gbplanner_config.yaml"/>
@@ -21,6 +22,11 @@
     <!-- Subt frame publisher-->
     <node name="subt_frame_publisher" pkg="subt_virtual" type="subt_frame_publisher" output="log">
         <param name="robot_name" value="$(arg robot)"/>
+    </node>
+
+    <!-- Ground truth tf frames publisher-->
+    <node name="ground_truth_tfs_publisher" pkg="subt_virtual" type="ground_truth_publisher">
+        <param name="robot_name" value="$(arg robot)" />
     </node>
 
     <!-- SLAM -->
@@ -77,6 +83,9 @@
         <param name="look_ahead_error_margin" value="0.2"/>
         <param name="look_ahead_distance" value="0.5"/>
     </node>
+
+    <!-- Traversability estimate and Trajectory optimization -->
+    <include if="$(arg run_trajopt)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
 
     <!-- RVIZ -->
     <node if="$(arg rviz_en)" pkg="rviz" type="rviz" name="gbplanner_ui" output="screen" args="-d $(find rpz_planning)/config/gbplanner.rviz"/>
