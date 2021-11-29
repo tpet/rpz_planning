@@ -11,9 +11,9 @@
     <arg name="run_trajopt" default="false" />
 
     <!-- Config files -->
-    <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/smb/gbplanner_config.yaml"/>
-    <arg name="pci_file" default="$(find rpz_planning)/config/smb/planner_control_interface_sim_config.yaml"/>
-    <arg name="voxblox_config_file" default="$(find rpz_planning)/config/smb/voxblox_sim_config.yaml"/>
+    <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/$(arg robot_type)/gbplanner_config.yaml"/>
+    <arg name="pci_file" default="$(find rpz_planning)/config/$(arg robot_type)/planner_control_interface_sim_config.yaml"/>
+    <arg name="voxblox_config_file" default="$(find rpz_planning)/config/$(arg robot_type)/voxblox_sim_config.yaml"/>
     <arg name="map_config_file" default="$(arg voxblox_config_file)"/>
 
     <!-- Static TF -->
@@ -49,9 +49,9 @@
 
     <node pkg="topic_tools" type="relay" name="vlp_relay" args="$(arg robot)/points /input_pointcloud" />
     <node pkg="topic_tools" type="relay" name="front_rgbd_relay" args="$(arg robot)/front_rgbd/points /input_pointcloud" />
-<!--     <node pkg="topic_tools" type="relay" name="rear_rgbd_relay" args="$(arg robot)/rear_rgbd/points /input_pointcloud" /> -->
-<!--     <node pkg="topic_tools" type="relay" name="right_rgbd_relay" args="$(arg robot)/right_rgbd/points /input_pointcloud" /> -->
-<!--     <node pkg="topic_tools" type="relay" name="left_rgbd_relay" args="$(arg robot)/left_rgbd/points /input_pointcloud" /> -->
+     <node pkg="topic_tools" type="relay" name="rear_rgbd_relay" args="$(arg robot)/rear_rgbd/points /input_pointcloud" />
+     <node pkg="topic_tools" type="relay" name="right_rgbd_relay" args="$(arg robot)/right_rgbd/points /input_pointcloud" />
+     <node pkg="topic_tools" type="relay" name="left_rgbd_relay" args="$(arg robot)/left_rgbd/points /input_pointcloud" />
 
     <!-- Graph based planning -->
     <node pkg="gbplanner" type="gbplanner_node" name="gbplanner_node" output="screen" launch-prefix="$(arg launch_prefix)">
