@@ -36,6 +36,9 @@
             dist_mean: 4.0
             dist_std: 2.0
 
+            enable_visibility: true
+            enable_fov: true
+
             follow_opt_path: $(arg follow_opt_path)
         </rosparam>
 

@@ -565,6 +565,7 @@ def reduce_rewards(rewards, eps=1e-6):
     lo = torch.log(1. - rewards)
     lo = lo.sum(dim=0)
     rewards = 1. - torch.exp(lo)
+    # TODO: Stable logsumexp?
     # rewards = 1. - torch.logsumexp(1. - rewards, dim=(0, 1))
     assert rewards.shape == (n_pts,)
     return rewards
@@ -778,6 +779,7 @@ def compute_fov_mask_smooth(map, intrins, map_to_cam, std=10, eps=1e-6):
     return fov_mask
 
 
+@timing
 def compute_vis_mask(map, cam_to_map, param=1.0, voxel_size=0.6):
     assert isinstance(map, torch.Tensor)
     # (4, n_pts)
@@ -956,6 +958,9 @@ class RPZPlanner(object):
         self.dist_mean = rospy.get_param('~dist_mean', 4.0)
         self.dist_std = rospy.get_param('~dist_std', 2.0)
         self.follow_opt_path = rospy.get_param('~follow_opt_path', True)
+
+        self.enable_visibility = rospy.get_param('~enable_visibility', True)
+        self.enable_fov = rospy.get_param('~enable_fov', True)
 
         # Latest RPZ manifold
         # TODO: frame vs map
@@ -1448,13 +1453,20 @@ class RPZPlanner(object):
         rospy.logdebug('Camera to map transforms: %.3f s', timer() - t)
 
         # Visibility / occlusion mask.
-        if vis_mask is None:
-            vis_mask = compute_vis_mask(map, cam_to_map, param=1.0)
+        if self.enable_visibility:
+            if vis_mask is None:
+                vis_mask = compute_vis_mask(map, cam_to_map, param=1.0)
+            assert vis_mask.shape == (n_poses, n_cams, n_pts)
+        else:
+            vis_mask = torch.ones((1, 1, 1), device=self.device)
 
         # compute smooth version of FOV mask
         # fov_mask = compute_fov_mask_smooth(map, intrins, map_to_cam)
-        fov_mask = compute_fov_mask(map, frustums, map_to_cam)
-        assert fov_mask.shape == (n_poses, n_cams, n_pts)
+        if self.enable_fov:
+            fov_mask = compute_fov_mask(map, frustums, map_to_cam)
+            assert fov_mask.shape == (n_poses, n_cams, n_pts)
+        else:
+            fov_mask = torch.ones((1, 1, 1), device=self.device)
 
         # Compute point to sensor distances.
         # TODO: Optimize, avoid exhaustive distance computation.
