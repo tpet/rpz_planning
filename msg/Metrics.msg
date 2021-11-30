@@ -1,0 +1,12 @@
+Header header
+float64 exp_face_loss
+float64 exp_edge_loss
+float64 exp_chamfer_loss
+float64 exp_completeness
+float64 map_face_loss
+float64 map_edge_loss
+float64 map_chamfer_loss
+float64 artifacts_exp_completeness
+float64 dets_score
+float64 total_reward
+float64 artifacts_total_reward

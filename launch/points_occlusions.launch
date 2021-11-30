@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+
+<launch>
+    <arg name="bag" default="$(find rpz_planning)/data/bags/josef_2019-06-06-13-58-12_proc_0.1m.bag"/>
+    <arg name="rate" default="10.0"/>
+    <arg name="rviz" default="true"/>
+
+    <param name="use_sim_time" value="true"/>
+
+    <node name="points_occlusion" pkg="rpz_planning" type="points_occlusion" output="screen">
+        <param name="pointcloud_topic" value="/final_cost_cloud"/>
+        <param name="min_dist" value="1.0"/>
+        <param name="max_dist" value="10.0"/>
+    </node>
+
+    <node name="rosbag_play_rpz" pkg="rosbag" type="play"
+          args="--clock -k -r $(arg rate) $(arg bag)">
+    </node>
+
+    <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
+          args="-d $(dirname)/../config/occlusion.rviz"/>
+</launch>

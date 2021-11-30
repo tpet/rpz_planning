@@ -3,103 +3,119 @@
 <launch>
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1"/>
-    <arg name="debug_trajopt" default="false"/>
-    <arg name="trajopt_iters" default="25"/>
+    <arg name="use_rewards_history" default="true"/>
+    <arg name="trajopt_iters" default="10"/>
     <arg name="gpu_id" default="0"/>
+    <arg name="path" default="path"/>
+    <arg name="follow_opt_path" default="true"/>
+    <arg name="debug" default="false"/>
 
-    <group ns="$(arg robot)">
-        <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
-            <rosparam subst_value="true">
-                map_frame: subt
-                robot_frame: $(arg robot)/base_footprint
-                max_age: 1.0
-                debug: $(arg debug_trajopt)
-                num_cameras: 1
-                num_iters: $(arg trajopt_iters)
-                map_step: 2
-                path_step: 2
-                linear_speed: 1.0
-                angular_speed: 1.0
-                fixed_endpoints: ['start']
-                gpu_id: $(arg gpu_id)
-    <!--            dist_weight: 1.0-->
-    <!--            trav_weight: 1.0-->
-    <!--            turn_weight: 0.37-->
-                dist_weight: 1.06
-                trav_weight: 1.08
-                turn_weight: 0.24
-            </rosparam>
+<!--    <group ns="$(arg robot)">-->
+    <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
+        <rosparam subst_value="true">
+            map_frame: subt
+            robot_frame: $(arg robot)/base_footprint
+            max_age: 1.0
+            num_cameras: 1
+            num_iters: $(arg trajopt_iters)
+            map_step: 2
+            path_step: 2
+            min_n_wps_to_opt: 6
+            min_gained_reward_to_opt: 200.0
+            use_rewards_history: $(arg use_rewards_history)
+            linear_speed: 1.0
+            angular_speed: 1.0
+            fixed_endpoints: ['start']
+            gpu_id: $(arg gpu_id)
+            debug: $(arg debug)
 
-            <remap from="map" to="local_map"/>
-            <remap from="path" to="path"/>
-            <remap from="rpz" to="traversability"/>
+            dist_weight: 1.06
+            trav_weight: 1.08
+            turn_weight: 0.24
 
-            <rosparam if="$(eval robot_type == 'marv')">
-                num_cameras: 7
-            </rosparam>
-            <rosparam if="$(eval robot_type == 'explorer_x1')">
-                num_cameras: 4
-            </rosparam>
-            <rosparam if="$(eval robot_type == 'tradr')">
-                num_cameras: 6
-                robot_frame: base_footprint
-            </rosparam>
-            <rosparam if="$(eval robot_type == 'smb')">
-                num_cameras: 3
-            </rosparam>
+            dist_mean: 4.0
+            dist_std: 2.0
 
-            <!-- marv cameras topics -->
-            <remap if="$(eval robot_type == 'marv')"
-                   from="camera_info_0" to="front/optical/camera_info"/>
-            <remap if="$(eval robot_type == 'marv')"
-                   from="camera_info_1" to="omni/camera_0/optical/camera_info"/>
-            <remap if="$(eval robot_type == 'marv')"
-                   from="camera_info_2" to="omni/camera_1/optical/camera_info"/>
-            <remap if="$(eval robot_type == 'marv')"
-                   from="camera_info_3" to="omni/camera_2/optical/camera_info"/>
-            <remap if="$(eval robot_type == 'marv')"
-                   from="camera_info_4" to="omni/camera_3/optical/camera_info"/>
-            <remap if="$(eval robot_type == 'marv')"
-                   from="camera_info_5" to="omni/camera_4/optical/camera_info"/>
-            <remap if="$(eval robot_type == 'marv')"
-                   from="camera_info_6" to="rear/optical/camera_info"/>
+            follow_opt_path: $(arg follow_opt_path)
+        </rosparam>
 
-            <!-- explorer cameras topics -->
-            <remap if="$(eval 'explorer_x1' in robot_type.lower())"
-                   from="camera_info_0" to="front_rgbd/optical/camera_info"/>
-            <remap if="$(eval 'explorer_x1' in robot_type.lower())"
-                   from="camera_info_1" to="left_rgbd/optical/camera_info"/>
-            <remap if="$(eval 'explorer_x1' in robot_type.lower())"
-                   from="camera_info_2" to="right_rgbd/optical/camera_info"/>
-            <remap if="$(eval 'explorer_x1' in robot_type.lower())"
-                   from="camera_info_3" to="rear_rgbd/optical/camera_info"/>
+        <rosparam if="$(eval robot_type == 'marv')">
+            num_cameras: 7
+        </rosparam>
+        <rosparam if="$(eval robot_type == 'explorer_x1')">
+            num_cameras: 4
+        </rosparam>
+        <rosparam if="$(eval robot_type == 'tradr')">
+            num_cameras: 6
+            robot_frame: base_footprint
+        </rosparam>
+        <rosparam if="$(eval robot_type == 'smb')">
+            num_cameras: 3
+        </rosparam>
 
-            <!-- tradr cameras topics -->
-            <remap if="$(eval 'tradr' in robot_type.lower())"
-                   from="camera_info_0" to="viz/camera_0/camera_info"/>
-            <remap if="$(eval 'tradr' in robot_type.lower())"
-                   from="camera_info_1" to="viz/camera_1/camera_info"/>
-            <remap if="$(eval 'tradr' in robot_type.lower())"
-                   from="camera_info_2" to="viz/camera_2/camera_info"/>
-            <remap if="$(eval 'tradr' in robot_type.lower())"
-                   from="camera_info_3" to="viz/camera_3/camera_info"/>
-            <remap if="$(eval 'tradr' in robot_type.lower())"
-                   from="camera_info_4" to="viz/camera_4/camera_info"/>
-            <remap if="$(eval 'tradr' in robot_type.lower())"
-                   from="camera_info_5" to="viz/camera_5/camera_info"/>
+        <!-- marv cameras topics -->
+        <remap if="$(eval robot_type == 'marv')"
+               from="camera_info_0" to="front/optical/camera_info"/>
+        <remap if="$(eval robot_type == 'marv')"
+               from="camera_info_1" to="omni/camera_0/optical/camera_info"/>
+        <remap if="$(eval robot_type == 'marv')"
+               from="camera_info_2" to="omni/camera_1/optical/camera_info"/>
+        <remap if="$(eval robot_type == 'marv')"
+               from="camera_info_3" to="omni/camera_2/optical/camera_info"/>
+        <remap if="$(eval robot_type == 'marv')"
+               from="camera_info_4" to="omni/camera_3/optical/camera_info"/>
+        <remap if="$(eval robot_type == 'marv')"
+               from="camera_info_5" to="omni/camera_4/optical/camera_info"/>
+        <remap if="$(eval robot_type == 'marv')"
+               from="camera_info_6" to="rear/optical/camera_info"/>
 
-            <!-- smb cameras topics -->
-            <remap if="$(eval 'smb' in robot_type.lower())"
-                   from="camera_info_0" to="/rgb_cam_front/camera_info"/>
-            <remap if="$(eval 'smb' in robot_type.lower())"
-                   from="camera_info_1" to="/rgb_cam_left/camera_info"/>
-            <remap if="$(eval 'smb' in robot_type.lower())"
-                   from="camera_info_2" to="/rgb_cam_right/camera_info"/>
-            <!-- smb: gbplanner topics -->
-            <remap if="$(eval 'smb' in robot_type.lower())"
-                   from="map" to="/dynamic_point_cloud_bigbox_filtered"/>
-            <remap if="$(eval 'smb' in robot_type.lower())"
-                   from="rpz" to="/traversability"/>
-        </node>
-    </group>
+        <!-- explorer cameras topics -->
+        <remap if="$(eval 'explorer_x1' in robot_type.lower())"
+               from="camera_info_0" to="front_rgbd/optical/camera_info"/>
+        <remap if="$(eval 'explorer_x1' in robot_type.lower())"
+               from="camera_info_1" to="left_rgbd/optical/camera_info"/>
+        <remap if="$(eval 'explorer_x1' in robot_type.lower())"
+               from="camera_info_2" to="right_rgbd/optical/camera_info"/>
+        <remap if="$(eval 'explorer_x1' in robot_type.lower())"
+               from="camera_info_3" to="rear_rgbd/optical/camera_info"/>
+
+        <!-- tradr cameras topics -->
+        <remap if="$(eval 'tradr' in robot_type.lower())"
+               from="camera_info_0" to="viz/camera_0/camera_info"/>
+        <remap if="$(eval 'tradr' in robot_type.lower())"
+               from="camera_info_1" to="viz/camera_1/camera_info"/>
+        <remap if="$(eval 'tradr' in robot_type.lower())"
+               from="camera_info_2" to="viz/camera_2/camera_info"/>
+        <remap if="$(eval 'tradr' in robot_type.lower())"
+               from="camera_info_3" to="viz/camera_3/camera_info"/>
+        <remap if="$(eval 'tradr' in robot_type.lower())"
+               from="camera_info_4" to="viz/camera_4/camera_info"/>
+        <remap if="$(eval 'tradr' in robot_type.lower())"
+               from="camera_info_5" to="viz/camera_5/camera_info"/>
+
+        <!-- smb cameras topics -->
+        <remap if="$(eval 'smb' in robot_type.lower())"
+               from="camera_info_0" to="/rgb_cam_front/camera_info"/>
+        <remap if="$(eval 'smb' in robot_type.lower())"
+               from="camera_info_1" to="/rgb_cam_left/camera_info"/>
+        <remap if="$(eval 'smb' in robot_type.lower())"
+               from="camera_info_2" to="/rgb_cam_right/camera_info"/>
+        <!-- smb: gbplanner topics -->
+        <remap if="$(eval 'smb' in robot_type.lower())"
+               from="map" to="/dynamic_point_cloud_bigbox_filtered"/>
+        <remap if="$(eval 'smb' in robot_type.lower())"
+               from="rpz" to="/traversability"/>
+
+        <!-- Input topics -->
+        <remap from="map" to="local_map"/>
+        <remap from="path" to="$(arg path)"/>
+        <remap from="rpz" to="traversability"/>
+
+        <remap from="max_roll" to="naex_planner/max_roll"/>
+        <remap from="max_pitch" to="naex_planner/max_pitch"/>
+
+        <remap from="dist_mean" to="naex_planner/full_coverage_dist"/>
+        <remap from="dist_std" to="naex_planner/coverage_dist_spread"/>
+    </node>
+<!--    </group>-->
 </launch>

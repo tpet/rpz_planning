@@ -3,19 +3,24 @@
     <arg name="robot" default="X1" doc="Robot name, also ROS graph and TF namespace."/>
     <arg name="robot_type" default="explorer_x1" doc="Robot type, from {absolem, dtr, explorer_x1, marv, x1, x2}."/>
     <arg name="robots" default="$(arg robot)"/>
+    <arg name="points_min_dist" default="0.125"/>
+    <arg name="cmd_vel" default="cmd_vel"/>
     <arg name="run_detector" default="false"/>
     <arg name="do_recording" default="false"/>
     <arg name="gpu_id" default="0"/>
     <arg name="rviz" default="false"/>
+    <arg name="debug_trajopt" default="false"/>
 
     <arg name="follow_opt_path" default="false"/>
     <arg if="$(eval follow_opt_path)" name="path" default="optimized_path"/>
     <arg unless="$(eval follow_opt_path)" name="path" default="path"/>
 
     <arg name="record_duration" default="60m"/>
+    <arg name="bag_postfix" default=""/>
     <arg name="run_trajopt" default="true" />
-    <arg name="debug_trajopt" default="false"/>
-    <arg name="trajopt_iters" default="25"/>  <!-- for 25 iters takes around ~1 sec to compute an opt path-->
+    <arg name="run_trav" default="true" />
+    <arg name="use_rewards_history" default="true"/>
+    <arg name="trajopt_iters" default="25"/>  <!-- for 10 iters takes around ~0.5 sec to compute an opt path-->
 
     <!-- Subt frame publisher-->
     <node name="subt_frame_publisher" pkg="subt_virtual" type="subt_frame_publisher">
@@ -28,11 +33,16 @@
     </node>
 
     <!-- Navigation and Exploration -->
-    <include file="$(find naex)/launch/naex.launch" pass_all_args="true"/>
+    <include file="$(find naex)/launch/naex.launch" pass_all_args="true">
+        <arg name="path_planned" value="path_planned"/>
+        <arg name="path_to_follow" value="path_to_follow"/>
+    </include>
 
-    <!-- Traversability estimate and Trajectory optimization -->
-    <include if="$(arg run_trajopt)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
-    <include if="$(arg run_trajopt)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true"/>
+    <include if="$(arg run_trav)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
+    <include if="$(arg run_trajopt)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true">
+        <arg name="path" value="path_planned"/>
+        <arg name="debug" value="$(arg debug_trajopt)"/>
+    </include>
 
     <!-- Artifacts detector -->
     <include if="$(arg run_detector)" file="$(find rpz_planning)/launch/detector_x1.launch"/>
@@ -43,6 +53,7 @@
     </include>
 
     <!-- RVIZ -->
-    <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
-          args="-d $(dirname)/../config/subt.rviz"/>
+    <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz" args="-d $(find rpz_planning)/config/subt.rviz"/>
+<!--    <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz" args="-d $(find naex)/launch/$(arg robot_type).rviz"/>-->
+
 </launch>

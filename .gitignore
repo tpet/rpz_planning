@@ -14,10 +14,11 @@ data/
 *.mtl
 *.ply
 
-env/
-
 # Singularity images
 *.img
 *.simg
 *.sif
 rpz_gbplanner/
+=======
+# virtualenv
+env/

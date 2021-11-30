@@ -8,8 +8,8 @@
     <arg name="rate" default="1.0"/>
     <arg name="trajopt_iters" default="25"/>
     <arg name="debug_trajopt" default="true"/>
-    <arg name="rewards_accum" default="false"/>
     <arg name="gpu_id" default="0"/>
+    <arg name="use_rewards_history" default="false"/>
 
     <param name="use_sim_time" value="true"/>
 
@@ -41,16 +41,20 @@
     </node>
 
     <!-- RPZ planner -->
-    <include file="$(dirname)/rpz_planner.launch" pass_all_args="true"/>
+    <include ns="$(arg robot)" file="$(dirname)/rpz_planner.launch" pass_all_args="true">
+        <arg name="debug" value="$(arg debug_trajopt)"/>
+    </include>
 
 <!--    <include ns="$(arg robot)" file="$(dirname)/actual_reward.launch" pass_all_args="true"/>-->
 
     <!-- Rewards accumulator -->
-    <include if="$(arg rewards_accum)"
+    <include if="$(arg use_rewards_history)"
              ns="$(arg robot)" file="$(dirname)/rewards_accumulator.launch"
              pass_all_args="true">
-            <arg name="reward_cloud_topic" value="reward_cloud"/>
+        <arg name="reward_cloud_topic" value="reward_cloud"/>
     </include>
+
+<!--    <include ns="$(arg robot)" file="$(dirname)/actual_reward.launch" pass_all_args="true"/>-->
 
     <!-- RVIZ -->
     <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz"
