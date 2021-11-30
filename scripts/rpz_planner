@@ -568,10 +568,12 @@ def reduce_rewards(rewards, eps=1e-6):
     assert rewards.dim() == 3
     n_poses, n_cams, n_pts = rewards.shape
     rewards = torch.clamp(rewards, eps, 1 - eps)
-    lo = torch.log(1. - rewards)
-    lo = lo.view(n_poses * n_cams, n_pts)
-    lo = lo.sum(dim=0)
-    rewards = 1. - torch.exp(lo)
+    # TODO: Stable logsumexp?
+    # lo = torch.log(1. - rewards)
+    # lo = lo.view(n_poses * n_cams, n_pts)
+    # lo = lo.sum(dim=0)
+    # rewards = 1. - torch.exp(lo)
+    rewards = 1. - torch.logsumexp(1. - rewards, dim=(0, 1))
     assert rewards.shape == (n_pts,)
     return rewards
 
