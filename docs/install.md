@@ -29,9 +29,6 @@ Setup ROS workspace with the dependencies:
 mkdir -p ~/trajopt_ws/src/ && cd ~/trajopt_ws/src/
 
 git clone -b sim https://bitbucket.org/salanvoj/dem_predictor.git
-
-git clone https://gitlab.fel.cvut.cz/cras/subt/tradr-robot/tradr-ugv-base/
-
 git clone https://github.com/tpet/rpz_planning/
 ```
 
@@ -39,5 +36,5 @@ Build the packages in workspace:
 
 ```bash
 cd ~/trajopt_ws
-catkin build dem_predictor nifti_vision_data rpz_planning
+catkin build dem_predictor rpz_planning
 ```

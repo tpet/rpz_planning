@@ -10,9 +10,7 @@ From: ros:melodic-robot
     apt-get -y update
     apt-get -y install python-catkin-tools \
                        libgoogle-glog-dev \
-                       ros-melodic-joy \
-                       ros-melodic-twist-mux \
-                       ros-melodic-interactive-marker-twist-server \
+                       ros-melodic-ros-numpy \
                        python3-pip
 
     # clone necessary ROS packages
