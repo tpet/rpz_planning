@@ -33,6 +33,7 @@ catkin_package(
 
 install(
     PROGRAMS
+        scripts/points_occlusion
         scripts/rpz_planner
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
