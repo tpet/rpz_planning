@@ -8,7 +8,7 @@
     <arg name="do_eval" default="true"/>
     <arg name="do_metrics_record" default="true"/>
     <arg name="load_gt" default="true"/>
-    <arg name="bag" default="test_simple_cave_03.bag"/>
+    <arg name="bag" default="explorer_x1_opt_path_true_simple_cave_03_intrins_rewards_hyps_ritz_2021-08-17-15-19-24.bag"/>
     <arg name="bag_path" default="$(find rpz_planning)/data/bags/mapping_eval/$(arg bag)"/>
     <arg name="bag_rate" default="10.0"/>
     <arg name="bag_start" default="0.0"/>
