@@ -786,6 +786,7 @@ def compute_fov_mask_smooth(map, intrins, map_to_cam, std=10, eps=1e-6):
     return fov_mask
 
 
+@timing
 def compute_vis_mask(map, cam_to_map, param=1.0, voxel_size=0.6):
     assert isinstance(map, torch.Tensor)
     # (4, n_pts)
@@ -913,6 +914,9 @@ class RPZPlanner(object):
         self.dist_weight = rospy.get_param('~dist_weight', 1.0)
         self.trav_weight = rospy.get_param('~trav_weight', 1.0)
         self.turn_weight = rospy.get_param('~turn_weight', 1.0)
+
+        self.enable_visibility = rospy.get_param('~enable_visibility', True)
+        self.enable_fov = rospy.get_param('~enable_fov', True)
 
         # Latest RPZ manifold
         # TODO: frame vs map
@@ -1525,20 +1529,25 @@ class RPZPlanner(object):
             assert map_to_cam.shape == (n_poses, n_cams, 4, 4)
             rospy.logdebug('Camera to map transforms: %.3f s', timer() - t)
 
-            # Visibility / occlusion mask.
-            if vis_mask is None:
-                t = timer()
-                vis_mask = compute_vis_mask(map, cam_to_map, param=0.5)
+            # Compute visibility / occlusion mask if enabled.
+            if self.enable_visibility:
+                if vis_mask is None:
+                    vis_mask = compute_vis_mask(map, cam_to_map, param=0.5)
+                assert vis_mask.shape == (n_poses, n_cams, n_pts)
                 with torch.no_grad():
                     reward_cloud['visibility'] = reduce_rewards(vis_mask).detach().cpu().numpy()
-                rospy.logdebug('Point visibility computation took: %.3f s.', timer() - t)
+            else:
+                vis_mask = torch.ones((1, 1, 1))
 
-            # compute smooth version of FOV mask
+            # Compute FOV mask if enabled.
             # fov_mask = compute_fov_mask_smooth(map, intrins, map_to_cam)
-            fov_mask = compute_fov_mask(map, frustums, map_to_cam)
-            assert fov_mask.shape == (n_poses, n_cams, n_pts)
-            with torch.no_grad():
-                reward_cloud['fov'] = reduce_rewards(fov_mask).detach().cpu().numpy()
+            if self.enable_fov:
+                fov_mask = compute_fov_mask(map, frustums, map_to_cam)
+                assert fov_mask.shape == (n_poses, n_cams, n_pts)
+                with torch.no_grad():
+                    reward_cloud['fov'] = reduce_rewards(fov_mask).detach().cpu().numpy()
+            else:
+                fov_mask = torch.ones((1, 1, 1))
 
             # Compute point to sensor distances.
             # TODO: Optimize, avoid exhaustive distance computation.
