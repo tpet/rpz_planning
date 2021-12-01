@@ -9,6 +9,7 @@
     <arg name="path" default="path"/>
     <arg name="follow_opt_path" default="true"/>
     <arg name="debug" default="false"/>
+    <arg name="use_map_rpz" default="false"/>
 
 <!--    <group ns="$(arg robot)">-->
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
@@ -38,6 +39,7 @@
 
             enable_visibility: true
             enable_fov: true
+            use_map_rpz: $(arg use_map_rpz)
 
             follow_opt_path: $(arg follow_opt_path)
         </rosparam>

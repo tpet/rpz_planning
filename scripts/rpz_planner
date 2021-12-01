@@ -201,6 +201,34 @@ def map_affine(x, l0, h0, l1=0., h1=1.):
     return x
 
 
+def angle_between_vecs(p, q, dim=0, keepdim=False, normalized=True):
+    """Angle between vectors."""
+
+    if not normalized:
+        p = p / p.norm(dim=dim, keepdim=True)
+        q = q / q.norm(dim=dim, keepdim=True)
+
+    angle = (p * q).sum(dim=dim, keepdim=keepdim)
+    return angle
+
+
+def inclination(q, dim=0, keepdim=False, normalized=True):
+    """Inclination w.r.t. to x-y plane."""
+    assert q.ndim == 2
+    assert q.shape[dim] == 3
+
+    if not normalized:
+        q = q / q.norm(dim=dim, keepdim=True)
+
+    sz = [1] * q.ndim
+    sz[dim] = 3
+    up = torch.tensor([0., 0., 1.], device=q.device).reshape(sz)
+
+    angle = angle_between_vecs(q, up, dim=dim, keepdim=keepdim, normalized=True)
+    angle = np.pi - angle
+    return angle
+
+
 @timing
 def cloud_to_grid_transform(cloud, order=DimOrder.X_Y_YAW):
     """Estimate cloud-to-grid transform as 3x3 matrix.
@@ -911,6 +939,7 @@ class RPZPlanner(object):
         self.robot_frame = rospy.get_param('~robot_frame', 'base_link')
         self.max_age = rospy.get_param('~max_age', 1.0)
         self.debug = rospy.get_param('~debug', True)
+        self.use_map_rpz = rospy.get_param('~use_map_rpz', False)
 
         # Keep only points inside a box for clearance check.
         # keep_cloud_box = rospy.get_param('~keep_cloud_box', [[-4.0, 4.0],
@@ -975,6 +1004,8 @@ class RPZPlanner(object):
         self.map_lock = RLock()
         self.map_msg = None
         self.map = None  # n-by-3 cloud position array
+        self.map_index = None  # Nearest neighbor index for self.map
+        self.map_normals = None  # n-by-3 normal array corresponding to self.map
         # self.map_x_index = None  # Index of above
         self.global_map = None
         self.local_map_idx = None
@@ -1322,6 +1353,9 @@ class RPZPlanner(object):
         # Consider provide input clouds in one coord frame
         if self.map_frame != msg.header.frame_id:
             # Transform the point cloud to global frame
+            if self.use_map_rpz:
+                raise NotImplementedError('Transforming map with normals not implemented.')
+
             try:
                 transform = self.tf.lookup_transform(self.map_frame, msg.header.frame_id, rospy.Time.now())
                 # msg = do_transform_cloud(msg, transform)
@@ -1336,11 +1370,26 @@ class RPZPlanner(object):
         map = np.random.choice(map, map.size // self.map_step)
         # map = np.stack([map[f] for f in ('x', 'y', 'z')])
         # map = np.concatenate([map, np.ones((1, map.shape[-1]))], axis=0)
+        if self.use_map_rpz:
+            # Use interpolated roll, pitch, z from the map.
+            # Allow interpolation using fitted plane of the nearest neighbor.
+            map_normals = np.stack([map[f] for f in ('normal_x', 'normal_y', 'normal_z')])
+            map_normals = torch.tensor(map_normals)
+        else:
+            map_normals = None
         map = np.stack([map[f] for f in ('x', 'y', 'z')] + [np.ones((map.size,))])
+        if self.use_map_rpz:
+            map_index = scipy.spatial.cKDTree(map[:3, :].T)
+        else:
+            map_index = None
+
         map = torch.tensor(map, dtype=torch.float32)
         with self.map_lock:
             self.map_msg = msg
             self.map = map
+            self.map_index = map_index
+            self.map_normals = map_normals
+
         rospy.logdebug('Map with %i processed and stored (%.3f s).',
                        map.shape[-1], timer() - t)
 
@@ -1523,19 +1572,25 @@ class RPZPlanner(object):
         rospy.logdebug('Optimizing %i / %i cameras.', n_cams, self.num_cameras)
 
         # Get RPZ subspace and map for optimization.
-        with self.rpz_lock:
-            if self.rpz_msg is None:
-                rospy.logwarn('Skipping path. RPZ cloud not yet received.')
-                return
-            assert isinstance(self.rpz_msg, PointCloud2)
-            assert self.rpz_msg.header.frame_id == msg.header.frame_id
-            rpz_all = self.rpz_all
-            map_to_grid = self.map_to_grid
-            grid_to_map = self.grid_to_map
-        assert map_to_grid.shape == (3, 3)
-        assert grid_to_map.shape == (3, 3)
-        # rospy.loginfo('Map to grid:\n%s', map_to_grid.detach().numpy())
-        rospy.logdebug('Grid to map:\n%s', grid_to_map.detach().numpy())
+        if not self.use_map_rpz:
+            with self.rpz_lock:
+                if self.rpz_msg is None:
+                    rospy.logwarn('Skipping path. RPZ cloud not yet received.')
+                    return
+                assert isinstance(self.rpz_msg, PointCloud2)
+                assert self.rpz_msg.header.frame_id == msg.header.frame_id
+                rpz_all = self.rpz_all
+                map_to_grid = self.map_to_grid
+                grid_to_map = self.grid_to_map
+
+            assert map_to_grid.shape == (3, 3)
+            assert grid_to_map.shape == (3, 3)
+            # rospy.loginfo('Map to grid:\n%s', map_to_grid.detach().numpy())
+            rospy.logdebug('Grid to map:\n%s', grid_to_map.detach().numpy())
+        else:
+            rpz_all = None
+            map_to_grid = None
+            grid_to_map = None
 
         with self.map_lock:
             if self.map_msg is None:
@@ -1544,6 +1599,8 @@ class RPZPlanner(object):
             assert isinstance(self.map_msg, PointCloud2)
             assert self.map_msg.header.frame_id == msg.header.frame_id
             local_map = self.map
+            map_index = self.map_index
+            map_normals = self.map_normals
             assert local_map.shape[0] == 4
             n_pts = local_map.shape[-1]  # (4 x N1)
 
@@ -1557,9 +1614,13 @@ class RPZPlanner(object):
         # rospy.logdebug('Original path cost: %.1f [~s].', self.path_cost(xyzrpy))
 
         t = timer()
-        map_to_grid = map_to_grid.to(self.device)
+        if self.use_map_rpz:
+            map_normals = map_normals.to(self.device)
+        else:
+            rpz_all = rpz_all.to(self.device)
+            map_to_grid = map_to_grid.to(self.device)
+            grid_to_map = grid_to_map.to(self.device)
         robot_to_map = robot_to_map.to(self.device)
-        rpz_all = rpz_all.to(self.device)
         local_map = local_map.to(self.device)
         xyzrpy = xyzrpy.to(self.device)
         rospy.logdebug('Moving to %s: %.3f s', self.device, timer() - t)
@@ -1571,7 +1632,13 @@ class RPZPlanner(object):
         # For interpolation we'll have: rpz(to_grid(xyyaw)).
         # Optionally, offset z if needed.
 
-        xyzrpy = select_pts_to_optimize(xyzrpy, self.rpz_cloud)
+        if self.use_map_rpz:
+            path_mask = ((xyzrpy[:, 0] >= local_map[0, :].min()) & (xyzrpy[:, 0] <= local_map[0, :].max())
+                         & (xyzrpy[:, 1] >= local_map[1, :].min()) & (xyzrpy[:, 1] <= local_map[1, :].max()))
+            xyzrpy = xyzrpy[path_mask]
+        else:
+            xyzrpy = select_pts_to_optimize(xyzrpy, self.rpz_cloud)
+
         n_poses = xyzrpy.shape[0]
 
         opt_i = slice(1 if 'start' in self.fixed_endpoints else None,
@@ -1615,10 +1682,43 @@ class RPZPlanner(object):
                 xyyaw = torch.cat((xy, yaw), dim=-1)
             elif self.order == DimOrder.YAW_X_Y:
                 xyyaw = torch.cat((yaw, xy), dim=-1)
-
             assert xyyaw.shape == (n_poses, 3)
-            xyyaw_grid = transform_xyyaw_tensor(map_to_grid, xyyaw, order=self.order)
-            rpz = interpolate_rpz(rpz_all, xyyaw_grid, order=self.order)
+
+            if self.use_map_rpz:
+                # Find current xyz nearest neighbors within the map. In the
+                # 1st iteration, xyz from original path is used, then xyz from
+                # previous iterations:
+                # xy from current iteration and z from the previous create
+                # xyz array to establish correspondences (non-differentiable),
+                # then xyyaw is used to do differentiable interpolation in the
+                # plane.
+                xyz = torch.cat([xy, xyzrpy[:, 2:3].detach()], dim=1)
+                d, idx = map_index.query(xyz.detach().cpu().numpy())
+                assert xyz.shape == (n_poses, 3)
+
+                # Interpolate using the plane fitted in the nearest neighbor.
+                p = local_map[:3, idx].T
+                assert p.shape == (n_poses, 3)
+                normals = map_normals[:, idx].T
+                assert normals.shape == (n_poses, 3)
+                xyz_dir = xyz - p
+                xyz_proj = xyz - (normals * xyz_dir).sum(dim=1, keepdim=True) * normals
+                assert xyz_proj.shape == (n_poses, 3)
+
+                # heading, left, forward
+                heading = torch.cat([torch.cos(yaw), torch.sin(yaw), torch.zeros_like(yaw)], dim=1)
+                left = normals.cross(heading, dim=1)
+                left = left / left.norm(dim=1, keepdim=True)
+                assert left.shape == (n_poses, 3)
+                forward = left.cross(normals, dim=1)
+                assert forward.shape == (n_poses, 3)
+
+                roll = inclination(left, dim=1)
+                pitch = inclination(forward, dim=1)
+                rpz = torch.stack([roll, pitch, xyz_proj[:, 2]], dim=1)
+            else:
+                xyyaw_grid = transform_xyyaw_tensor(map_to_grid, xyyaw, order=self.order)
+                rpz = interpolate_rpz(rpz_all, xyyaw_grid, order=self.order)
 
             # Transform z?
             assert rpz.shape == (n_poses, 3)
