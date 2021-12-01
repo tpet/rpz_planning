@@ -28,7 +28,7 @@
             angular_speed: 1.0
             fixed_endpoints: ['start']
             gpu_id: $(arg gpu_id)
-            debug: $(arg pub_intermediate)
+            pub_intermediate: $(arg pub_intermediate)
 
             dist_weight: 1.06
             trav_weight: 1.08

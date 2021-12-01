@@ -938,7 +938,7 @@ class RPZPlanner(object):
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.robot_frame = rospy.get_param('~robot_frame', 'base_link')
         self.max_age = rospy.get_param('~max_age', 1.0)
-        self.debug = rospy.get_param('~debug', True)
+        self.pub_intermediate = rospy.get_param('~pub_intermediate', True)
         self.use_map_rpz = rospy.get_param('~use_map_rpz', False)
 
         # Keep only points inside a box for clearance check.
@@ -1640,6 +1640,9 @@ class RPZPlanner(object):
             xyzrpy = select_pts_to_optimize(xyzrpy, self.rpz_cloud)
 
         n_poses = xyzrpy.shape[0]
+        if n_poses == 0:
+            rospy.logwarn('Path is outside of traversability map: optimization is not performed')
+            return
 
         opt_i = slice(1 if 'start' in self.fixed_endpoints else None,
                       -1 if 'goal' in self.fixed_endpoints else None)
@@ -1792,7 +1795,7 @@ class RPZPlanner(object):
                 criterion0 = criterion
 
             # publish intermediate result during optimization process only in debug mode
-            if iter == (self.num_iters - 1) or self.debug:
+            if iter == (self.num_iters - 1) or self.pub_intermediate:
                 # publish optimized path
                 msg_out.header.stamp = rospy.Time.now()
                 for p in msg_out.poses:

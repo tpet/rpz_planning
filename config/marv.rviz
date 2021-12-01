@@ -7,9 +7,9 @@ Panels:
         - /Global Options1
         - /Status1
         - /TF1/Frames1
-        - /RPZ visualization1/Namespaces1
+        - /Cameras FOV1/Namespaces1
       Splitter Ratio: 0.509186327457428
-    Tree Height: 688
+    Tree Height: 684
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -31,7 +31,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: RPZ rewards
+    SyncSource: Learned Traversability
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -272,7 +272,6 @@ Visualization Manager:
           Value: true
         world:
           Value: false
-      Marker Alpha: 1
       Marker Scale: 4
       Name: TF
       Show Arrows: true
@@ -441,13 +440,13 @@ Visualization Manager:
       Update Interval: 0
       Value: true
     - Alpha: 1
-      Autocompute Intensity Bounds: false
+      Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
         Max Value: 10
         Min Value: -10
         Value: true
       Axis: Z
-      Channel Name: flags
+      Channel Name: normal_z
       Class: rviz/PointCloud2
       Color: 255; 255; 255
       Color Transformer: Intensity
@@ -455,10 +454,10 @@ Visualization Manager:
       Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 54
+      Max Intensity: 0.9999995231628418
       Min Color: 0; 0; 0
-      Min Intensity: 2
-      Name: Local map
+      Min Intensity: -0.9999997019767761
+      Name: Geometrical Traversability
       Position Transformer: XYZ
       Queue Size: 2
       Selectable: false
@@ -488,7 +487,7 @@ Visualization Manager:
       Max Intensity: 0.5
       Min Color: 0; 0; 0
       Min Intensity: -0.5
-      Name: Traversability
+      Name: Learned Traversability
       Position Transformer: XYZ
       Queue Size: 2
       Selectable: false
@@ -517,7 +516,6 @@ Visualization Manager:
         Z: 0
       Pose Color: 255; 85; 255
       Pose Style: None
-      Queue Size: 10
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
@@ -534,14 +532,13 @@ Visualization Manager:
       Length: 0.30000001192092896
       Line Style: Billboards
       Line Width: 0.05000000074505806
-      Name: RPZ path
+      Name: Optimized Path
       Offset:
         X: 0
         Y: 0
         Z: 0
       Pose Color: 255; 85; 255
       Pose Style: None
-      Queue Size: 10
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
@@ -560,13 +557,13 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: Intensity
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Max Intensity: 1
       Min Color: 0; 0; 0
       Min Intensity: 0
-      Name: RPZ rewards
+      Name: Rewards Cloud
       Position Transformer: XYZ
       Queue Size: 2
       Selectable: false
@@ -577,11 +574,11 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Class: rviz/MarkerArray
       Enabled: true
       Marker Topic: /X1/visualization
-      Name: RPZ visualization
+      Name: Cameras FOV
       Namespaces:
         fov: true
       Queue Size: 2
@@ -620,7 +617,6 @@ Visualization Manager:
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
-      Field of View: 0.7853981852531433
       Focal Point:
         X: 0
         Y: 0
@@ -632,6 +628,7 @@ Visualization Manager:
       Near Clip Distance: 7
       Pitch: 0.7147971391677856
       Target Frame: X1
+      Value: Orbit (rviz)
       Yaw: 3.143582820892334
     Saved:
       - Class: rviz/Orbit
@@ -641,7 +638,6 @@ Visualization Manager:
           Stereo Focal Distance: 1
           Swap Stereo Eyes: false
           Value: false
-        Field of View: 0.7853981852531433
         Focal Point:
           X: 0
           Y: 0
@@ -653,6 +649,7 @@ Visualization Manager:
         Near Clip Distance: 7
         Pitch: 0.7853981852531433
         Target Frame: X1
+        Value: Orbit (rviz)
         Yaw: 0.7853981852531433
       - Class: rviz/ThirdPersonFollower
         Distance: 20
@@ -661,7 +658,6 @@ Visualization Manager:
           Stereo Focal Distance: 1
           Swap Stereo Eyes: false
           Value: false
-        Field of View: 0.7853981852531433
         Focal Point:
           X: -5
           Y: 0
@@ -673,6 +669,7 @@ Visualization Manager:
         Near Clip Distance: 17
         Pitch: 1
         Target Frame: X1
+        Value: ThirdPersonFollower (rviz)
         Yaw: 3.141590118408203
       - Angle: 0
         Class: rviz/TopDownOrtho
@@ -686,6 +683,7 @@ Visualization Manager:
         Near Clip Distance: 0.009999999776482582
         Scale: 80
         Target Frame: X1
+        Value: TopDownOrtho (rviz)
         X: 0
         Y: 0
 Window Geometry:
@@ -694,7 +692,7 @@ Window Geometry:
   Height: 1163
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd0000000400000000000001b5000003edfc0200000008fb0000001200530065006c0065006300740069006f006e010000003d0000008f0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afc000000d200000358000000e60100001cfa000000000100000002fb000000100044006900730070006c00610079007301000000000000017f0000015600fffffffb0000000a005600690065007700730100000000ffffffff0000010000fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261000000010000010f0000043bfc0200000002fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007800000003efc0100000002fb0000000800540069006d0065010000000000000780000002eb00fffffffb0000000800540069006d00650100000000000004500000000000000000000005c5000003ed00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000400000000000001b5000003ebfc0200000008fb0000001200530065006c0065006300740069006f006e010000003e0000008f0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afc000000d300000356000000e80100001dfa000000000100000002fb000000100044006900730070006c00610079007301000000000000017f0000015600fffffffb0000000a005600690065007700730100000000ffffffff0000010000fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261000000010000010f0000043bfc0200000002fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007800000003efc0100000002fb0000000800540069006d0065010000000000000780000002b900fffffffb0000000800540069006d00650100000000000004500000000000000000000005c5000003eb00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
