@@ -11,10 +11,11 @@ From: subt_tradr_robot.simg
     git clone -b sim https://bitbucket.org/salanvoj/dem_predictor.git
 
     cd /opt/ros/trajopt_ws/src/ && ln -s /opt/ros/cras_subt/src/naex/ .
+    cd /opt/ros/trajopt_ws/src/ && ln -s /opt/ros/cras_subt/src/artifact_detection/ .
     cd /opt/ros/trajopt_ws/ && \
     /bin/bash -c "source /opt/ros/melodic/setup.bash && \
                   source /opt/ros/cras_subt/devel/setup.bash && \
- 				  catkin build dem_predictor rpz_planning naex"
+ 				  catkin build dem_predictor rpz_planning naex artifact_detection"
 
  	echo "Built ROS workspace"
 

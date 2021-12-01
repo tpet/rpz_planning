@@ -5,6 +5,8 @@
     <arg name="robot_type" default="explorer_x1"/>
     <arg name="bag_postfix" default=""/>
     <arg name="path" default="path"/>
+    <arg name="follow_opt_path" default="false"/>
+    <arg name="record_duration" default="60m"/>
 
     <!-- Map construction topics: new points and localization in tfs -->
     <arg name="mapping_topics" value="/$(arg robot)/updated_map

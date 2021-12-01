@@ -1,0 +1,12 @@
+#!/bin/bash
+
+images="rpz_planning rpz_gbplanner"
+if [[ $# -gt 0 ]]; then
+  images="$*"
+fi
+
+[ -z "$user" ] && user="$USER"
+
+for f in ${images}; do
+    scp ${f}.simg ${f}.txt ${user}@goedel.felk.cvut.cz:/mnt/home.dokt/${user}/subt/trajopt_ws/src/rpz_planning/singularity/
+done

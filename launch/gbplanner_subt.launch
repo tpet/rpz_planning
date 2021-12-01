@@ -8,7 +8,11 @@
     <arg name="launch_prefix" default=""/> <!-- gdb -ex run //args -->
     <param name="use_sim_time" value="$(arg use_sim_time)"/>
     <arg name="odometry_topic" default="/odom"/>
-    <arg name="run_trav" default="false" />
+
+    <!-- Additional modules -->
+    <arg name="run_trav" default="true" />
+    <arg name="run_detector" default="true"/>
+    <arg name="do_recording" default="false"/>
 
     <!-- Config files -->
     <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/$(arg robot_type)/gbplanner_config.yaml"/>
@@ -37,6 +41,9 @@
         <include file="$(find naex)launch/preproc.launch" pass_all_args="true"/>
         <include file="$(find naex)launch/odom.launch" pass_all_args="true"/>
         <include file="$(find naex)launch/slam.launch" pass_all_args="true"/>
+        <include file="$(find naex)launch/planner.launch" pass_all_args="true">
+                <arg name="planning_freq" value="0.0"/>
+        </include>
     </group>
 
     <!-- Odometry provider from tfs -->
@@ -84,8 +91,16 @@
         <param name="look_ahead_distance" value="0.5"/>
     </node>
 
-    <!-- Traversability estimate and Trajectory optimization -->
+    <!-- Traversability estimate -->
     <include if="$(arg run_trav)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
+
+    <!-- Artifacts detector -->
+    <include if="$(arg run_detector)" file="$(find rpz_planning)/launch/detector_x1.launch"/>
+
+    <!-- Data recording -->
+    <include if="$(arg do_recording)" file="$(find rpz_planning)/launch/record.launch" pass_all_args="true">
+        <arg name="path" value="control_path"/>
+    </include>
 
     <!-- RVIZ -->
     <node if="$(arg rviz_en)" pkg="rviz" type="rviz" name="gbplanner_ui" output="screen" args="-d $(find rpz_planning)/config/gbplanner.rviz"/>

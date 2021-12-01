@@ -5,11 +5,10 @@
     <arg name="robots" default="$(arg robot)"/>
     <arg name="points_min_dist" default="0.125"/>
     <arg name="cmd_vel" default="cmd_vel"/>
-    <arg name="run_detector" default="false"/>
+    <arg name="run_detector" default="true"/>
     <arg name="do_recording" default="false"/>
     <arg name="gpu_id" default="0"/>
     <arg name="rviz" default="false"/>
-    <arg name="debug_trajopt" default="false"/>
 
     <arg name="follow_opt_path" default="false"/>
     <arg if="$(eval follow_opt_path)" name="path" default="optimized_path"/>
@@ -36,12 +35,13 @@
     <include file="$(find naex)/launch/naex.launch" pass_all_args="true">
         <arg name="path_planned" value="path_planned"/>
         <arg name="path_to_follow" value="path_to_follow"/>
+        <arg name="keep_path" value="0.0"/>
     </include>
 
     <include if="$(arg run_trav)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
     <include if="$(arg run_trajopt)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true">
         <arg name="path" value="path_planned"/>
-        <arg name="debug" value="$(arg debug_trajopt)"/>
+        <arg name="pub_intermediate" value="true"/>
     </include>
 
     <!-- Artifacts detector -->

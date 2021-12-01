@@ -8,7 +8,7 @@
     <arg name="gpu_id" default="0"/>
     <arg name="path" default="path"/>
     <arg name="follow_opt_path" default="true"/>
-    <arg name="debug" default="false"/>
+    <arg name="pub_intermediate" default="false"/>
 
 <!--    <group ns="$(arg robot)">-->
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
@@ -27,7 +27,7 @@
             angular_speed: 1.0
             fixed_endpoints: ['start']
             gpu_id: $(arg gpu_id)
-            debug: $(arg debug)
+            debug: $(arg pub_intermediate)
 
             dist_weight: 1.06
             trav_weight: 1.08
