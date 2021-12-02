@@ -20,8 +20,9 @@
     <arg name="use_map_rpz" default="true" />
     <arg name="use_rewards_history" default="true"/>
     <arg name="trajopt_iters" default="25"/>  <!-- for 10 iters takes around ~0.5 sec to compute an opt path-->
+    <arg name="enable_fov_vis" default="true" />
 
-    <!-- Subt frame publisher-->
+    <!-- Publish transformation between robot/map and subt with map originated at robot's initial pose -->
     <node name="subt_frame_publisher" pkg="subt_virtual" type="subt_frame_publisher">
         <param name="robot_name" value="$(arg robot)"/>
     </node>
@@ -43,6 +44,7 @@
         <arg name="path" value="path_planned"/>
         <arg name="pub_intermediate" value="true"/>
         <arg name="use_map_rpz" value="$(arg use_map_rpz)"/>
+        <arg name="enable_fov_vis" value="$(arg enable_fov_vis)"/>
     </include>
 
     <!-- Artifacts detector -->

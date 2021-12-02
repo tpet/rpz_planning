@@ -8,8 +8,9 @@
     <arg name="gpu_id" default="0"/>
     <arg name="path" default="path"/>
     <arg name="follow_opt_path" default="true"/>
-    <arg name="pub_intermediate" default="false"/>
+    <arg name="pub_intermediate" default="true"/>
     <arg name="use_map_rpz" default="false"/>
+    <arg name="enable_fov_vis" default="true"/>
 
 <!--    <group ns="$(arg robot)">-->
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
@@ -37,8 +38,8 @@
             dist_mean: 4.0
             dist_std: 2.0
 
-            enable_visibility: true
-            enable_fov: true
+            enable_visibility: $(arg enable_fov_vis)
+            enable_fov: $(arg enable_fov_vis)
             use_map_rpz: $(arg use_map_rpz)
 
             follow_opt_path: $(arg follow_opt_path)
