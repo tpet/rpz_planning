@@ -39,9 +39,6 @@ From: ros:melodic-robot
 
  	echo "Built trajectory optimization ROS workspace"
 
-%setup
-	touch /usr/bin/nvidia-smi
-
 %runscript
     /bin/bash -c "source /opt/ros/melodic/setup.bash && \
     			  source /opt/ros/py3_trajopt_ws/devel/setup.bash --extend && \

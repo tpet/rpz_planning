@@ -64,12 +64,9 @@ From: rpz_planning.simg
  				  catkin config -DCMAKE_BUILD_TYPE=Release && \
                   catkin build"
 
-%setup
-	touch /usr/bin/nvidia-smi
-
 %runscript
     /bin/bash -c "source /opt/ros/melodic/setup.bash && \
     			  source /opt/ros/cras_subt/devel/setup.bash --extend && \
     			  source /opt/ros/trajopt_ws/devel/setup.bash --extend && \
     			  source /opt/ros/gbplanner2_ws/devel/setup.bash --extend && \
-    			  roslaunch gbplanner smb_sim.launch"
+    			  roslaunch rpz_planning gbplanner_subt.launch"
