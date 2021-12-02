@@ -4,7 +4,7 @@
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1" doc="Robot type, from {absolem, dtr, explorer_x1, marv, x1, x2}."/>
     <arg name="use_sim_time" default="true"/>
-    <arg name="rviz_en" default="true" />
+    <arg name="rviz_en" default="false" />
     <arg name="launch_prefix" default=""/> <!-- gdb -ex run //args -->
     <param name="use_sim_time" value="$(arg use_sim_time)"/>
     <arg name="odometry_topic" default="/odom"/>
@@ -13,6 +13,7 @@
     <arg name="run_trav" default="true" />
     <arg name="run_detector" default="true"/>
     <arg name="do_recording" default="false"/>
+    <arg name="bag_postfix" default=""/> <!-- for recorded bag file name -->
 
     <!-- Config files -->
     <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/$(arg robot_type)/gbplanner_config.yaml"/>

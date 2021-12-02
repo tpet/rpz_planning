@@ -17,7 +17,7 @@
     <arg name="record_duration" default="60m"/>
     <arg name="bag_postfix" default=""/>
     <arg name="run_trajopt" default="true" />
-    <arg name="run_trav" default="true" />
+    <arg name="use_map_rpz" default="true" />
     <arg name="use_rewards_history" default="true"/>
     <arg name="trajopt_iters" default="25"/>  <!-- for 10 iters takes around ~0.5 sec to compute an opt path-->
 
@@ -38,10 +38,11 @@
         <arg name="keep_path" value="0.0"/>
     </include>
 
-    <include if="$(arg run_trav)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
+    <include unless="$(arg use_map_rpz)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
     <include if="$(arg run_trajopt)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true">
         <arg name="path" value="path_planned"/>
         <arg name="pub_intermediate" value="true"/>
+        <arg name="use_map_rpz" value="$(arg use_map_rpz)"/>
     </include>
 
     <!-- Artifacts detector -->

@@ -126,12 +126,6 @@ Visualization Manager:
           Value: false
         X1/base_link/right_realsense_optical:
           Value: false
-        X1/base_link_zero_pitch:
-          Value: false
-        X1/base_link_zero_roll:
-          Value: false
-        X1/base_link_zero_roll_pitch:
-          Value: false
         X1/front_left_wheel_link:
           Value: true
         X1/front_right_wheel_link:
@@ -234,12 +228,6 @@ Visualization Manager:
                     X1/base_link/right_realsense:
                       X1/base_link/right_realsense_optical:
                         {}
-                    X1/base_link_zero_pitch:
-                      {}
-                    X1/base_link_zero_roll:
-                      {}
-                    X1/base_link_zero_roll_pitch:
-                      {}
                   X1/front_left_wheel_link:
                     {}
                   X1/front_right_wheel_link:
@@ -266,7 +254,7 @@ Visualization Manager:
               Color: 255; 255; 255
               Color Transformer: Intensity
               Decay Time: 0
-              Enabled: true
+              Enabled: false
               Invert Rainbow: false
               Max Color: 255; 255; 255
               Max Intensity: 1
@@ -283,7 +271,7 @@ Visualization Manager:
               Unreliable: false
               Use Fixed Frame: true
               Use rainbow: true
-              Value: true
+              Value: false
             - Alpha: 0.5
               Autocompute Intensity Bounds: false
               Autocompute Value Bounds:
@@ -328,7 +316,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: Intensity
           Decay Time: 0
-          Enabled: false
+          Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Max Intensity: 54
@@ -345,7 +333,7 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: false
+          Value: true
         - Alpha: 1
           Autocompute Intensity Bounds: false
           Autocompute Value Bounds:
@@ -388,7 +376,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: Intensity
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Max Intensity: 0.5
@@ -405,7 +393,7 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
         - Alpha: 1
           Autocompute Intensity Bounds: false
           Autocompute Value Bounds:
