@@ -2,8 +2,8 @@ run_mode: kSim
 #trigger_mode: kManual
 trigger_mode: kAuto
 robot_type: kGround
-output_type: kAction
-#output_type: kTopic
+#output_type: kAction
+output_type: kTopic
 init_motion_enable: true
 #planner_trigger_lead_time: 0.0
 planner_trigger_lead_time: 0.4

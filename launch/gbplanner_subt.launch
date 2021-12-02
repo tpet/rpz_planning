@@ -79,17 +79,24 @@
         <param name="world_frame_id" value="subt" />
     </node>
 
-    <!-- Path tracker from gbplanner -->
-    <node name="smb_path_tracker_node" pkg="smb_path_tracker" type="smb_path_tracker_ros_node" output="screen">
-        <remap from="cmd_vel" to="$(arg robot)/cmd_vel" />
-        <remap from="odometry" to="$(arg odometry_topic)" />
-        <param name="robot_frame" value="$(arg robot)/base_link" />
-        <param name="fixed_frame" value="subt" />
-        <param name="critical_angle" value="0.52"/>
-        <param name="max_ang_vel" value="0.5"/>
-        <param name="desired_vel" value="0.5"/>
-        <param name="look_ahead_error_margin" value="0.2"/>
-        <param name="look_ahead_distance" value="0.5"/>
+    <!-- Transform PoseArray to Path msg -->
+    <node name="path_transformer" pkg="rpz_planning" type="pose_array_to_path.py">
+    <rosparam subst_value="true">
+        pose_array_topic: pci_command_path
+        path_topic: path_to_follow
+    </rosparam>
+    <!-- TODO: add trajectory optimization node here transforming the planned path to path to follow -->
+    </node>
+    <!-- Path tracker from naex -->
+    <node name="path_follower" pkg="naex" type="path_follower" respawn="true" respawn_delay="1.0" output="screen">
+    <rosparam subst_value="true">
+        map_frame: subt
+        odom_frame: $(arg robot)/odom
+        robot_frame: $(arg robot)/base_footprint
+    </rosparam>
+    <remap from="path" to="path_to_follow"/>
+    <remap from="cloud" to="$(arg robot)/points_slow_filtered"/>
+    <remap from="cmd_vel" to="$(arg robot)/cmd_vel" />
     </node>
 
     <!-- Traversability estimate -->
