@@ -7,7 +7,6 @@
     <arg name="rviz_en" default="false" />
     <arg name="launch_prefix" default=""/> <!-- gdb -ex run //args -->
     <arg name="odometry_topic" default="/odom"/>
-    <arg name="max_age" default="1000.0"/>
 
     <param name="use_sim_time" value="$(arg use_sim_time)"/>
 
@@ -48,7 +47,7 @@
         <include file="$(find naex)launch/slam.launch" pass_all_args="true"/>
         <include file="$(find naex)launch/planner.launch" pass_all_args="true">
             <arg name="planning_freq" value="0.0"/>
-            <arg name="max_cloud_age" value="$(arg max_age)"/>
+            <arg name="max_cloud_age" value="2.0"/>
         </include>
     </group>
 
@@ -102,7 +101,7 @@
             <arg name="pub_intermediate" value="true"/>
             <arg name="use_map_rpz" value="$(arg use_map_rpz)"/>
             <arg name="enable_fov_vis" value="$(arg enable_fov_vis)"/>
-            <arg name="max_age" value="$(arg max_age)"/>
+            <arg name="max_age" value="60.0"/>
             <arg name="path_step" value="10"/>
         </include>
     </group>
@@ -113,7 +112,7 @@
         map_frame: subt
         odom_frame: $(arg robot)/odom
         robot_frame: $(arg robot)/base_footprint
-        max_age: $(arg max_age)
+        max_age: 60.0
         goal_reached_dist: 0.6
         goal_reached_angle: 1.0
     </rosparam>
