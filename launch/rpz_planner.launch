@@ -6,22 +6,25 @@
     <arg name="use_rewards_history" default="true"/>
     <arg name="trajopt_iters" default="10"/>
     <arg name="gpu_id" default="0"/>
-    <arg name="path" default="path"/>
+    <arg name="input_path_topic" default="path"/>
+    <arg name="output_path_topic" default="path_to_follow"/>
     <arg name="follow_opt_path" default="true"/>
     <arg name="pub_intermediate" default="true"/>
     <arg name="use_map_rpz" default="false"/>
     <arg name="enable_fov_vis" default="true"/>
+    <arg name="max_age" default="1.0"/>
+    <arg name="path_step" default="10"/>
 
 <!--    <group ns="$(arg robot)">-->
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
         <rosparam subst_value="true">
             map_frame: subt
             robot_frame: $(arg robot)/base_footprint
-            max_age: 1.0
+            max_age: $(arg max_age)
             num_cameras: 1
             num_iters: $(arg trajopt_iters)
             map_step: 2
-            path_step: 2
+            path_step: $(arg path_step)
             min_n_wps_to_opt: 6
             min_gained_reward_to_opt: 200.0
             use_rewards_history: $(arg use_rewards_history)
@@ -114,7 +117,7 @@
 
         <!-- Input topics -->
         <remap from="map" to="local_map"/>
-        <remap from="path" to="$(arg path)"/>
+        <remap from="path" to="$(arg input_path_topic)"/>
         <remap from="rpz" to="traversability"/>
 
         <remap from="max_roll" to="naex_planner/max_roll"/>
@@ -122,6 +125,8 @@
 
         <remap from="dist_mean" to="naex_planner/full_coverage_dist"/>
         <remap from="dist_std" to="naex_planner/coverage_dist_spread"/>
+
+        <remap from="path_to_follow" to="$(arg output_path_topic)"/>
     </node>
 <!--    </group>-->
 </launch>

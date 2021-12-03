@@ -67,8 +67,8 @@
                 /$(arg robot)/left_rgbd/optical/camera_info
                 /$(arg robot)/rear_rgbd/optical/camera_info
                 /$(arg robot)/right_rgbd/optical/camera_info
-                /$(arg robot)/local_map_slow
-                /$(arg robot)/path
+                /$(arg robot)/local_map
+                /$(arg robot)/path_planned
                 /tf
                 /tf_static
                 /$(arg robot)/traversability"/>
@@ -99,5 +99,10 @@
           args="-o $(find rpz_planning)/$(arg robot_type)_opt_path_$(arg follow_opt_path)_$(arg bag_postfix)
                 $(arg mapping_topics) $(arg detections_localization_topics) $(arg camera_info_topics)
                 --duration $(arg record_duration)"/>
+
+<!--    <node name="record_data" pkg="rosbag" type="record"-->
+<!--          args="-o $(find rpz_planning)/$(arg robot_type)_$(arg bag_postfix)-->
+<!--                $(arg trajopt_input_topics)-->
+<!--                &#45;&#45;duration $(arg record_duration)"/>-->
 </launch>
 

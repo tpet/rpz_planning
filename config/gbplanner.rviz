@@ -146,7 +146,7 @@ Visualization Manager:
               Value: true
             rescue_randy_4:
               Value: true
-            simple_cave_02:
+            simple_cave_01:
               Value: true
             subt:
               Value: true
@@ -185,7 +185,7 @@ Visualization Manager:
                 {}
               rescue_randy_4:
                 {}
-              simple_cave_02:
+              simple_cave_01:
                 {}
               subt:
                 X1/map:
@@ -356,13 +356,13 @@ Visualization Manager:
           Queue Size: 100
           Value: false
         - Class: rviz/MarkerArray
-          Enabled: true
+          Enabled: false
           Marker Topic: /vis/planning_graph
           Name: PlanningGraph
           Namespaces:
             {}
           Queue Size: 100
-          Value: true
+          Value: false
         - Class: rviz/MarkerArray
           Enabled: false
           Marker Topic: /vis/sampler

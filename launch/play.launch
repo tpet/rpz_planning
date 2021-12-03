@@ -26,19 +26,8 @@
     <!-- ROSBAG -->
     <node name="rosbag_play_rpz" pkg="rosbag" type="play"
           args="--clock -k -d 3.0 -s $(arg start) -r $(arg rate) $(arg bag)">
-
-        <remap if="$(eval 'marv' in robot_type.lower())"
-               from="/$(arg robot)/local_map_slow" to="/$(arg robot)/local_map"/>
-
-        <remap if="$(eval 'explorer_x1' in robot_type.lower())"
-               from="/$(arg robot)/local_map_slow" to="/$(arg robot)/local_map"/>
-
-        <remap if="$(eval 'tradr' in robot_type.lower())"
-               from="/traversability" to="/$(arg robot)/traversability"/>
-        <remap if="$(eval 'tradr' in robot_type.lower())"
-               from="/path" to="/$(arg robot)/path"/>
-        <remap if="$(eval 'tradr' in robot_type.lower())"
-               from="/traversability" to="/$(arg robot)/local_map"/>
+        <remap from="/$(arg robot)/local_map_slow" to="/$(arg robot)/local_map"/>
+        <remap from="/$(arg robot)/path_planned" to="/$(arg robot)/path"/>
     </node>
 
     <!-- RPZ planner -->

@@ -19,6 +19,7 @@ class PathConverter:
     def path_cb(self, pose_arr):
         assert isinstance(pose_arr, PoseArray)
         path_msg = Path()
+        # path_msg.header = pose_arr.header
         path_msg.poses = [PoseStamped(Header(), p) for p in pose_arr.poses]
         self.path_pub.publish(path_msg)
 

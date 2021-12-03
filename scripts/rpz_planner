@@ -1547,7 +1547,7 @@ class RPZPlanner(object):
         n_poses = len(msg.poses)
         rospy.loginfo('Path with %i poses received.', n_poses)
         if n_poses < 2:
-            rospy.logwarn('Path too short for optimization.')
+            rospy.logwarn('Path is too short for optimization.')
             return
 
         # Check compatibility of path and map frames.

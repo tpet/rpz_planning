@@ -9,7 +9,7 @@
 
   If you would like to create ground truth mesh by your own,
   plaese, follow instructions in
-  [tools/world_to_mesh/readme.md](https://github.com/tpet/rpz_planning/blob/master/tools/world_to_mesh/readme.md)
+  [scripts/utils/world_to_mesh/readme.md](https://github.com/tpet/rpz_planning/blob/master/scripts/utils/world_to_mesh/readme.md)
   
 * **Do mapping**
 
