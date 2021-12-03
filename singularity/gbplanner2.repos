@@ -1,0 +1,76 @@
+# https://github.com/dirk-thomas/vcstool
+repositories:
+
+  # Prereqs
+  catkin_simple:
+    type: git
+    url: https://github.com/catkin/catkin_simple.git
+    version: 0e62848b12da76c8cc58a1add42b4f894d1ac21e
+  eigen_catkin:
+    type: git
+    url: https://github.com/ethz-asl/eigen_catkin.git
+    version: 00b5eb254bad8de9cd68d238aa994e443062cf30
+  eigen_checks:
+    type: git
+    url: https://github.com/ethz-asl/eigen_checks.git
+    version: 22a6247a3df11bc285d43d1a030f4e874a413997
+  gflags_catkin:
+    type: git
+    url: https://github.com/ethz-asl/gflags_catkin.git
+    version: 5324e74119996a6e2da12d20e5388c17480ebd79
+  glog_catkin:
+    type: git
+    url: https://github.com/ethz-asl/glog_catkin.git
+    version: dcb4559be6b9f9248c543df6789d46271c13efcf
+  mav_comm:
+    type: git
+    url: https://github.com/ethz-asl/mav_comm.git
+    version: master
+  minkindr:
+    type: git
+    url: https://github.com/ethz-asl/minkindr.git
+    version: bc4503c34970a13b7ef06f62505e3333395ce02c
+  minkindr_ros:
+    type: git
+    url: https://github.com/ethz-asl/minkindr_ros.git
+    version: 88e0bd476f82027453f04fdf7c40c7c9a358aa1b
+  yaml_cpp_catkin:
+    type: git
+    url: https://github.com/ethz-asl/yaml_cpp_catkin.git
+    version: master
+
+  # Exploration
+  adaptive_obb_ros:
+    type: git
+    url: https://github.com/ntnu-arl/adaptive_obb_ros.git
+  gbplanner_ros:
+    type: git
+    url: https://github.com/ntnu-arl/gbplanner_ros.git
+    version: gbplanner2
+  pci_general:
+    type: git
+    url: https://github.com/ntnu-arl/pci_general.git
+    version: main
+
+  # Mapping
+  voxblox:
+    type: git
+    url: https://github.com/ntnu-arl/voxblox.git
+    version: dev/noetic
+
+  # Simulation
+  lidar_simulator:
+    type: git
+    url: https://github.com/ntnu-arl/lidar_simulator.git
+    version: psuedo_bpearl
+#  rotors_simulator:
+#    type: git
+#    url: https://github.com/ntnu-arl/rotors_simulator.git
+#    version: dev/rmf_obelix
+  smb_simulator:
+    type: git
+    url: https://github.com/ntnu-arl/smb_simulator.git
+  subt_cave_sim:
+    type: git
+    url: https://github.com/ntnu-arl/subt_cave_sim.git
+    version: master

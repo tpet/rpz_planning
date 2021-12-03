@@ -1,0 +1,34 @@
+Bootstrap: localimage
+From: subt_tradr_robot.simg
+
+%files
+    gbplanner2.apt /opt/ros/trajopt_ws/gbplanner2.apt
+    gbplanner2.repos /opt/ros/trajopt_ws/gbplanner2.repos
+    rpz_planning.repos /opt/ros/trajopt_ws/rpz_planning.repos
+
+%post
+    # fix ROS public key issue: https://answers.ros.org/question/379190/apt-update-signatures-were-invalid-f42ed6fbab17c654/
+    curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add -
+    apt-get -y update
+
+    ws=/opt/ros/trajopt_ws
+    mkdir -p "${ws}/src"
+    cd "${ws}"
+
+    sudo apt-get -y install python-vcstool
+    sudo apt-get -y install `cat ${ws}/gbplanner2.apt`
+
+    # Pull repositories.
+    vcs import src < ${ws}/gbplanner2.repos
+    vcs import src < ${ws}/rpz_planning.repos
+    vcs pull src
+
+    # Configure and build workspace.
+    catkin config --extend /opt/ros/cras_subt/devel
+    catkin config --cmake-args -DCMAKE_BUILD_TYPE=Release
+    catkin build -c
+
+%runscript
+    echo "Running demo example on bag file"
+    /bin/bash -c "source /opt/ros/trajopt_ws/devel/setup.bash && \
+    			  roslaunch rpz_planning play.launch bag:=$HOME/subt/trajopt_ws/src/rpz_planning/data/marv_2021-04-29-12-48-13.bag"

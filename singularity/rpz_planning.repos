@@ -1,0 +1,13 @@
+# https://github.com/dirk-thomas/vcstool
+repositories:
+
+  dem_predictor:
+    type: git
+    url: https://bitbucket.org/salanvoj/dem_predictor.git
+    version: sim
+  naex:
+    type: git
+    url: https://github.com/tpet/naex.git
+  rpz_planning:
+    type: git
+    url: https://github.com/tpet/rpz_planning.git
