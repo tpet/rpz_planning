@@ -15,8 +15,8 @@ From: ros:melodic-robot
 
     # clone necessary ROS packages
     mkdir -p /opt/ros/py3_trajopt_ws/src && cd /opt/ros/py3_trajopt_ws/src && \
-    git clone https://github.com/tpet/rpz_planning.git
-    git clone -b sim https://bitbucket.org/salanvoj/dem_predictor.git
+    git clone -b icra-2022 https://github.com/tpet/rpz_planning.git
+    git clone -b icra-2022 https://bitbucket.org/salanvoj/dem_predictor.git
     mkdir -p /opt/ros/py3_trajopt_ws/src/thirdparty/ && cd /opt/ros/py3_trajopt_ws/src/thirdparty/ && \
     git clone -b melodic-devel https://github.com/ros/geometry2 && \
 	git clone -b melodic-devel https://github.com/ros/geometry && \
