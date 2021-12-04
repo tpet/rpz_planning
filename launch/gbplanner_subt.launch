@@ -14,7 +14,8 @@
     <arg name="run_detector" default="true"/>
     <arg name="do_recording" default="false"/>
     <arg name="bag_postfix" default=""/> <!-- for recorded bag file name -->
-    <arg name="run_trajopt" default="false" />
+    <arg name="run_trajopt" default="true" />
+    <arg name="follow_opt_path" default="false" />
     <arg name="use_map_rpz" default="false" />
     <arg name="enable_fov_vis" default="true" />
 
@@ -47,7 +48,7 @@
         <include file="$(find naex)launch/slam.launch" pass_all_args="true"/>
         <include file="$(find naex)launch/planner.launch" pass_all_args="true">
             <arg name="planning_freq" value="0.0"/>
-            <arg name="max_cloud_age" value="2.0"/>
+            <arg name="max_cloud_age" value="3600.0"/>
         </include>
     </group>
 
@@ -101,8 +102,8 @@
             <arg name="pub_intermediate" value="true"/>
             <arg name="use_map_rpz" value="$(arg use_map_rpz)"/>
             <arg name="enable_fov_vis" value="$(arg enable_fov_vis)"/>
-            <arg name="max_age" value="60.0"/>
-            <arg name="path_step" value="10"/>
+            <arg name="max_age" value="3600.0"/>
+            <arg name="path_step" value="5"/>
         </include>
     </group>
 
@@ -112,12 +113,13 @@
         map_frame: subt
         odom_frame: $(arg robot)/odom
         robot_frame: $(arg robot)/base_footprint
-        max_age: 60.0
-        goal_reached_dist: 0.6
-        goal_reached_angle: 1.0
+        max_age: 3600.0
+        goal_reached_dist: 0.8
+        goal_reached_angle: 3.14
+        obstacle_avoidance: false
     </rosparam>
-    <remap if="$(arg run_trajopt)" from="path" to="$(arg robot)/path_to_follow"/>
-    <remap unless="$(arg run_trajopt)" from="path" to="$(arg robot)/path_planned"/>
+    <remap if="$(arg follow_opt_path)" from="path" to="$(arg robot)/path_to_follow"/>
+    <remap unless="$(arg follow_opt_path)" from="path" to="$(arg robot)/path_planned"/>
     <remap from="cloud" to="$(arg robot)/points_slow_filtered"/>
     <remap from="cmd_vel" to="$(arg robot)/cmd_vel" />
     </node>
