@@ -4,7 +4,7 @@
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1"/>
     <arg name="use_rewards_history" default="true"/>
-    <arg name="trajopt_iters" default="10"/>
+    <arg name="trajopt_iters" default="25"/>
     <arg name="gpu_id" default="0"/>
     <arg name="input_path_topic" default="path"/>
     <arg name="output_path_topic" default="path_to_follow"/>
@@ -13,7 +13,7 @@
     <arg name="use_map_rpz" default="false"/>
     <arg name="enable_fov_vis" default="true"/>
     <arg name="max_age" default="1.0"/>
-    <arg name="path_step" default="10"/>
+    <arg name="path_step" default="2"/>
 
 <!--    <group ns="$(arg robot)">-->
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
