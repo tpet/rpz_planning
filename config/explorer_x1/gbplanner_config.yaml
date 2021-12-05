@@ -157,7 +157,7 @@ PlanningParams:
   auto_global_planner_enable: true
   relaxed_corridor_multiplier: 1.5
   homing_backward: false
-  auto_homing_enable: true
+  auto_homing_enable: false
   time_budget_limit: 3600 # seconds
   global_frame_id: subt
   global_path_inclination_check: true

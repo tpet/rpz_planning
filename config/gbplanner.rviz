@@ -40,7 +40,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: Reward Cloud
+    SyncSource: ""
   - Class: gbplanner_ui/GbPlanner Control
     Name: GbPlanner Control
 Preferences:
@@ -75,146 +75,13 @@ Visualization Manager:
           Frame Timeout: 15
           Frames:
             All Enabled: false
-            X1:
-              Value: true
-            X1/base_footprint:
-              Value: false
-            X1/base_link:
-              Value: false
-            X1/base_link/front_laser:
-              Value: false
-            X1/base_link/front_realsense:
-              Value: false
-            X1/base_link/front_realsense_optical:
-              Value: false
-            X1/base_link/imu_sensor:
-              Value: false
-            X1/base_link/left_realsense:
-              Value: false
-            X1/base_link/left_realsense_optical:
-              Value: false
-            X1/base_link/rear_realsense:
-              Value: false
-            X1/base_link/rear_realsense_optical:
-              Value: false
-            X1/base_link/right_realsense:
-              Value: false
-            X1/base_link/right_realsense_optical:
-              Value: false
-            X1/front_left_wheel_link:
-              Value: false
-            X1/front_right_wheel_link:
-              Value: false
-            X1/map:
-              Value: true
-            X1/odom:
-              Value: true
-            X1/rear_left_wheel_link:
-              Value: false
-            X1/rear_right_wheel_link:
-              Value: false
-            X1_ground_truth:
-              Value: false
-            backpack_1:
-              Value: true
-            backpack_2:
-              Value: true
-            backpack_3:
-              Value: true
-            backpack_4:
-              Value: true
-            navigation:
-              Value: false
-            phone_1:
-              Value: true
-            phone_2:
-              Value: true
-            phone_3:
-              Value: true
-            phone_4:
-              Value: true
-            rescue_randy_1:
-              Value: true
-            rescue_randy_2:
-              Value: true
-            rescue_randy_3:
-              Value: true
-            rescue_randy_4:
-              Value: true
-            simple_cave_01:
-              Value: true
-            subt:
-              Value: true
-            world:
-              Value: true
           Marker Scale: 5
           Name: TF
           Show Arrows: true
           Show Axes: true
           Show Names: true
           Tree:
-            world:
-              X1_ground_truth:
-                {}
-              backpack_1:
-                {}
-              backpack_2:
-                {}
-              backpack_3:
-                {}
-              backpack_4:
-                {}
-              phone_1:
-                {}
-              phone_2:
-                {}
-              phone_3:
-                {}
-              phone_4:
-                {}
-              rescue_randy_1:
-                {}
-              rescue_randy_2:
-                {}
-              rescue_randy_3:
-                {}
-              rescue_randy_4:
-                {}
-              simple_cave_01:
-                {}
-              subt:
-                X1/map:
-                  X1/odom:
-                    X1:
-                      X1/base_link:
-                        X1/base_footprint:
-                          {}
-                        X1/base_link/front_laser:
-                          {}
-                        X1/base_link/front_realsense:
-                          X1/base_link/front_realsense_optical:
-                            {}
-                        X1/base_link/imu_sensor:
-                          {}
-                        X1/base_link/left_realsense:
-                          X1/base_link/left_realsense_optical:
-                            {}
-                        X1/base_link/rear_realsense:
-                          X1/base_link/rear_realsense_optical:
-                            {}
-                        X1/base_link/right_realsense:
-                          X1/base_link/right_realsense_optical:
-                            {}
-                      X1/front_left_wheel_link:
-                        {}
-                      X1/front_right_wheel_link:
-                        {}
-                      X1/rear_left_wheel_link:
-                        {}
-                      X1/rear_right_wheel_link:
-                        {}
-                navigation:
-                  {}
+            {}
           Update Interval: 0
           Value: true
         - Class: rviz/Axes
@@ -314,10 +181,7 @@ Visualization Manager:
           Marker Topic: /vis/robot_state
           Name: RobotState
           Namespaces:
-            extension: true
-            extension_aligned: true
-            heading: true
-            size: true
+            {}
           Queue Size: 100
           Value: true
         - Class: rviz/MarkerArray
@@ -365,8 +229,7 @@ Visualization Manager:
           Marker Topic: /vis/ref_path
           Name: RefPath
           Namespaces:
-            ref_path: true
-            vertices: true
+            {}
           Queue Size: 100
           Value: true
         - Class: rviz/MarkerArray
@@ -437,8 +300,7 @@ Visualization Manager:
           Marker Topic: /vis/geofence
           Name: Geofence
           Namespaces:
-            ID: true
-            geofence: true
+            {}
           Queue Size: 100
           Value: true
       Enabled: true
@@ -507,13 +369,13 @@ Visualization Manager:
           Unreliable: false
           Value: false
         - Class: rviz/MarkerArray
-          Enabled: true
+          Enabled: false
           Marker Topic: /gbplanner_node/occupied_nodes
           Name: Occupied
           Namespaces:
-            occupied_voxels: true
+            {}
           Queue Size: 100
-          Value: true
+          Value: false
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
@@ -556,7 +418,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: AxisColor
           Decay Time: 0
-          Enabled: false
+          Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Max Intensity: 4096
@@ -573,8 +435,8 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: false
-      Enabled: true
+          Value: true
+      Enabled: false
       Name: Voxblox
     - Class: rviz/MarkerArray
       Enabled: false
@@ -594,31 +456,6 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
-        X1/base_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        X1/front_left_wheel_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        X1/front_right_wheel_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        X1/rear_left_wheel_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        X1/rear_right_wheel_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
       Name: RobotModel
       Robot Description: /X1/robot_description
       TF Prefix: ""
@@ -741,7 +578,7 @@ Visualization Manager:
             {}
           Queue Size: 100
           Value: false
-      Enabled: false
+      Enabled: true
       Name: Trajectory Optimization
   Enabled: true
   Global Options:
