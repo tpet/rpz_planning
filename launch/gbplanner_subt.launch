@@ -115,7 +115,7 @@
         robot_frame: $(arg robot)/base_footprint
         max_age: 3600.0
         goal_reached_dist: 0.8
-        goal_reached_angle: 3.14
+        goal_reached_angle: 0.8
         obstacle_avoidance: false
     </rosparam>
     <remap if="$(arg follow_opt_path)" from="path" to="$(arg robot)/path_to_follow"/>

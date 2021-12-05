@@ -6,6 +6,7 @@ RobotParams:
   center_offset:      [0.0, 0.0, 0.0]
   relax_ratio:        0.5 # Used to define an intermediate size between size_extension_min and size_extension for planning
   bound_mode:         kExtendedBound
+#  bound_mode:         kExactBound
   safety_extension:   [2.0, 3.0, 0.2] # Safety extension outside the bounding box of a path segment used to improve it by pushing it away from obstacles
 #-------------------------------------------------------------------------------
 # SENSOR CONFIGURATION
