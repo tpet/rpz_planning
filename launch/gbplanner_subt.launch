@@ -102,26 +102,26 @@
             <arg name="pub_intermediate" value="true"/>
             <arg name="use_map_rpz" value="$(arg use_map_rpz)"/>
             <arg name="enable_fov_vis" value="$(arg enable_fov_vis)"/>
-            <arg name="max_age" value="3600.0"/>
+            <arg name="max_age" value="2.0"/>
             <arg name="path_step" value="5"/>
         </include>
     </group>
 
     <!-- Path tracker from naex -->
     <node name="path_follower" pkg="naex" type="path_follower" respawn="true" respawn_delay="1.0" output="screen">
-    <rosparam subst_value="true">
-        map_frame: subt
-        odom_frame: $(arg robot)/odom
-        robot_frame: $(arg robot)/base_footprint
-        max_age: 3600.0
-        goal_reached_dist: 0.8
-        goal_reached_angle: 0.8
-        obstacle_avoidance: false
-    </rosparam>
-    <remap if="$(arg follow_opt_path)" from="path" to="$(arg robot)/path_to_follow"/>
-    <remap unless="$(arg follow_opt_path)" from="path" to="$(arg robot)/path_planned"/>
-    <remap from="cloud" to="$(arg robot)/points_slow_filtered"/>
-    <remap from="cmd_vel" to="$(arg robot)/cmd_vel" />
+        <rosparam subst_value="true">
+            map_frame: subt
+            odom_frame: $(arg robot)/odom
+            robot_frame: $(arg robot)/base_footprint
+            max_age: 3600.0
+            goal_reached_dist: 0.8
+            goal_reached_angle: 0.8
+            obstacle_avoidance: false
+        </rosparam>
+        <remap if="$(arg follow_opt_path)" from="path" to="$(arg robot)/path_to_follow"/>
+        <remap unless="$(arg follow_opt_path)" from="path" to="$(arg robot)/path_planned"/>
+        <remap from="cloud" to="$(arg robot)/points_slow_filtered"/>
+        <remap from="cmd_vel" to="$(arg robot)/cmd_vel" />
     </node>
 
     <!-- Artifacts detector -->
