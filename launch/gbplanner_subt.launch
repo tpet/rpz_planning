@@ -48,7 +48,7 @@
         <include file="$(find naex)launch/slam.launch" pass_all_args="true"/>
         <include file="$(find naex)launch/planner.launch" pass_all_args="true">
             <arg name="planning_freq" value="0.0"/>
-            <arg name="max_cloud_age" value="3600.0"/>
+            <arg name="max_cloud_age" value="60.0"/>
         </include>
     </group>
 
@@ -102,7 +102,7 @@
             <arg name="pub_intermediate" value="true"/>
             <arg name="use_map_rpz" value="$(arg use_map_rpz)"/>
             <arg name="enable_fov_vis" value="$(arg enable_fov_vis)"/>
-            <arg name="max_age" value="2.0"/>
+            <arg name="max_age" value="60.0"/>
             <arg name="path_step" value="5"/>
         </include>
     </group>

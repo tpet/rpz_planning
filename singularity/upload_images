@@ -1,6 +1,6 @@
 #!/bin/bash
 
-images="rpz_planning rpz_gbplanner"
+images="rpz_planning rpz_gbplanner rpz_eval"
 if [[ $# -gt 0 ]]; then
   images="$*"
 fi
