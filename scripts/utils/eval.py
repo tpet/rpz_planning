@@ -62,6 +62,7 @@ class Eval:
         self.n_sample_points = rospy.get_param('~n_sample_points', 10000)
         self.do_eval = rospy.get_param('~do_eval', True)
         self.load_gt = rospy.get_param('~load_gt', True)
+        self.world_name = rospy.get_param('~world_name')
         self.record_metrics = rospy.get_param('~record_metrics', True)
         self.xls_file = rospy.get_param('~metrics_xls_file', f'/tmp/mapping-eval')
         self.xls_file = f'{self.xls_file[:-4]}.xls'
@@ -265,10 +266,11 @@ class Eval:
         rospy.logdebug('Found TF frames: %s', all_frames)
         rospy.loginfo('Found %i Artifacts TF frames in %.3f [sec]: %s',
                       len(artifact_frames), (timer() - t0), artifact_frames)
-        # if len(artifact_frames) != 18:  # if artifacts are not found just hard code them and hope for the best
-        #     artifact_frames = ['backpack_1', 'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'phone_2',
-        #                        'extinguisher_1', 'extinguisher_2', 'drill_1', 'vent_1', 'vent_2', 'helmet_1',
-        #                        'helmet_2', 'phone_1', 'drill_2', 'gas_2', 'gas_1', 'rope_2', 'rope_1']
+        if self.world_name == 'finals_qual':
+            if len(artifact_frames) != 18:  # if artifacts are not found just hard code them and hope for the best
+                artifact_frames = ['backpack_1', 'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'phone_2',
+                                   'extinguisher_1', 'extinguisher_2', 'drill_1', 'vent_1', 'vent_2', 'helmet_1',
+                                   'helmet_2', 'phone_1', 'drill_2', 'gas_2', 'gas_1', 'rope_2', 'rope_1']
 
         artifacts = {'poses': [], 'names': [], 'clouds': [], 'cloud_merged': None}
         artifacts_cloud_merged = []

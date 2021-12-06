@@ -56,6 +56,7 @@
             <rosparam subst_value="true">
                 map_topic: $(arg map_topic)  <!-- Point cloud map constructed during exploration -->
                 gt_mesh: $(arg gt_mesh_file) <!-- Path to .obj or .ply ground truth mesh file of the world -->
+                world_name: $(arg world_name)
                 do_points_sampling_from_mesh: True <!-- Whether to use points sampling method from mesh (True) or use mesh vertices (False) -->
                 do_points_sampling_from_map: True <!-- Whether to subsample constructed map before metrics computation -->
                 n_sample_points: 50000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
