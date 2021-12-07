@@ -19,9 +19,6 @@ From: subt_tradr_robot.simg
 
  	echo "Built ROS workspace"
 
-%setup
-	touch /usr/bin/nvidia-smi
-
 %runscript
     echo "Running demo example on bag file"
     /bin/bash -c "source /opt/ros/melodic/setup.bash && \
