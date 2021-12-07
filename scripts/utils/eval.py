@@ -61,8 +61,8 @@ class Eval:
         self.do_points_sampling_from_map = rospy.get_param('~do_points_sampling_from_map', True)
         self.n_sample_points = rospy.get_param('~n_sample_points', 10000)
         self.do_eval = rospy.get_param('~do_eval', True)
-        self.load_gt = rospy.get_param('~load_gt', True)
         self.world_name = rospy.get_param('~world_name')
+        self.load_gt = rospy.get_param('~load_gt', "simple_cave" in self.world_name)
         self.record_metrics = rospy.get_param('~record_metrics', True)
         self.xls_file = rospy.get_param('~metrics_xls_file', f'/tmp/mapping-eval')
         self.xls_file = f'{self.xls_file[:-4]}.xls'

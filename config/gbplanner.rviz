@@ -6,7 +6,6 @@ Panels:
       Expanded:
         - /Global Options1
         - /Axes1/TF1
-        - /Axes1/TF1/Frames1
         - /Axes1/BaseLink1
         - /Odometry1/Shape1
         - /Odometry1/Covariance1
@@ -40,7 +39,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: Local map
   - Class: gbplanner_ui/GbPlanner Control
     Name: GbPlanner Control
 Preferences:
@@ -75,13 +74,158 @@ Visualization Manager:
           Frame Timeout: 15
           Frames:
             All Enabled: false
-          Marker Scale: 5
+            X1:
+              Value: true
+            X1/base_footprint:
+              Value: false
+            X1/base_link:
+              Value: true
+            X1/base_link/front_laser:
+              Value: false
+            X1/base_link/front_realsense:
+              Value: false
+            X1/base_link/front_realsense_optical:
+              Value: false
+            X1/base_link/imu_sensor:
+              Value: false
+            X1/base_link/left_realsense:
+              Value: false
+            X1/base_link/left_realsense_optical:
+              Value: false
+            X1/base_link/rear_realsense:
+              Value: false
+            X1/base_link/rear_realsense_optical:
+              Value: false
+            X1/base_link/right_realsense:
+              Value: false
+            X1/base_link/right_realsense_optical:
+              Value: false
+            X1/front_left_wheel_link:
+              Value: true
+            X1/front_right_wheel_link:
+              Value: true
+            X1/map:
+              Value: true
+            X1/odom:
+              Value: true
+            X1/rear_left_wheel_link:
+              Value: true
+            X1/rear_right_wheel_link:
+              Value: true
+            X1_ground_truth:
+              Value: false
+            backpack_1:
+              Value: false
+            drill_1:
+              Value: false
+            drill_2:
+              Value: true
+            extinguisher_1:
+              Value: false
+            extinguisher_2:
+              Value: false
+            finals_qual:
+              Value: false
+            gas_1:
+              Value: true
+            gas_2:
+              Value: true
+            helmet_1:
+              Value: false
+            navigation:
+              Value: false
+            phone_1:
+              Value: true
+            rescue_randy_1:
+              Value: false
+            rescue_randy_2:
+              Value: false
+            rescue_randy_3:
+              Value: false
+            rope_2:
+              Value: true
+            subt:
+              Value: false
+            vent_1:
+              Value: false
+            vent_2:
+              Value: false
+            world:
+              Value: true
+          Marker Scale: 4
           Name: TF
           Show Arrows: true
           Show Axes: true
           Show Names: true
           Tree:
-            {}
+            world:
+              X1_ground_truth:
+                {}
+              backpack_1:
+                {}
+              drill_1:
+                {}
+              drill_2:
+                {}
+              extinguisher_1:
+                {}
+              extinguisher_2:
+                {}
+              finals_qual:
+                {}
+              gas_1:
+                {}
+              gas_2:
+                {}
+              helmet_1:
+                {}
+              phone_1:
+                {}
+              rescue_randy_1:
+                {}
+              rescue_randy_2:
+                {}
+              rescue_randy_3:
+                {}
+              rope_2:
+                {}
+              subt:
+                X1/map:
+                  X1/odom:
+                    X1:
+                      X1/base_link:
+                        X1/base_footprint:
+                          {}
+                        X1/base_link/front_laser:
+                          {}
+                        X1/base_link/front_realsense:
+                          X1/base_link/front_realsense_optical:
+                            {}
+                        X1/base_link/imu_sensor:
+                          {}
+                        X1/base_link/left_realsense:
+                          X1/base_link/left_realsense_optical:
+                            {}
+                        X1/base_link/rear_realsense:
+                          X1/base_link/rear_realsense_optical:
+                            {}
+                        X1/base_link/right_realsense:
+                          X1/base_link/right_realsense_optical:
+                            {}
+                      X1/front_left_wheel_link:
+                        {}
+                      X1/front_right_wheel_link:
+                        {}
+                      X1/rear_left_wheel_link:
+                        {}
+                      X1/rear_right_wheel_link:
+                        {}
+                navigation:
+                  {}
+              vent_1:
+                {}
+              vent_2:
+                {}
           Update Interval: 0
           Value: true
         - Class: rviz/Axes
@@ -181,7 +325,10 @@ Visualization Manager:
           Marker Topic: /vis/robot_state
           Name: RobotState
           Namespaces:
-            {}
+            extension: true
+            extension_aligned: true
+            heading: true
+            size: true
           Queue Size: 100
           Value: true
         - Class: rviz/MarkerArray
@@ -300,7 +447,8 @@ Visualization Manager:
           Marker Topic: /vis/geofence
           Name: Geofence
           Namespaces:
-            {}
+            ID: true
+            geofence: true
           Queue Size: 100
           Value: true
       Enabled: true
@@ -409,8 +557,8 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 2.700000047683716
-            Min Value: 0.10000000149011612
+            Max Value: 9.700000762939453
+            Min Value: -0.7000000476837158
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -418,7 +566,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: AxisColor
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Max Intensity: 4096
@@ -435,8 +583,8 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
-      Enabled: false
+          Value: false
+      Enabled: true
       Name: Voxblox
     - Class: rviz/MarkerArray
       Enabled: false
@@ -456,6 +604,31 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
+        X1/base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        X1/front_left_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        X1/front_right_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        X1/rear_left_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        X1/rear_right_wheel_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
       Name: RobotModel
       Robot Description: /X1/robot_description
       TF Prefix: ""
@@ -552,12 +725,12 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: Intensity
           Decay Time: 0
-          Enabled: true
+          Enabled: false
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Max Intensity: 1
           Min Color: 0; 0; 0
-          Min Intensity: 0.00015097856521606445
+          Min Intensity: 0.00010538101196289062
           Name: Reward Cloud
           Position Transformer: XYZ
           Queue Size: 10
@@ -569,7 +742,7 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: true
+          Value: false
         - Class: rviz/MarkerArray
           Enabled: false
           Marker Topic: /X1/visualization
@@ -578,6 +751,36 @@ Visualization Manager:
             {}
           Queue Size: 100
           Value: false
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: flags
+          Class: rviz/PointCloud2
+          Color: 255; 255; 255
+          Color Transformer: Intensity
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 54
+          Min Color: 0; 0; 0
+          Min Intensity: 2
+          Name: Local map
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 0.05000000074505806
+          Style: Flat Squares
+          Topic: /X1/local_map
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
       Enabled: true
       Name: Trajectory Optimization
   Enabled: true

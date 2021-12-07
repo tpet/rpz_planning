@@ -20,6 +20,7 @@ class PathConverter:
         assert isinstance(pose_arr, PoseArray)
         path_msg = Path()
         path_msg.header = pose_arr.header
+        path_msg.header.stamp = rospy.Time.now()
         path_msg.poses = [PoseStamped(Header(), p) for p in pose_arr.poses]
         self.path_pub.publish(path_msg)
 

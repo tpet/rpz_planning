@@ -14,6 +14,7 @@
     <arg name="enable_fov_vis" default="true"/>
     <arg name="max_age" default="1.0"/>
     <arg name="path_step" default="2"/>
+    <arg name="fixed_endpoints" default="['start', 'goal']"/>
 
 <!--    <group ns="$(arg robot)">-->
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
@@ -30,7 +31,7 @@
             use_rewards_history: $(arg use_rewards_history)
             linear_speed: 1.0
             angular_speed: 1.0
-            fixed_endpoints: ['start']
+            fixed_endpoints: $(arg fixed_endpoints)
             gpu_id: $(arg gpu_id)
             pub_intermediate: $(arg pub_intermediate)
 

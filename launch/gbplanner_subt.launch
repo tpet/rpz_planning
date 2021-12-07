@@ -8,15 +8,13 @@
     <arg name="launch_prefix" default=""/> <!-- gdb -ex run //args -->
     <arg name="odometry_topic" default="/odom"/>
 
-    <param name="use_sim_time" value="$(arg use_sim_time)"/>
-
     <!-- Additional modules -->
     <arg name="run_detector" default="true"/>
     <arg name="do_recording" default="false"/>
     <arg name="bag_postfix" default=""/> <!-- for recorded bag file name -->
     <arg name="run_trajopt" default="true" />
     <arg name="follow_opt_path" default="false" />
-    <arg name="use_map_rpz" default="false" />
+    <arg name="use_map_rpz" default="true" />
     <arg name="enable_fov_vis" default="true" />
 
     <!-- Config files -->
@@ -42,13 +40,21 @@
     <group ns="$(arg robot)">
         <node if="1" name="map_to_subt_identity" pkg="tf" type="static_transform_publisher"
               args="0 0 0 0 0 0 subt $(arg robot)/map 0.1" output="log"/>
-        <include file="$(find naex)launch/tf.launch" pass_all_args="true"/>
-        <include file="$(find naex)launch/preproc.launch" pass_all_args="true"/>
-        <include file="$(find naex)launch/odom.launch" pass_all_args="true"/>
-        <include file="$(find naex)launch/slam.launch" pass_all_args="true"/>
-        <include file="$(find naex)launch/planner.launch" pass_all_args="true">
+        <include file="$(find naex)/launch/tf.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/preproc.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/odom.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/slam.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/planner.launch" pass_all_args="true">
             <arg name="planning_freq" value="0.0"/>
-            <arg name="max_cloud_age" value="60.0"/>
+            <arg name="max_cloud_age" value="2.0"/>
+        </include>
+        <include file="$(find naex)/launch/follower.launch" pass_all_args="true">
+            <arg name="map_frame" value="subt"/>
+            <arg name="obstacle_avoidance" value="false"/>
+            <arg name="max_age" value="3600.0"/> <!-- we do not need local cloud if obstacle avoidance is switched off -->
+            <arg if="$(arg follow_opt_path)" name="path_to_follow" value="path_to_follow"/>
+            <arg unless="$(arg follow_opt_path)" name="path_to_follow" value="path_planned"/>
+            <arg name="keep_path" default="0."/>
         </include>
     </group>
 
@@ -62,9 +68,9 @@
 
     <node pkg="topic_tools" type="relay" name="vlp_relay" args="$(arg robot)/points_slow_filtered /input_pointcloud" />
     <node pkg="topic_tools" type="relay" name="front_rgbd_relay" args="$(arg robot)/front_rgbd/points_slow_filtered /input_pointcloud" />
-     <node pkg="topic_tools" type="relay" name="rear_rgbd_relay" args="$(arg robot)/rear_rgbd/points_slow_filtered /input_pointcloud" />
-     <node pkg="topic_tools" type="relay" name="right_rgbd_relay" args="$(arg robot)/right_rgbd/points_slow_filtered /input_pointcloud" />
-     <node pkg="topic_tools" type="relay" name="left_rgbd_relay" args="$(arg robot)/left_rgbd/points_slow_filtered /input_pointcloud" />
+    <node pkg="topic_tools" type="relay" name="rear_rgbd_relay" args="$(arg robot)/rear_rgbd/points_slow_filtered /input_pointcloud" />
+    <node pkg="topic_tools" type="relay" name="right_rgbd_relay" args="$(arg robot)/right_rgbd/points_slow_filtered /input_pointcloud" />
+    <node pkg="topic_tools" type="relay" name="left_rgbd_relay" args="$(arg robot)/left_rgbd/points_slow_filtered /input_pointcloud" />
 
     <!-- Graph based planning -->
     <node pkg="gbplanner" type="gbplanner_node" name="gbplanner_node" output="screen" launch-prefix="$(arg launch_prefix)">
@@ -85,7 +91,7 @@
     </node>
 
     <!-- Transform PoseArray to Path msg -->
-    <node name="path_transformer" pkg="rpz_planning" type="pose_array_to_path.py">
+    <node name="path_transformer" pkg="rpz_planning" type="pose_array_to_path.py" output="screen">
         <rosparam subst_value="true">
             pose_array_topic: pci_command_path
             path_topic: $(arg robot)/path_planned
@@ -102,27 +108,10 @@
             <arg name="pub_intermediate" value="true"/>
             <arg name="use_map_rpz" value="$(arg use_map_rpz)"/>
             <arg name="enable_fov_vis" value="$(arg enable_fov_vis)"/>
-            <arg name="max_age" value="60.0"/>
-            <arg name="path_step" value="5"/>
+            <arg name="max_age" value="1.0"/>
+            <arg name="path_step" value="10"/>
         </include>
     </group>
-
-    <!-- Path tracker from naex -->
-    <node name="path_follower" pkg="naex" type="path_follower" respawn="true" respawn_delay="1.0" output="screen">
-        <rosparam subst_value="true">
-            map_frame: subt
-            odom_frame: $(arg robot)/odom
-            robot_frame: $(arg robot)/base_footprint
-            max_age: 3600.0
-            goal_reached_dist: 0.8
-            goal_reached_angle: 0.8
-            obstacle_avoidance: false
-        </rosparam>
-        <remap if="$(arg follow_opt_path)" from="path" to="$(arg robot)/path_to_follow"/>
-        <remap unless="$(arg follow_opt_path)" from="path" to="$(arg robot)/path_planned"/>
-        <remap from="cloud" to="$(arg robot)/points_slow_filtered"/>
-        <remap from="cmd_vel" to="$(arg robot)/cmd_vel" />
-    </node>
 
     <!-- Artifacts detector -->
     <include if="$(arg run_detector)" file="$(find rpz_planning)/launch/detector_x1.launch"/>
