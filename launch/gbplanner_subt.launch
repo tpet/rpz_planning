@@ -14,7 +14,7 @@
     <arg name="bag_postfix" default=""/> <!-- for recorded bag file name -->
     <arg name="run_trajopt" default="true" />
     <arg name="follow_opt_path" default="false" />
-    <arg name="use_map_rpz" default="true" />
+    <arg name="use_map_rpz" default="false" />
     <arg name="enable_fov_vis" default="true" />
 
     <!-- Config files -->
@@ -61,7 +61,7 @@
     <!-- Odometry provider from tfs -->
     <node name="odometry_provider" pkg="nav_utils" type="tf_to_odom" output="log">
         <param name="parent_frame" value="subt" />
-        <param name="child_frame" value="$(arg robot)/base_link" />
+        <param name="child_frame" value="$(arg robot)/base_footprint" />
         <param name="no_wait_frame" value="$(arg robot)/odom" />
         <param name="timer_freq" value="50" />
     </node>
