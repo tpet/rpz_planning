@@ -954,7 +954,7 @@ class RPZPlanner(object):
 
         # Set the device
         device_id = rospy.get_param('~gpu_id', 0)
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and device_id >= 0:
             self.device = torch.device("cuda:" + str(device_id))
             rospy.loginfo("Using GPU device id: %i, name: %s", device_id, torch.cuda.get_device_name(device_id))
         else:
