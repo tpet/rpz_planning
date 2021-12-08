@@ -64,7 +64,8 @@
                 load_gt: $(arg load_gt) <!-- Whether to load ground truth mesh of the environment -->
                 coverage_dist_th: 0.5 <!-- Threshold value [m]: defines if a world mesh point is considered being covered -->
                 artifacts_coverage_dist_th: 0.1 <!-- Threshold value [m]: defines if an artifact mesh point is considered covered -->
-                artifacts_hypothesis_topic: "detection_localization/dbg_confirmed_hypotheses_pcl" <!-- Detections localization output to evaluate -->
+                artifacts_confirm_hyps_topic: "detection_localization/dbg_confirmed_hypotheses_pcl" <!-- Detections localization output to evaluate -->
+                artifacts_hyps_topic: "detection_localization/dbg_hypotheses_pcl"
                 actual_reward_topic: $(arg actual_reward_topic) <!-- Actual rewards topic: from constructed or gt rewards map -->
                 detections_dist_th: 5.0 <!-- Threshold value [m]: defines if an artifact detection point is considered close to gt pose -->
                                         <!-- according to the rules: https://www.subtchallenge.com/resources/SubT_Challenge_Finals_Rules.pdf -->

@@ -68,8 +68,10 @@ class Eval:
         self.xls_file = f'{self.xls_file[:-4]}.xls'
         self.coverage_dist_th = rospy.get_param('~coverage_dist_th', 0.2)
         self.artifacts_coverage_dist_th = rospy.get_param('~artifacts_coverage_dist_th', 0.1)
-        self.artifacts_hypothesis_topic = rospy.get_param('~artifacts_hypothesis_topic',
-                                                          'detection_localization/dbg_confirmed_hypotheses_pcl')
+        self.artifacts_hyps_topic = rospy.get_param('~artifacts_hyps_topic',
+                                                    'detection_localization/dbg_hypotheses_pcl')
+        self.artifacts_confirm_hyps_topic = rospy.get_param('~artifacts_confirm_hyps_topic',
+                                                            'detection_localization/dbg_confirmed_hypotheses_pcl')
         self.artifacts_names = ["rescue_randy", "phone", "backpack", "drill", "extinguisher",
                                 "vent", "helmet", "rope", "cube"]
         self.max_age = rospy.get_param('~max_age', 1.0)
@@ -89,6 +91,7 @@ class Eval:
         self.map_frame = None
         self.map = None
         self.detections = {'poses': [], 'classes': []}
+        self.detections_before_clusterring = {'poses': [], 'classes': []}
         self.detections_dist_th = rospy.get_param('~detections_dist_th', 5.0)
         self.robot_frame = 'X1'
         self.robot_gt_frame = self.robot_frame + '_ground_truth'
@@ -153,7 +156,9 @@ class Eval:
         # obtaining the constructed map (reward cloud)
         rospy.Subscriber(self.map_topic, PointCloud2, self.get_constructed_map)
         # subscribing to localized detection results for evaluation
-        rospy.Subscriber(self.artifacts_hypothesis_topic, PointCloud, self.get_detections)
+        rospy.Subscriber(self.artifacts_confirm_hyps_topic, PointCloud, self.get_confirmed_detections)
+        # subscribing to localized detection results for evaluation
+        rospy.Subscriber(self.artifacts_hyps_topic, PointCloud, self.get_detections)
 
         # evaluation runner
         rospy.Timer(rospy.Duration(1. / self.rate), self.run)
@@ -308,7 +313,7 @@ class Eval:
             elif 'rescue_randy' in artifact_name:
                 intensity = 3
             else:
-                intensity = -1
+                intensity = 4
             cloud = np.concatenate([cloud, intensity * np.ones([1, cloud.shape[1]])], axis=0)
             assert len(cloud.shape) == 2
             assert cloud.shape[0] == 4  # (4, n)
@@ -351,7 +356,7 @@ class Eval:
         assert self.map.size()[2] >= 3
         rospy.logdebug('Point cloud conversion took: %.3f s', timer() - t0)
 
-    def get_detections(self, pc_msg):
+    def get_detections_poses_classes(self, pc_msg):
         assert isinstance(pc_msg, PointCloud)
         # transform poses to map_gt_frame
         try:
@@ -359,18 +364,29 @@ class Eval:
                                                  rospy.Time(0), rospy.Duration(3))
         except tf2_ros.LookupException:
             rospy.logwarn('No transform between map gt frame and its detections frame')
-            return
+            return None, None
         T = numpify(transform.transform)
         R, t = T[:3, :3], T[:3, 3]
         poses = []
         for p in pc_msg.points:
             pose = np.matmul(R, np.array([p.x, p.y, p.z]).reshape([3, 1])) + t.reshape([3, 1])
             poses.append(pose)
-        self.detections['poses'] = np.array(poses)
+        poses = np.asarray(poses)
         class_numbers = pc_msg.channels[-1].values  # most probable class values
         # convert numbers to names
-        self.detections['classes'] = [self.artifacts_names[int(n)] for n in class_numbers]
+        classes = [self.artifacts_names[int(n)] for n in class_numbers]
         # assert len(self.detections['classes']) == len(self.detections['poses'])
+        return poses, classes
+
+    def get_confirmed_detections(self, dets_pc_msg):
+        poses, classes = self.get_detections_poses_classes(dets_pc_msg)
+        self.detections['poses'] = poses
+        self.detections['classes'] = classes
+
+    def get_detections(self, dets_pc_msg):
+        poses, classes = self.get_detections_poses_classes(dets_pc_msg)
+        self.detections_before_clusterring['poses'] = poses
+        self.detections_before_clusterring['classes'] = classes
 
     def get_actual_reward(self, msg):
         assert isinstance(msg, Float64)
@@ -594,10 +610,12 @@ class Eval:
         # number of correctly detected artifacts from confirmed hypothesis
         artifacts_localization_error = None
         if len(self.detections['poses']) > 0:
-            self.metrics_msg.dets_score, \
-            self.mAP, \
+            self.metrics_msg.dets_score, _, \
             artifacts_localization_error = self.evaluate_detections(self.detections, self.artifacts,
                                                                     darpa_dist_th=self.detections_dist_th)
+        if len(self.detections_before_clusterring['poses']) > 0:
+            self.mAP = self.evaluate_detections(self.detections_before_clusterring, self.artifacts,
+                                                darpa_dist_th=self.detections_dist_th)[1]
         rospy.logdebug('Artifacts evaluation took: %.3f s\n', timer() - t0)
         return artifacts_localization_error
 
