@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """RPZ compliant planner."""
 from __future__ import absolute_import, division, print_function
+from copy import copy
 import os
 # from exploration.msg import Path
 from geometry_msgs.msg import (Point,
@@ -27,6 +28,7 @@ import tf2_ros
 # from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud
 from threading import RLock
 from timeit import default_timer as timer
+import traceback
 import torch
 import torch.nn.functional as fun
 from visualization_msgs.msg import Marker, MarkerArray
@@ -964,6 +966,8 @@ class RPZPlanner(object):
         # self.order = DimOrder.YAW_X_Y
         self.order = DimOrder.X_Y_YAW
         assert self.order in (DimOrder.X_Y_YAW, DimOrder.YAW_X_Y)
+        self.num_opt_restarts = rospy.get_param('~num_opt_restarts', 0)
+        self.process_path_interval = rospy.get_param('~process_path_interval', 0.05)
         self.num_iters = rospy.get_param('~num_iters', 10)
         self.map_step = rospy.get_param('~map_step', 4)
         self.path_step = rospy.get_param('~path_step', 2)
@@ -1003,6 +1007,14 @@ class RPZPlanner(object):
         self.global_map = None
         self.local_map_idx = None
         self.global_map_initialized = False
+
+        self.path_lock = RLock()
+        self.path_msg = None
+        if self.num_opt_restarts > 0 and self.process_path_interval > 0.0:
+            self.process_path_timer = rospy.Timer(rospy.Duration.from_sec(self.process_path_interval),
+                                                  self.process_path_buffer_safe)
+        else:
+            self.process_path_timer = None
 
         self.tf = tf2_ros.Buffer()
         self.tf_sub = tf2_ros.TransformListener(self.tf)
@@ -1523,22 +1535,70 @@ class RPZPlanner(object):
     def path_received(self, msg):
         assert isinstance(msg, Path)
 
-        # publish unoptimized path (planned) to follow until optimization is done
-        self.path_pub.publish(msg)
+        # Avoid timer if not available (no restarts).
+        if self.process_path_timer is None:
+            self.process_path(msg, restart=0)
+            return
+
+        # Save path to be processed in timer callback.
+        with self.path_lock:
+            if self.path_msg is None or msg.header.stamp < self.path_msg.header.stamp:
+                self.path_msg = msg
+                rospy.loginfo('Path with %i poses stored for further processing.', len(msg.poses))
+
+    def process_path_buffer(self, evt):
+        with self.path_lock:
+            if self.path_msg is None:
+                return
+            msg = self.path_msg
+            self.path_msg = None
+
+        do_restart = True
+        for restart in range(self.num_opt_restarts + 1):
+            if restart > 0:
+                if not do_restart:
+                    rospy.loginfo('Further optimization of old path halted. Nothing to optimize.')
+                    break
+                with self.path_lock:
+                     if self.path_msg is not None:
+                        rospy.loginfo('Further optimization of old path halted. New path received.')
+                        break
+            do_restart = self.process_path(msg, restart=restart)
+
+    def process_path_buffer_safe(self, evt):
+        try:
+            self.process_path_buffer(evt)
+        except Exception as ex:
+            rospy.logerr('Exception during processing path: %s', traceback.format_exc())
+
+    @timing
+    def process_path(self, msg, restart=0):
+        """Path received callback.
+        @return Flag to allow restart.
+        """
+        assert isinstance(msg, Path)
+
+        # Publish unoptimized planned path to follow until optimization is done.
+        # Don't publish the original path when restarted to use new inputs.
+        if restart == 0:
+            self.path_pub.publish(msg)
 
         # Discard old messages.
         age = (rospy.Time.now() - msg.header.stamp).to_sec()
-        if age > self.max_age:
+        if restart == 0 and age > self.max_age:
             rospy.logwarn('Discarding path %.1f s > %.1f s old.', age, self.max_age)
             return
 
         # Subsample input path to reduce computation.
+        n_poses_orig = len(msg.poses)
         if self.path_step > 1:
+            msg = copy(msg)
             msg.poses = msg.poses[::self.path_step]
 
         # Discard short paths.
         n_poses = len(msg.poses)
-        rospy.loginfo('Path with %i poses received.', n_poses)
+        rospy.loginfo('Processing path with %i poses (%i original)...',
+                      n_poses, n_poses_orig)
         if n_poses < 2:
             rospy.logwarn('Path is too short for optimization.')
             return
@@ -1630,6 +1690,9 @@ class RPZPlanner(object):
                          & (xyzrpy[:, 1] >= local_map[1, :].min()) & (xyzrpy[:, 1] <= local_map[1, :].max()))
         else:
             trav_mask = select_pts_to_optimize(xyzrpy, self.rpz_cloud)
+
+        # Do restart if path not optimized till the end.
+        do_restart = not trav_mask[-1]
 
         if torch.sum(trav_mask) > 2:  # if there are at least two points of the path lying in traversable area
             xyzrpy_to_opt = xyzrpy[trav_mask]
@@ -1795,18 +1858,27 @@ class RPZPlanner(object):
                     assert isinstance(p, PoseStamped)
                     p.header = msg.header
                     p.header.stamp = msg_out.header.stamp
-                if self.follow_opt_path:
+                # Don't publish intermediate paths when restarted.
+                rospy.loginfo('follow_opt_path %i, restart %i, iter %i / %i',
+                              self.follow_opt_path, restart, iter, self.num_iters - 1)
+                if self.follow_opt_path and ((restart == 0) or (iter == self.num_iters - 1)):
                     self.path_pub.publish(msg_out)
-                # Publish reward cloud for visualization.
-                reward_cloud['reward'] = rewards.detach().cpu().numpy()
-                reward_cloud['new_reward'] = (rewards-rewards_prev).detach().cpu().numpy()
-                reward_cloud['distance'] = reduce_rewards(dist_mask).detach().cpu().numpy()
-                reward_cloud['visibility'] = reduce_rewards(vis_mask).detach().cpu().numpy()
-                reward_cloud['fov'] = reduce_rewards(fov_mask).detach().cpu().numpy()
-                reward_cloud_msg = msgify(PointCloud2, reward_cloud)
-                assert isinstance(reward_cloud_msg, PointCloud2)
-                reward_cloud_msg.header = msg.header
-                self.reward_cloud_pub.publish(reward_cloud_msg)
+
+                # Don't publish clouds in each iterations.
+                if iter == (self.num_iters - 1):
+                    t_reward = timer()
+                    # Publish reward cloud for visualization.
+                    reward_cloud['reward'] = rewards.detach().cpu().numpy()
+                    reward_cloud['new_reward'] = (rewards-rewards_prev).detach().cpu().numpy()
+                    reward_cloud['distance'] = reduce_rewards(dist_mask).detach().cpu().numpy()
+                    reward_cloud['visibility'] = reduce_rewards(vis_mask).detach().cpu().numpy()
+                    reward_cloud['fov'] = reduce_rewards(fov_mask).detach().cpu().numpy()
+                    reward_cloud_msg = msgify(PointCloud2, reward_cloud)
+                    assert isinstance(reward_cloud_msg, PointCloud2)
+                    reward_cloud_msg.header = msg.header
+                    self.reward_cloud_pub.publish(reward_cloud_msg)
+                    rospy.loginfo('Reward cloud with %i points published (%.3f s).',
+                                  reward_cloud.size, timer() - t_reward)
 
                 # Visualize cameras (first and last).
                 t = timer()
@@ -1855,6 +1927,8 @@ class RPZPlanner(object):
                 global_cloud_msg.header = msg.header
                 self.global_reward_cloud_pub.publish(global_cloud_msg)
             rospy.loginfo('Global map publishing took %.3f s', timer() - t0)
+
+        return do_restart
 
 
 if __name__ == '__main__':

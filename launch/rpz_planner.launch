@@ -5,6 +5,7 @@
     <arg name="robot_type" default="explorer_x1"/>
     <arg name="use_rewards_history" default="true"/>
     <arg name="trajopt_iters" default="25"/>
+    <arg name="num_opt_restarts" default="0"/>
     <arg name="gpu_id" default="0"/>
     <arg name="input_path_topic" default="path"/>
     <arg name="output_path_topic" default="path_to_follow"/>
@@ -23,6 +24,8 @@
             robot_frame: $(arg robot)/base_footprint
             max_age: $(arg max_age)
             num_cameras: 1
+            num_opt_restarts: $(arg num_opt_restarts)
+            process_path_interval: 0.05
             num_iters: $(arg trajopt_iters)
             map_step: 2
             path_step: $(arg path_step)

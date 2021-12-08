@@ -103,6 +103,7 @@
         <include unless="$(arg use_map_rpz)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
         <!-- Trajectory optimization -->
         <include ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true">
+            <arg name="num_opt_restarts" value="0"/>
             <arg name="input_path_topic" value="path_planned"/>
             <arg name="output_path_topic" value="path_to_follow"/>
             <arg name="pub_intermediate" value="true"/>
