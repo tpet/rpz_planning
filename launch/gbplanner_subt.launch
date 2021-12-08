@@ -9,7 +9,7 @@
     <arg name="odometry_topic" default="/odom"/>
 
     <!-- Additional modules -->
-    <arg name="run_detector" default="false"/>
+    <arg name="run_detector" default="true"/>
     <arg name="do_recording" default="false"/>
     <arg name="bag_postfix" default=""/> <!-- for recorded bag file name -->
     <arg name="run_trajopt" default="false" />

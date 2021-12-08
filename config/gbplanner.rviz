@@ -100,6 +100,12 @@ Visualization Manager:
               Value: false
             X1/base_link/right_realsense_optical:
               Value: false
+            X1/base_link_zero_pitch:
+              Value: true
+            X1/base_link_zero_roll:
+              Value: true
+            X1/base_link_zero_roll_pitch:
+              Value: true
             X1/front_left_wheel_link:
               Value: true
             X1/front_right_wheel_link:
@@ -116,25 +122,21 @@ Visualization Manager:
               Value: false
             backpack_1:
               Value: false
-            drill_1:
-              Value: false
-            drill_2:
+            backpack_2:
               Value: true
-            extinguisher_1:
-              Value: false
-            extinguisher_2:
-              Value: false
-            finals_qual:
-              Value: false
-            gas_1:
+            backpack_3:
               Value: true
-            gas_2:
+            backpack_4:
               Value: true
-            helmet_1:
-              Value: false
             navigation:
               Value: false
             phone_1:
+              Value: true
+            phone_2:
+              Value: true
+            phone_3:
+              Value: true
+            phone_4:
               Value: true
             rescue_randy_1:
               Value: false
@@ -142,13 +144,11 @@ Visualization Manager:
               Value: false
             rescue_randy_3:
               Value: false
-            rope_2:
+            rescue_randy_4:
+              Value: true
+            simple_cave_01:
               Value: true
             subt:
-              Value: false
-            vent_1:
-              Value: false
-            vent_2:
               Value: false
             world:
               Value: true
@@ -163,23 +163,19 @@ Visualization Manager:
                 {}
               backpack_1:
                 {}
-              drill_1:
+              backpack_2:
                 {}
-              drill_2:
+              backpack_3:
                 {}
-              extinguisher_1:
-                {}
-              extinguisher_2:
-                {}
-              finals_qual:
-                {}
-              gas_1:
-                {}
-              gas_2:
-                {}
-              helmet_1:
+              backpack_4:
                 {}
               phone_1:
+                {}
+              phone_2:
+                {}
+              phone_3:
+                {}
+              phone_4:
                 {}
               rescue_randy_1:
                 {}
@@ -187,7 +183,9 @@ Visualization Manager:
                 {}
               rescue_randy_3:
                 {}
-              rope_2:
+              rescue_randy_4:
+                {}
+              simple_cave_01:
                 {}
               subt:
                 X1/map:
@@ -212,6 +210,12 @@ Visualization Manager:
                         X1/base_link/right_realsense:
                           X1/base_link/right_realsense_optical:
                             {}
+                        X1/base_link_zero_pitch:
+                          {}
+                        X1/base_link_zero_roll:
+                          {}
+                        X1/base_link_zero_roll_pitch:
+                          {}
                       X1/front_left_wheel_link:
                         {}
                       X1/front_right_wheel_link:
@@ -222,10 +226,6 @@ Visualization Manager:
                         {}
                 navigation:
                   {}
-              vent_1:
-                {}
-              vent_2:
-                {}
           Update Interval: 0
           Value: true
         - Class: rviz/Axes
@@ -261,7 +261,7 @@ Visualization Manager:
           Scale: 1
           Value: true
         Value: false
-      Enabled: true
+      Enabled: false
       Keep: 5
       Name: Odometry
       Position Tolerance: 0.10000000149011612
@@ -277,7 +277,7 @@ Visualization Manager:
         Value: Arrow
       Topic: /odom
       Unreliable: false
-      Value: true
+      Value: false
     - Class: rviz/Group
       Displays:
         - Class: rviz/MarkerArray
@@ -376,7 +376,8 @@ Visualization Manager:
           Marker Topic: /vis/ref_path
           Name: RefPath
           Namespaces:
-            {}
+            ref_path: true
+            vertices: true
           Queue Size: 100
           Value: true
         - Class: rviz/MarkerArray

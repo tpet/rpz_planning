@@ -143,8 +143,8 @@ PlanningParams:
   cluster_vertices_for_gain: true
   clustering_radius: 0.5
   
-  max_ground_height: 0.35 # All points will be projected to this height from ground
-  robot_height: 0.2 # Height of robot's base frame from ground
+  max_ground_height: 0.7 # All points will be projected to this height from ground
+  robot_height: 0.2  # Height of robot's base frame from ground
   max_inclination: rad(20.0*pi/180)
   interpolate_projection_distance: false
   
