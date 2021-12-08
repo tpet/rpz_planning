@@ -2,7 +2,6 @@
 """RPZ compliant planner."""
 from __future__ import absolute_import, division, print_function
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
 # from exploration.msg import Path
 from PIL.ImageEnhance import Color
 from geometry_msgs.msg import (Point,
