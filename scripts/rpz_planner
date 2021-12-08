@@ -3,7 +3,6 @@
 from __future__ import absolute_import, division, print_function
 import os
 # from exploration.msg import Path
-from PIL.ImageEnhance import Color
 from geometry_msgs.msg import (Point,
                                Pose,
                                PoseStamped,
