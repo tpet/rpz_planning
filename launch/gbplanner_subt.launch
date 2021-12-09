@@ -20,6 +20,9 @@
     <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/$(arg robot_type)/gbplanner_config.yaml"/>
     <arg name="pci_file" default="$(find rpz_planning)/config/$(arg robot_type)/planner_control_interface_sim_config.yaml"/>
     <arg name="voxblox_config_file" default="$(find rpz_planning)/config/$(arg robot_type)/voxblox_sim_config.yaml"/>
+<!--    <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/smb/gbplanner_config.yaml"/>-->
+<!--    <arg name="pci_file" default="$(find rpz_planning)/config/smb/planner_control_interface_sim_config.yaml"/>-->
+<!--    <arg name="voxblox_config_file" default="$(find rpz_planning)/config/smb/voxblox_sim_config.yaml"/>-->
     <arg name="map_config_file" default="$(arg voxblox_config_file)"/>
 
     <!-- Static TF -->
@@ -37,7 +40,7 @@
 
     <!-- Naex -->
     <group ns="$(arg robot)">
-        <node if="0" name="map_to_subt_identity" pkg="tf" type="static_transform_publisher"
+        <node if="1" name="map_to_subt_identity" pkg="tf" type="static_transform_publisher"
               args="0 0 0 0 0 0 subt $(arg robot)/map 0.1"/>
         <include file="$(find naex)/launch/tf.launch" pass_all_args="true"/>
         <include file="$(find naex)/launch/preproc.launch" pass_all_args="true"/>

@@ -156,6 +156,8 @@ Visualization Manager:
           Value: true
         backpack_4:
           Value: true
+        navigation:
+          Value: true
         phone_1:
           Value: true
         phone_2:
@@ -172,7 +174,7 @@ Visualization Manager:
           Value: true
         rescue_randy_4:
           Value: true
-        simple_cave_03:
+        simple_cave_01:
           Value: true
         subt:
           Value: true
@@ -212,7 +214,7 @@ Visualization Manager:
             {}
           rescue_randy_4:
             {}
-          simple_cave_03:
+          simple_cave_01:
             {}
           subt:
             X1/map:
@@ -251,6 +253,8 @@ Visualization Manager:
                     {}
                   X1/rear_right_wheel_link:
                     {}
+            navigation:
+              {}
       Update Interval: 0
       Value: true
     - Class: rviz/Group
@@ -506,7 +510,7 @@ Visualization Manager:
           Axis: Z
           Channel Name: flags
           Class: rviz/PointCloud2
-          Color: 252; 233; 79
+          Color: 114; 159; 207
           Color Transformer: FlatColor
           Decay Time: 0
           Enabled: true

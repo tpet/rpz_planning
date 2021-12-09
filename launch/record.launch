@@ -82,7 +82,7 @@
                 /$(arg robot)/omni/camera_4/optical/camera_info
                 /$(arg robot)/rear/optical/camera_info
                 /$(arg robot)/local_map_slow
-                /$(arg robot)/path
+                /$(arg robot)/path_planned
                 /tf
                 /tf_static
                 /$(arg robot)/traversability"/>

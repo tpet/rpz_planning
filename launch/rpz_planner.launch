@@ -29,7 +29,7 @@
             num_iters: $(arg trajopt_iters)
             map_step: 2
             path_step: $(arg path_step)
-            min_n_wps_to_opt: 6
+            min_n_wps_to_opt: 2
             min_gained_reward_to_opt: 0.0
             use_rewards_history: $(arg use_rewards_history)
             linear_speed: 1.0

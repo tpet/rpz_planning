@@ -158,7 +158,7 @@ PlanningParams:
   homing_backward: false
   auto_homing_enable: true
   time_budget_limit: 3600 # seconds
-  global_frame_id: subt
+  global_frame_id: world
   global_path_inclination_check: true
   go_home_if_fully_explored: true
   geofence_checking_enable: true

@@ -31,7 +31,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: RPZ rewards
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -143,7 +143,7 @@ Visualization Manager:
         X1/rear_right_wheel_link:
           Value: false
         X1_ground_truth:
-          Value: true
+          Value: false
         backpack_1:
           Value: true
         backpack_2:
@@ -175,9 +175,9 @@ Visualization Manager:
         world:
           Value: false
       Marker Alpha: 1
-      Marker Scale: 4
+      Marker Scale: 8
       Name: TF
-      Show Arrows: true
+      Show Arrows: false
       Show Axes: true
       Show Names: true
       Tree:
@@ -279,8 +279,8 @@ Visualization Manager:
       Use Fixed Frame: true
       Use rainbow: true
       Value: false
-    - Alpha: 0.5
-      Autocompute Intensity Bounds: false
+    - Alpha: 0.800000011920929
+      Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
         Max Value: 10
         Min Value: -10
@@ -291,34 +291,32 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: Intensity
       Decay Time: 0
-      Enabled: false
+      Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 0.5
       Min Color: 0; 0; 0
-      Min Intensity: -0.5
       Name: Traversability
       Position Transformer: XYZ
       Queue Size: 2
       Selectable: false
       Size (Pixels): 3
-      Size (m): 0.05000000074505806
+      Size (m): 0.10000000149011612
       Style: Flat Squares
       Topic: /X1/traversability
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: false
+      Value: true
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
-      Color: 0; 255; 0
+      Color: 52; 101; 164
       Enabled: true
       Head Diameter: 0.30000001192092896
       Head Length: 0.20000000298023224
       Length: 0.30000001192092896
       Line Style: Billboards
-      Line Width: 0.05000000074505806
+      Line Width: 0.20000000298023224
       Name: Path
       Offset:
         X: 0
@@ -336,13 +334,13 @@ Visualization Manager:
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
-      Color: 255; 63; 63
+      Color: 252; 233; 79
       Enabled: true
       Head Diameter: 0.30000001192092896
       Head Length: 0.20000000298023224
       Length: 0.30000001192092896
       Line Style: Billboards
-      Line Width: 0.05000000074505806
+      Line Width: 0.18000000715255737
       Name: RPZ path
       Offset:
         X: 0
@@ -354,7 +352,7 @@ Visualization Manager:
       Radius: 0.029999999329447746
       Shaft Diameter: 0.10000000149011612
       Shaft Length: 0.10000000149011612
-      Topic: /X1/optimized_path
+      Topic: /X1/path_to_follow
       Unreliable: false
       Value: true
     - Alpha: 0.5
@@ -380,24 +378,24 @@ Visualization Manager:
       Queue Size: 2
       Selectable: false
       Size (Pixels): 3
-      Size (m): 0.10000000149011612
-      Style: Flat Squares
+      Size (m): 0.15000000596046448
+      Style: Spheres
       Topic: /X1/reward_cloud
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
     - Class: rviz/MarkerArray
-      Enabled: true
+      Enabled: false
       Marker Topic: /X1/visualization
       Name: RPZ visualization
       Namespaces:
         {}
       Queue Size: 2
-      Value: true
+      Value: false
   Enabled: true
   Global Options:
-    Background Color: 48; 48; 48
+    Background Color: 255; 255; 255
     Default Light: true
     Fixed Frame: subt
     Frame Rate: 30
@@ -423,7 +421,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 28.059833526611328
+      Distance: 47.3453369140625
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -431,17 +429,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -1.0766942501068115
-        Y: -0.4421073794364929
-        Z: 5.175790786743164
+        X: -3.1315054893493652
+        Y: -2.894646167755127
+        Z: -0.6565635800361633
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 7
-      Pitch: 1.5697963237762451
+      Pitch: 1.4397962093353271
       Target Frame: X1
-      Yaw: 3.1454007625579834
+      Yaw: 3.145414352416992
     Saved:
       - Class: rviz/Orbit
         Distance: 10
