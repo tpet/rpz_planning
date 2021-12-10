@@ -40,7 +40,7 @@
 
     <!-- Naex -->
     <group ns="$(arg robot)">
-        <node if="1" name="map_to_subt_identity" pkg="tf" type="static_transform_publisher"
+        <node if="0" name="map_to_subt_identity" pkg="tf" type="static_transform_publisher"
               args="0 0 0 0 0 0 subt $(arg robot)/map 0.1"/>
         <include file="$(find naex)/launch/tf.launch" pass_all_args="true"/>
         <include file="$(find naex)/launch/preproc.launch" pass_all_args="true"/>

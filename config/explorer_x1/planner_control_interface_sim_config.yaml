@@ -15,8 +15,8 @@ init_motion:
 
 # Group related parameters to be shared between nodes.
 RobotDynamics:
-  v_max: 0.3
+  v_max: 1.0
   v_init_max: 0.3
   v_homing_max: 0.3
-  yaw_rate_max: 0.5
+  yaw_rate_max: 1.5
   dt: 0.05

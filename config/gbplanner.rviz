@@ -100,12 +100,6 @@ Visualization Manager:
               Value: false
             X1/base_link/right_realsense_optical:
               Value: false
-            X1/base_link_zero_pitch:
-              Value: true
-            X1/base_link_zero_roll:
-              Value: true
-            X1/base_link_zero_roll_pitch:
-              Value: true
             X1/front_left_wheel_link:
               Value: true
             X1/front_right_wheel_link:
@@ -120,33 +114,15 @@ Visualization Manager:
               Value: true
             X1_ground_truth:
               Value: false
-            backpack_1:
-              Value: false
-            backpack_2:
+            cave_circuit_01:
               Value: true
-            backpack_3:
-              Value: true
-            backpack_4:
+            helmet_1:
               Value: true
             navigation:
               Value: false
-            phone_1:
-              Value: true
-            phone_2:
-              Value: true
-            phone_3:
-              Value: true
             phone_4:
               Value: true
-            rescue_randy_1:
-              Value: false
-            rescue_randy_2:
-              Value: false
-            rescue_randy_3:
-              Value: false
-            rescue_randy_4:
-              Value: true
-            simple_cave_01:
+            rope_2:
               Value: true
             subt:
               Value: false
@@ -161,31 +137,13 @@ Visualization Manager:
             world:
               X1_ground_truth:
                 {}
-              backpack_1:
+              cave_circuit_01:
                 {}
-              backpack_2:
-                {}
-              backpack_3:
-                {}
-              backpack_4:
-                {}
-              phone_1:
-                {}
-              phone_2:
-                {}
-              phone_3:
+              helmet_1:
                 {}
               phone_4:
                 {}
-              rescue_randy_1:
-                {}
-              rescue_randy_2:
-                {}
-              rescue_randy_3:
-                {}
-              rescue_randy_4:
-                {}
-              simple_cave_01:
+              rope_2:
                 {}
               subt:
                 X1/map:
@@ -210,12 +168,6 @@ Visualization Manager:
                         X1/base_link/right_realsense:
                           X1/base_link/right_realsense_optical:
                             {}
-                        X1/base_link_zero_pitch:
-                          {}
-                        X1/base_link_zero_roll:
-                          {}
-                        X1/base_link_zero_roll_pitch:
-                          {}
                       X1/front_left_wheel_link:
                         {}
                       X1/front_right_wheel_link:
@@ -558,8 +510,8 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 9.700000762939453
-            Min Value: -0.7000000476837158
+            Max Value: 11.700000762939453
+            Min Value: -0.5
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -567,7 +519,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: AxisColor
           Decay Time: 0
-          Enabled: false
+          Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Max Intensity: 4096
@@ -584,7 +536,7 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: false
+          Value: true
       Enabled: true
       Name: Voxblox
     - Class: rviz/MarkerArray
@@ -782,7 +734,7 @@ Visualization Manager:
           Use Fixed Frame: true
           Use rainbow: true
           Value: true
-      Enabled: true
+      Enabled: false
       Name: Trajectory Optimization
   Enabled: true
   Global Options:
@@ -812,7 +764,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 20.51403045654297
+      Distance: 19.76619529724121
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
