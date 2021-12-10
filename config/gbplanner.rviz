@@ -6,6 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Axes1/TF1
+        - /Axes1/TF1/Frames1
         - /Axes1/BaseLink1
         - /Odometry1/Shape1
         - /Odometry1/Covariance1
@@ -19,7 +20,7 @@ Panels:
         - /Sensors1/InputPointcloud1/Autocompute Value Bounds1
         - /Voxblox1
         - /Trajectory Optimization1
-      Splitter Ratio: 0.5529412031173706
+      Splitter Ratio: 0.6235294342041016
     Tree Height: 463
   - Class: rviz/Selection
     Name: Selection
@@ -39,7 +40,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: Local map
+    SyncSource: SurfacePCL
   - Class: gbplanner_ui/GbPlanner Control
     Name: GbPlanner Control
 Preferences:
@@ -101,28 +102,54 @@ Visualization Manager:
             X1/base_link/right_realsense_optical:
               Value: false
             X1/front_left_wheel_link:
-              Value: true
+              Value: false
             X1/front_right_wheel_link:
-              Value: true
+              Value: false
             X1/map:
               Value: true
             X1/odom:
               Value: true
             X1/rear_left_wheel_link:
-              Value: true
-            X1/rear_right_wheel_link:
-              Value: true
-            X1_ground_truth:
               Value: false
-            cave_circuit_01:
+            X1/rear_right_wheel_link:
+              Value: false
+            X1_ground_truth:
+              Value: true
+            backpack_2:
+              Value: true
+            backpack_3:
+              Value: true
+            backpack_4:
+              Value: true
+            cave_circuit_03:
               Value: true
             helmet_1:
               Value: true
+            helmet_2:
+              Value: true
+            helmet_3:
+              Value: true
+            helmet_4:
+              Value: true
             navigation:
               Value: false
+            phone_1:
+              Value: true
+            phone_3:
+              Value: true
             phone_4:
               Value: true
+            rescue_randy_1:
+              Value: true
+            rescue_randy_2:
+              Value: true
+            rescue_randy_3:
+              Value: true
+            rope_1:
+              Value: true
             rope_2:
+              Value: true
+            rope_3:
               Value: true
             subt:
               Value: false
@@ -130,20 +157,46 @@ Visualization Manager:
               Value: true
           Marker Scale: 4
           Name: TF
-          Show Arrows: true
+          Show Arrows: false
           Show Axes: true
           Show Names: true
           Tree:
             world:
               X1_ground_truth:
                 {}
-              cave_circuit_01:
+              backpack_2:
+                {}
+              backpack_3:
+                {}
+              backpack_4:
+                {}
+              cave_circuit_03:
                 {}
               helmet_1:
                 {}
+              helmet_2:
+                {}
+              helmet_3:
+                {}
+              helmet_4:
+                {}
+              phone_1:
+                {}
+              phone_3:
+                {}
               phone_4:
                 {}
+              rescue_randy_1:
+                {}
+              rescue_randy_2:
+                {}
+              rescue_randy_3:
+                {}
+              rope_1:
+                {}
               rope_2:
+                {}
+              rope_3:
                 {}
               subt:
                 X1/map:
@@ -510,8 +563,8 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 11.700000762939453
-            Min Value: -0.5
+            Max Value: 9.700000762939453
+            Min Value: -4.699999809265137
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -736,6 +789,130 @@ Visualization Manager:
           Value: true
       Enabled: false
       Name: Trajectory Optimization
+    - Class: rviz/Group
+      Displays:
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: most probable class
+          Class: rviz/PointCloud
+          Color: 255; 255; 255
+          Color Transformer: Intensity
+          Decay Time: 0
+          Enabled: false
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: -999999
+          Min Color: 0; 0; 0
+          Min Intensity: 999999
+          Name: Active hypothesis
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 1
+          Style: Spheres
+          Topic: /X1/detection_localization/dbg_active_hypotheses_pcl
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: false
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: most probable class
+          Class: rviz/PointCloud
+          Color: 255; 255; 255
+          Color Transformer: Intensity
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: -999999
+          Min Color: 0; 0; 0
+          Min Intensity: 999999
+          Name: Confirmed hypothesis
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 5
+          Style: Spheres
+          Topic: /X1/detection_localization/dbg_confirmed_hypotheses_pcl
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: most probable class
+          Class: rviz/PointCloud
+          Color: 255; 255; 255
+          Color Transformer: Intensity
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: -999999
+          Min Color: 0; 0; 0
+          Min Intensity: 999999
+          Name: Hypothesis
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 1
+          Style: Spheres
+          Topic: /X1/detection_localization/dbg_hypotheses_pcl
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: most probable class
+          Class: rviz/PointCloud
+          Color: 255; 255; 255
+          Color Transformer: Intensity
+          Decay Time: 0
+          Enabled: false
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: -999999
+          Min Color: 0; 0; 0
+          Min Intensity: 999999
+          Name: Measurments
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 5
+          Style: Spheres
+          Topic: /X1/detection_localization/dbg_measurements_pcl
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: false
+      Enabled: true
+      Name: Detector
   Enabled: true
   Global Options:
     Background Color: 0; 0; 0
@@ -764,16 +941,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 19.76619529724121
+      Distance: 26.959989547729492
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.26947450637817383
-        Y: -0.6386157274246216
-        Z: 0.04022979736328125
+        X: 3.5881638526916504
+        Y: -0.5481135845184326
+        Z: 1.6271491050720215
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false

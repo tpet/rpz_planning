@@ -246,9 +246,9 @@ class Eval:
         marker.scale.y = 1
         marker.scale.z = 1
         marker.color.a = 0.4
-        marker.color.r = 0
-        marker.color.g = 1
-        marker.color.b = 0
+        marker.color.r = 0.4
+        marker.color.g = 0.5
+        marker.color.b = 0.6
         marker.type = Marker.MESH_RESOURCE
         marker.mesh_resource = f"package://rpz_planning/data/meshes/{self.map_gt_frame}.dae"
         self.map_gt_mesh_marker = marker
