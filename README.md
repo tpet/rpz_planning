@@ -11,8 +11,8 @@ If you would like to explore, how the trajectory optimization works using a prer
 ## Prerequisites
 
 - [Singularity](https://github.com/tpet/rpz_planning/blob/master/docs/singularity.md)
-- [DARPA Subt simulator](https://github.com/tpet/rpz_planning/blob/master/docs/darpa_subt.d)
-- [Exloration pipeline](https://github.com/tpet/rpz_planning/blob/master/docs/naex.md)
+- [DARPA Subt simulator](https://github.com/tpet/rpz_planning/blob/master/docs/darpa_subt.md)
+- [Exloration pipeline](https://github.com/tpet/naex/blob/icra-2022/README.md)
 
 ## Exploration with trajectory optimization
 
