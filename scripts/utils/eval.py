@@ -13,11 +13,13 @@ from rpz_planning import point_face_distance_truncated
 from rpz_planning import face_point_distance_truncated
 # from rpz_planning import edge_point_distance_truncated
 # from rpz_planning import chamfer_distance_truncated
+# import colorsys
+import seaborn as sns
 import rospy
 from sensor_msgs.msg import PointCloud2, PointCloud
 from std_msgs.msg import Float64
 from rpz_planning.msg import Metrics
-from visualization_msgs.msg import Marker
+from visualization_msgs.msg import Marker, MarkerArray
 from timeit import default_timer as timer
 import time
 from ros_numpy import msgify, numpify
@@ -74,17 +76,24 @@ class Eval:
                                                             'detection_localization/dbg_confirmed_hypotheses_pcl')
         self.artifacts_names = ["rescue_randy", "phone", "backpack", "drill", "extinguisher",
                                 "vent", "helmet", "rope", "cube"]
+        self.rgb_colors_palette = sns.color_palette(None, len(self.artifacts_names))  # for visualization in RViz
         self.max_age = rospy.get_param('~max_age', 1.0)
         self.rate = rospy.get_param('~eval_rate', 1.0)
         # exploration metrics publishers
         self.metrics_pub = rospy.Publisher('~metrics', Metrics, queue_size=1)
         # world ground truth mesh publisher
         self.world_mesh_pub = rospy.Publisher('/world_mesh', Marker, queue_size=1)
+        self.artifacts_gt_markers_pub = rospy.Publisher('/artifacts_gt_markers', MarkerArray, queue_size=1)
+        self.artifacts_preds_markers_pub = rospy.Publisher('artifacts_preds_markers', MarkerArray, queue_size=1)
+        self.artifacts_texts_markers_pub = rospy.Publisher('/artifacts_texts_markers', MarkerArray, queue_size=1)
 
         self.map_gt_frame = rospy.get_param('~map_gt_frame', 'subt')
         self.map_gt_mesh = None
         self.map_gt_trimesh = None  # mesh loaded with trimesh library
         self.map_gt_mesh_marker = Marker()
+        self.artifacts_gt_marker_array = MarkerArray()
+        self.artifacts_preds_marker_array = MarkerArray()
+        self.artifacts_colors_palette = self.get_artifacts_colors_markers()
         self.artifacts = {'poses': None, 'names': None, 'clouds': None, 'cloud_merged': None}
         self.map_gt = None
         self.pc_msg = None
@@ -293,8 +302,8 @@ class Eval:
             # create artifacts point cloud here from their meshes
             verts, faces, _ = load_obj(os.path.join(rospkg.RosPack().get_path('rpz_planning'),
                                                     f"data/meshes/artifacts/{artifact_name[:-2]}.obj"))
-            # mesh = Meshes(verts=[verts], faces=[faces.verts_idx]).to(self.device)
-            # torch.manual_seed(self.seed); cloud = sample_points_from_meshes(mesh, 1000).squeeze(0).to(self.device)
+            mesh = Meshes(verts=[verts], faces=[faces.verts_idx]).to(self.device)
+            torch.manual_seed(self.seed); cloud = sample_points_from_meshes(mesh, 1000).squeeze(0).to(self.device)
             cloud = verts.cpu().numpy().transpose(1, 0)
             # TODO: correct coordinates mismatch in Blender (swap here X and Y)
             R = np.array([[0., 1., 0.],
@@ -306,23 +315,42 @@ class Eval:
             R, t = T[:3, :3], T[:3, 3]
             cloud = np.matmul(R, cloud) + t.reshape([3, 1])
             # add intensity value based on the artifact type
-            if 'backpack' in artifact_name:
-                intensity = 1
-            elif 'phone' in artifact_name:
-                intensity = 2
-            elif 'rescue_randy' in artifact_name:
-                intensity = 3
-            else:
-                intensity = 4
+            # for i, name in enumerate(self.artifacts_names):
+            #     if name in artifact_name:
+            #         intensity = i
+            intensity = self.artifacts_names.index(artifact_name[:-2])
             cloud = np.concatenate([cloud, intensity * np.ones([1, cloud.shape[1]])], axis=0)
             assert len(cloud.shape) == 2
             assert cloud.shape[0] == 4  # (4, n)
             artifacts_cloud_merged.append(cloud)
             artifacts['names'].append(artifact_name)
             # center of an artifact point cloud in map_gt_frame
-            artifacts['poses'].append(cloud[:3, :].mean(axis=1))
+            xyz = cloud[:3, :].mean(axis=1)
+            artifacts['poses'].append(xyz)
             artifacts['clouds'].append(
                 torch.as_tensor(cloud.transpose([1, 0]), dtype=torch.float32).unsqueeze(0).to(self.device))
+
+            # construct visualization marker for each gt artifact
+            marker = Marker()
+            marker.header.frame_id = self.map_gt_frame
+            marker.header.stamp = rospy.Time.now()
+            marker.ns = "artifacts_ns"
+            marker.id = i
+            marker.action = Marker.ADD
+            marker.pose.position.x = xyz[0]
+            marker.pose.position.y = xyz[1]
+            marker.pose.position.z = xyz[2]
+            marker.scale.x = 1
+            marker.scale.y = 1
+            marker.scale.z = 8
+            marker.color.a = 1.0
+            marker.color.r = 0.0
+            marker.color.g = 0.0
+            marker.color.b = 0.0
+            marker.text = artifact_name
+            marker.type = Marker.TEXT_VIEW_FACING
+            self.artifacts_gt_marker_array.markers.append(marker)
+
         artifacts_cloud_merged_np = artifacts_cloud_merged[0]
         for cloud in artifacts_cloud_merged[1:]:
             artifacts_cloud_merged_np = np.concatenate([artifacts_cloud_merged_np, cloud], axis=1)
@@ -376,10 +404,59 @@ class Eval:
         # convert numbers to names
         classes = [self.artifacts_names[int(n)] for n in class_numbers]
         # assert len(self.detections['classes']) == len(self.detections['poses'])
+        assert len(poses) == len(classes)
         return poses, classes
+
+    def get_artifacts_colors_markers(self):
+        artifacts_texts_marker_array = MarkerArray()
+        for i, cl in enumerate(self.artifacts_names):
+            # construct visualization marker for each gt artifact
+            marker = Marker()
+            marker.header.frame_id = self.map_gt_frame
+            marker.header.stamp = rospy.Time.now()
+            marker.ns = "artifacts_texts_ns"
+            marker.id = i
+            marker.action = Marker.ADD
+            marker.pose.position.x = 150.0 - i*10
+            marker.pose.position.y = -100.0
+            marker.pose.position.z = 1.0
+            marker.scale.x = 1
+            marker.scale.y = 1
+            marker.scale.z = 8
+            marker.color.a = 1.0
+            marker.color.r = self.rgb_colors_palette[i][0]
+            marker.color.g = self.rgb_colors_palette[i][1]
+            marker.color.b = self.rgb_colors_palette[i][2]
+            marker.text = cl
+            marker.type = Marker.TEXT_VIEW_FACING
+            artifacts_texts_marker_array.markers.append(marker)
+        return artifacts_texts_marker_array
 
     def get_confirmed_detections(self, dets_pc_msg):
         poses, classes = self.get_detections_poses_classes(dets_pc_msg)
+        self.artifacts_preds_marker_array = MarkerArray()
+        for i, cl in enumerate(classes):
+            # construct visualization marker for each gt artifact
+            marker = Marker()
+            marker.header.frame_id = self.map_gt_frame
+            marker.header.stamp = rospy.Time.now()
+            marker.ns = "artifacts_preds_ns"
+            marker.id = i
+            marker.action = Marker.ADD
+            marker.pose.position.x = poses[i][0]
+            marker.pose.position.y = poses[i][1]
+            marker.pose.position.z = poses[i][2]
+            marker.scale.x = 10
+            marker.scale.y = 10
+            marker.scale.z = 10
+            marker.color.a = 0.6
+            marker.color.r = self.rgb_colors_palette[int(dets_pc_msg.channels[-1].values[i])][0]
+            marker.color.g = self.rgb_colors_palette[int(dets_pc_msg.channels[-1].values[i])][1]
+            marker.color.b = self.rgb_colors_palette[int(dets_pc_msg.channels[-1].values[i])][2]
+            marker.type = Marker.SPHERE
+            # marker.text = cl + '_pred'
+            # marker.type = Marker.TEXT_VIEW_FACING
+            self.artifacts_preds_marker_array.markers.append(marker)
         self.detections['poses'] = poses
         self.detections['classes'] = classes
 
@@ -693,6 +770,9 @@ class Eval:
         # publish ground truth
         self.map_gt_mesh_marker.header.stamp = rospy.Time.now()
         self.world_mesh_pub.publish(self.map_gt_mesh_marker)
+        self.artifacts_gt_markers_pub.publish(self.artifacts_gt_marker_array)
+        self.artifacts_preds_markers_pub.publish(self.artifacts_preds_marker_array)
+        self.artifacts_texts_markers_pub.publish(self.artifacts_colors_palette)
         self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', rospy.Time.now(), self.map_gt_frame)
 
         rospy.logdebug('Travelled distance: %.1f', self.travelled_dist)
