@@ -882,19 +882,19 @@ rosdistro: 'melodic
   '
 roslaunch:
   uris:
-    host_ruslan_thinkpad_t15g_gen_2i__34827: http://ruslan-ThinkPad-T15g-Gen-2i:34827/
-    host_ruslan_thinkpad_t15g_gen_2i__37273: http://ruslan-ThinkPad-T15g-Gen-2i:37273/
-    host_ruslan_thinkpad_t15g_gen_2i__39951: http://ruslan-ThinkPad-T15g-Gen-2i:39951/
-    host_ruslan_thinkpad_t15g_gen_2i__44545: http://ruslan-ThinkPad-T15g-Gen-2i:44545/
+    host_ruslan_thinkpad_t15g_gen_2i__37453: http://ruslan-ThinkPad-T15g-Gen-2i:37453/
+    host_ruslan_thinkpad_t15g_gen_2i__39027: http://ruslan-ThinkPad-T15g-Gen-2i:39027/
+    host_ruslan_thinkpad_t15g_gen_2i__40299: http://ruslan-ThinkPad-T15g-Gen-2i:40299/
+    host_ruslan_thinkpad_t15g_gen_2i__43965: http://ruslan-ThinkPad-T15g-Gen-2i:43965/
 rosversion: '1.14.11
 
   '
-run_id: a51c0524-7471-11ec-8c86-902e16e5d102
+run_id: de841e70-7474-11ec-9187-902e16e5d102
 smb_path_tracker_node:
   critical_angle: 0.52
   desired_vel: 1.0
   fixed_frame: subt
-  look_ahead_distance: 2.0
+  look_ahead_distance: 0.8
   look_ahead_error_margin: 0.2
   max_ang_vel: 1.5
   robot_frame: X1/base_link

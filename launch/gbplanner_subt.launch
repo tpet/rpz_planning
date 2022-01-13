@@ -120,10 +120,10 @@
             <param name="robot_frame" value="$(arg robot)/base_link" />
             <param name="fixed_frame" value="subt" />
             <param name="critical_angle" value="0.52"/>
-            <param name="max_ang_vel" value="1.5"/>
-            <param name="desired_vel" value="1.0"/>
+            <param name="max_ang_vel" value="1.5"/> <!-- 0.5 -->
+            <param name="desired_vel" value="1.0"/>  <!-- 0.5 -->
             <param name="look_ahead_error_margin" value="0.2"/>
-            <param name="look_ahead_distance" value="2.0"/>
+            <param name="look_ahead_distance" value="0.8"/> <!-- 0.5 -->
         </node>
     </group>
 

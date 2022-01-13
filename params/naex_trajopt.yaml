@@ -124,7 +124,7 @@ X1:
           jpeg_quality: 80
           png_level: 9
     ros_ign_bridge_camera_set_rate:
-      service: /world/simple_cave_01/model/X1/link/base_link/sensor/front_realsense/set_rate
+      service: /world/finals_qual/model/X1/link/base_link/sensor/front_realsense/set_rate
   front_rgbd_points_voxels:
     filter_field_name: ''
     filter_limit_max: 1.0
@@ -172,7 +172,7 @@ X1:
           jpeg_quality: 80
           png_level: 9
     ros_ign_bridge_camera_set_rate:
-      service: /world/simple_cave_01/model/X1/link/base_link/sensor/left_realsense/set_rate
+      service: /world/finals_qual/model/X1/link/base_link/sensor/left_realsense/set_rate
   left_rgbd_points_voxels:
     filter_field_name: ''
     filter_limit_max: 1.0
@@ -265,7 +265,7 @@ X1:
     - - -2.0
       - 2.0
     keep_path: 0.0
-    look_ahead: 2.0
+    look_ahead: 0.8
     map_frame: subt
     max_age: 1.0
     max_angular_rate: 1.5
@@ -277,7 +277,7 @@ X1:
     - 2.5
     max_speed: 1.0
     min_points_obstacle: 3
-    obstacle_avoidance: true
+    obstacle_avoidance: false
     odom_frame: X1/odom
     robot_frame: X1/base_footprint
     show_clearance_pos:
@@ -331,7 +331,7 @@ X1:
           jpeg_quality: 80
           png_level: 9
     ros_ign_bridge_camera_set_rate:
-      service: /world/simple_cave_01/model/X1/link/base_link/sensor/rear_realsense/set_rate
+      service: /world/finals_qual/model/X1/link/base_link/sensor/rear_realsense/set_rate
   rear_rgbd_points_voxels:
     filter_field_name: ''
     filter_limit_max: 1.0
@@ -379,7 +379,7 @@ X1:
           jpeg_quality: 80
           png_level: 9
     ros_ign_bridge_camera_set_rate:
-      service: /world/simple_cave_01/model/X1/link/base_link/sensor/right_realsense/set_rate
+      service: /world/finals_qual/model/X1/link/base_link/sensor/right_realsense/set_rate
   right_rgbd_points_voxels:
     filter_field_name: ''
     filter_limit_max: 1.0
@@ -625,7 +625,7 @@ X1:
     sensor_timeout: 1.0
     vo_used: false
   ros_ign_bridge_lidar3d_set_rate:
-    service: /world/simple_cave_01/model/X1/link/base_link/sensor/front_laser/scan/set_rate
+    service: /world/finals_qual/model/X1/link/base_link/sensor/front_laser/scan/set_rate
   rpz_front_rgbd_points_voxels:
     filter_field_name: ''
     filter_limit_max: 1.0
@@ -645,7 +645,7 @@ X1:
     enable_visibility: true
     fixed_endpoints:
     - start
-    follow_opt_path: 1
+    follow_opt_path: true
     gpu_id: 0
     linear_speed: 1.0
     map_frame: subt
@@ -765,16 +765,14 @@ rosdistro: 'melodic
   '
 roslaunch:
   uris:
-    host_ruslan_thinkpad_t15g_gen_2i__32961: http://ruslan-ThinkPad-T15g-Gen-2i:32961/
-    host_ruslan_thinkpad_t15g_gen_2i__33207: http://ruslan-ThinkPad-T15g-Gen-2i:33207/
-    host_ruslan_thinkpad_t15g_gen_2i__34515: http://ruslan-ThinkPad-T15g-Gen-2i:34515/
-    host_ruslan_thinkpad_t15g_gen_2i__36805: http://ruslan-ThinkPad-T15g-Gen-2i:36805/
-    host_ruslan_thinkpad_t15g_gen_2i__38117: http://ruslan-ThinkPad-T15g-Gen-2i:38117/
-    host_ruslan_thinkpad_t15g_gen_2i__40889: http://ruslan-ThinkPad-T15g-Gen-2i:40889/
+    host_ruslan_thinkpad_t15g_gen_2i__33107: http://ruslan-ThinkPad-T15g-Gen-2i:33107/
+    host_ruslan_thinkpad_t15g_gen_2i__38683: http://ruslan-ThinkPad-T15g-Gen-2i:38683/
+    host_ruslan_thinkpad_t15g_gen_2i__38977: http://ruslan-ThinkPad-T15g-Gen-2i:38977/
+    host_ruslan_thinkpad_t15g_gen_2i__46535: http://ruslan-ThinkPad-T15g-Gen-2i:46535/
 rosversion: '1.14.11
 
   '
-run_id: 4aa2968c-7456-11ec-85db-902e16e5d102
+run_id: 0701768c-7479-11ec-9803-902e16e5d102
 rviz:
   compressed:
     mode: unchanged
@@ -802,4 +800,4 @@ select_led_service_suffixes:
 subt_frame_publisher:
   robot_name: X1
 use_sim_time: true
-world_name: simple_cave_01
+world_name: finals_qual
