@@ -17,12 +17,12 @@
     <arg name="enable_fov_vis" default="true" />
 
     <!-- Config files -->
-    <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/$(arg robot_type)/gbplanner_config.yaml"/>
-    <arg name="pci_file" default="$(find rpz_planning)/config/$(arg robot_type)/planner_control_interface_sim_config.yaml"/>
-    <arg name="voxblox_config_file" default="$(find rpz_planning)/config/$(arg robot_type)/voxblox_sim_config.yaml"/>
-<!--    <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/smb/gbplanner_config.yaml"/>-->
-<!--    <arg name="pci_file" default="$(find rpz_planning)/config/smb/planner_control_interface_sim_config.yaml"/>-->
-<!--    <arg name="voxblox_config_file" default="$(find rpz_planning)/config/smb/voxblox_sim_config.yaml"/>-->
+    <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/gbplanner/$(arg robot_type)/gbplanner_config.yaml"/>
+    <arg name="pci_file" default="$(find rpz_planning)/config/gbplanner/$(arg robot_type)/planner_control_interface_sim_config.yaml"/>
+    <arg name="voxblox_config_file" default="$(find rpz_planning)/config/gbplanner/$(arg robot_type)/voxblox_sim_config.yaml"/>
+<!--    <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/gbplanner/smb/gbplanner_config.yaml"/>-->
+<!--    <arg name="pci_file" default="$(find rpz_planning)/config/gbplanner/smb/planner_control_interface_sim_config.yaml"/>-->
+<!--    <arg name="voxblox_config_file" default="$(find rpz_planning)/config/gbplanner/smb/voxblox_sim_config.yaml"/>-->
     <arg name="map_config_file" default="$(arg voxblox_config_file)"/>
 
     <!-- Static TF -->
@@ -123,7 +123,7 @@
             <param name="max_ang_vel" value="1.5"/>
             <param name="desired_vel" value="1.0"/>
             <param name="look_ahead_error_margin" value="0.2"/>
-            <param name="look_ahead_distance" value="0.5"/>
+            <param name="look_ahead_distance" value="2.0"/>
         </node>
     </group>
 
