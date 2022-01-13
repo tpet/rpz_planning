@@ -1,0 +1,805 @@
+X1:
+  artifact_detection:
+    camera_info_topic0: front_rgbd/optical/camera_info
+    camera_info_topic1: left_rgbd/optical/camera_info
+    camera_info_topic2: right_rgbd/optical/camera_info
+    camera_info_topic3: rear_rgbd/optical/camera_info
+    camera_topic0: front_rgbd/optical/image_raw/compressed
+    camera_topic1: left_rgbd/optical/image_raw/compressed
+    camera_topic2: right_rgbd/optical/image_raw/compressed
+    camera_topic3: rear_rgbd/optical/image_raw/compressed
+    cfg_path: /opt/ros/trajopt_ws/src/artifact_detection/scripts/cfg/yolov3_9class.cfg
+    conf_thres: 0.3
+    map_fast_frame: X1/map
+    max_image_age: 1.0
+    num_cameras: 4
+    odom_frame: X1/odom
+    pc_buffer_size: 20
+    pc_topic: points_slow_filtered
+    robot: X1
+    robots: X1
+    start_immediately: true
+    weights_path: /opt/ros/trajopt_ws/src/artifact_detection/scripts/weights/best.pt
+  base_link_leveller:
+    child_frame: X1/base_link
+    parent_frame: X1/odom
+  box_filter:
+    filters:
+    - cloud_proc.DiscardOld:
+        max_age: 5.0
+    - cloud_proc.Box:
+        fields:
+        - x
+        - y
+        - z
+        frame: X1/base_link_zero_roll_pitch
+        keep: 1
+        lower:
+        - -13.0
+        - -13.0
+        - -1.5
+        timeout: 1.0
+        upper:
+        - 13.0
+        - 13.0
+        - 1.0
+  detection_localization:
+    fusion_method: 0
+    info_loop_rate: 1.0
+    max_gating_distance: 7.0
+    max_hypothesis_weight: .inf
+    max_merging_distance: 5.0
+    merging_enabled: true
+    min_corrs_confirmed: 3
+    min_detection_height: -.inf
+    min_gating_class_similarity: 0.5
+    min_gating_position_loglikelihood: -50.0
+    min_hypothesis_covariance: 0.0
+    min_merging_class_similarity: 0.7
+    min_merging_position_loglikelihood: -1000.0
+    num_worker_threads: 16
+    publish_loop_rate: 1.0
+    use_gating_position_loglikelihood: true
+    use_merging_position_loglikelihood: true
+    world_frame: subt
+  dynamic_mapper:
+    alpha: 0.99
+    beta: 0.9
+    eps_a: 0.1
+    eps_d: 0.1
+    icpConfig: /opt/ros/trajopt_ws/src/naex/launch/dynamic_mapper/icp.yaml
+    inputFiltersConfig: /opt/ros/trajopt_ws/src/naex/launch/dynamic_mapper/input_filters.yaml
+    localizing: true
+    mapPostFiltersConfig: /opt/ros/trajopt_ws/src/naex/launch/dynamic_mapper/map_post_filters.yaml
+    map_frame: X1/map
+    mapping: true
+    maxAngle: 0.02
+    maxDistNewPoint: 0.125
+    maxDyn: 0.5
+    maxOverlapToMerge: 1.0
+    minMapPointCount: 500
+    minOverlap: 0.2
+    minReadingPointCount: 500
+    odom_frame: X1/odom
+    priorDyn: 0.3
+    priorStatic: 0.7
+    sensorMaxRange: 50.0
+    subscribe_scan: false
+    tfRefreshPeriod: 0.0
+    useROSLogger: true
+  front_rgbd:
+    depth:
+      image_raw:
+        compressed:
+          format: jpeg
+          jpeg_quality: 80
+          png_level: 9
+        compressedDepth:
+          depth_max: 10.0
+          depth_quantization: 100.0
+          png_level: 9
+        theora:
+          keyframe_frequency: 64
+          optimize_for: 1
+          quality: 31
+          target_bitrate: 800000
+    image_raw:
+      compressed:
+        format: jpeg
+        jpeg_quality: 80
+        png_level: 9
+      compressedDepth:
+        depth_max: 10.0
+        depth_quantization: 100.0
+        png_level: 9
+      theora:
+        keyframe_frequency: 64
+        optimize_for: 1
+        quality: 31
+        target_bitrate: 800000
+    optical:
+      image_raw:
+        compressed:
+          format: jpeg
+          jpeg_quality: 80
+          png_level: 9
+    ros_ign_bridge_camera_set_rate:
+      service: /world/simple_cave_01/model/X1/link/base_link/sensor/front_realsense/set_rate
+  front_rgbd_points_voxels:
+    filter_field_name: ''
+    filter_limit_max: 1.0
+    filter_limit_min: 0.0
+    filter_limit_negative: false
+    input_frame: ''
+    keep_organized: false
+    leaf_size: 0.125
+    min_points_per_voxel: 1
+    output_frame: ''
+  left_rgbd:
+    depth:
+      image_raw:
+        compressed:
+          format: jpeg
+          jpeg_quality: 80
+          png_level: 9
+        compressedDepth:
+          depth_max: 10.0
+          depth_quantization: 100.0
+          png_level: 9
+        theora:
+          keyframe_frequency: 64
+          optimize_for: 1
+          quality: 31
+          target_bitrate: 800000
+    image_raw:
+      compressed:
+        format: jpeg
+        jpeg_quality: 80
+        png_level: 9
+      compressedDepth:
+        depth_max: 10.0
+        depth_quantization: 100.0
+        png_level: 9
+      theora:
+        keyframe_frequency: 64
+        optimize_for: 1
+        quality: 31
+        target_bitrate: 800000
+    optical:
+      image_raw:
+        compressed:
+          format: jpeg
+          jpeg_quality: 80
+          png_level: 9
+    ros_ign_bridge_camera_set_rate:
+      service: /world/simple_cave_01/model/X1/link/base_link/sensor/left_realsense/set_rate
+  left_rgbd_points_voxels:
+    filter_field_name: ''
+    filter_limit_max: 1.0
+    filter_limit_min: 0.0
+    filter_limit_negative: false
+    input_frame: ''
+    keep_organized: false
+    leaf_size: 0.125
+    min_points_per_voxel: 1
+    output_frame: ''
+  naex_planner:
+    bootstrap_z: .nan
+    clearance_high: 0.7
+    clearance_low: 0.1
+    clearance_radius: 0.6
+    collect_rewards: true
+    coverage_dist_spread: 1.5
+    edge_min_centroid_offset: 0.4
+    filter_robots: true
+    full_coverage_dist: 3.0
+    input_queue_size: 15
+    input_range: 15.0
+    map_frame: subt
+    max_cloud_age: 2.0
+    max_ground_abs_diff_mean: 0.06
+    max_ground_diff_std: 0.06
+    max_nn_height_diff: 0.15
+    max_occ_counter: 7
+    max_pitch: 0.611
+    max_roll: 0.524
+    max_vp_distance: 6.0
+    min_dist_to_obstacle: 0.0
+    min_empty_cos: 0.216
+    min_empty_ratio: 2.0
+    min_num_empty: 4
+    min_path_cost: 1.0
+    min_points_obstacle: 1
+    min_vp_distance: 2.0
+    neighborhood_knn: 32
+    neighborhood_radius: 0.6
+    normal_name: normal_x
+    normal_radius: 0.5
+    num_input_clouds: 5
+    path_cost_pow: 0.75
+    plan_from_goal_dist: 1.5
+    planning_freq: 0.5
+    points_min_dist: 0.125
+    position_name: x
+    random_start: false
+    robot_frame: X1/base_footprint
+    robot_frames:
+      X1: X1/base_footprint
+    self_factor: 0.5
+    suppress_base_reward: true
+    viewpoints_update_freq: 1.0
+  odom_setter:
+    pose_cov_diag:
+    - 0.1
+    - 0.1
+    - 0.1
+    - 0.1
+    - 0.1
+    - 0.1
+    twist_cov_diag:
+    - 0.1
+    - 0.1
+    - 0.1
+    - 0.1
+    - 0.1
+    - 0.1
+  path_follower:
+    allow_backward: true
+    backtrack_after: 20.0
+    clearance_box:
+    - - -0.6
+      - 0.6
+    - - -0.45
+      - 0.45
+    - - 0.2
+      - 0.7
+    control_freq: 10.0
+    force_through_after: 10.0
+    goal_reached_angle: .inf
+    goal_reached_dist: 0.3
+    keep_cloud_box:
+    - - -3.0
+      - 3.0
+    - - -3.0
+      - 3.0
+    - - -2.0
+      - 2.0
+    keep_path: 0.0
+    look_ahead: 2.0
+    map_frame: subt
+    max_age: 1.0
+    max_angular_rate: 1.5
+    max_force_through_speed: 0.2
+    max_path_dist:
+    - 2.0
+    - 2.5
+    - 2.5
+    - 2.5
+    max_speed: 1.0
+    min_points_obstacle: 3
+    obstacle_avoidance: true
+    odom_frame: X1/odom
+    robot_frame: X1/base_footprint
+    show_clearance_pos:
+    - -2
+    - 2
+    use_path_theta: none
+  points_slow_voxels:
+    filter_field_name: ''
+    filter_limit_max: 1.0
+    filter_limit_min: 0.0
+    filter_limit_negative: false
+    input_frame: ''
+    keep_organized: false
+    leaf_size: 0.125
+    min_points_per_voxel: 1
+    output_frame: ''
+  rear_rgbd:
+    depth:
+      image_raw:
+        compressed:
+          format: jpeg
+          jpeg_quality: 80
+          png_level: 9
+        compressedDepth:
+          depth_max: 10.0
+          depth_quantization: 100.0
+          png_level: 9
+        theora:
+          keyframe_frequency: 64
+          optimize_for: 1
+          quality: 31
+          target_bitrate: 800000
+    image_raw:
+      compressed:
+        format: jpeg
+        jpeg_quality: 80
+        png_level: 9
+      compressedDepth:
+        depth_max: 10.0
+        depth_quantization: 100.0
+        png_level: 9
+      theora:
+        keyframe_frequency: 64
+        optimize_for: 1
+        quality: 31
+        target_bitrate: 800000
+    optical:
+      image_raw:
+        compressed:
+          format: jpeg
+          jpeg_quality: 80
+          png_level: 9
+    ros_ign_bridge_camera_set_rate:
+      service: /world/simple_cave_01/model/X1/link/base_link/sensor/rear_realsense/set_rate
+  rear_rgbd_points_voxels:
+    filter_field_name: ''
+    filter_limit_max: 1.0
+    filter_limit_min: 0.0
+    filter_limit_negative: false
+    input_frame: ''
+    keep_organized: false
+    leaf_size: 0.125
+    min_points_per_voxel: 1
+    output_frame: ''
+  right_rgbd:
+    depth:
+      image_raw:
+        compressed:
+          format: jpeg
+          jpeg_quality: 80
+          png_level: 9
+        compressedDepth:
+          depth_max: 10.0
+          depth_quantization: 100.0
+          png_level: 9
+        theora:
+          keyframe_frequency: 64
+          optimize_for: 1
+          quality: 31
+          target_bitrate: 800000
+    image_raw:
+      compressed:
+        format: jpeg
+        jpeg_quality: 80
+        png_level: 9
+      compressedDepth:
+        depth_max: 10.0
+        depth_quantization: 100.0
+        png_level: 9
+      theora:
+        keyframe_frequency: 64
+        optimize_for: 1
+        quality: 31
+        target_bitrate: 800000
+    optical:
+      image_raw:
+        compressed:
+          format: jpeg
+          jpeg_quality: 80
+          png_level: 9
+    ros_ign_bridge_camera_set_rate:
+      service: /world/simple_cave_01/model/X1/link/base_link/sensor/right_realsense/set_rate
+  right_rgbd_points_voxels:
+    filter_field_name: ''
+    filter_limit_max: 1.0
+    filter_limit_min: 0.0
+    filter_limit_negative: false
+    input_frame: ''
+    keep_organized: false
+    leaf_size: 0.125
+    min_points_per_voxel: 1
+    output_frame: ''
+  robot_description: "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<!-- ===================================================================================\
+    \ -->\n<!-- |    This document was autogenerated by xacro from /home/developer/subt_ws/install/share/explorer_x1_sensor_config_2/urdf/robot_from_sdf.xacro\
+    \ | -->\n<!-- |    EDITING THIS FILE BY HAND IS NOT RECOMMENDED              \
+    \                   | -->\n<!-- ===================================================================================\
+    \ -->\n<robot name=\"explorer_x1_sensor_config_2\">\n  <link name=\"X1/base_link\"\
+    >\n    <inertial>\n      <origin rpy=\"0 -0 0\" xyz=\"-0.000649 -0.084999 0.062001\"\
+    />\n      <mass value=\"46.0344\"/>\n      <inertia ixx=\"0.63323\" ixy=\"-0.0236421\"\
+    \ ixz=\"-0.119707\" iyy=\"1.76965\" iyz=\"-0.00154755\" izz=\"2.06066\"/>\n  \
+    \  </inertial>\n    <collision name=\"base_link_collision\">\n      <origin rpy=\"\
+    0 -0 0\" xyz=\"0 0 0.061875\"/>\n      <geometry>\n        <box size=\"0.9874\
+    \ 0.5709 0.12375\"/>\n      </geometry>\n    </collision>\n    <collision name=\"\
+    base_link_collision_1\">\n      <origin rpy=\"0 -0 0\" xyz=\"0 0 0.185625\"/>\n\
+    \      <geometry>\n        <box size=\"0.78992 0.5709 0.12375\"/>\n      </geometry>\n\
+    \    </collision>\n    <collision name=\"base_link_fixed_joint_lump__front_realsense_link_collision_2\"\
+    >\n      <origin rpy=\"0 -0 0\" xyz=\"0.4 0 0.3\"/>\n      <geometry>\n      \
+    \  <box size=\"0.07 0.3 0.09\"/>\n      </geometry>\n    </collision>\n    <collision\
+    \ name=\"base_link_fixed_joint_lump__left_realsense_link_collision_3\">\n    \
+    \  <origin rpy=\"0 -0 1.57\" xyz=\"0.3 0.2 0.3\"/>\n      <geometry>\n       \
+    \ <box size=\"0.07 0.3 0.09\"/>\n      </geometry>\n    </collision>\n    <collision\
+    \ name=\"base_link_fixed_joint_lump__rear_realsense_link_collision_4\">\n    \
+    \  <origin rpy=\"0 -0 3.14\" xyz=\"0.2 0 0.3\"/>\n      <geometry>\n        <box\
+    \ size=\"0.07 0.3 0.09\"/>\n      </geometry>\n    </collision>\n    <collision\
+    \ name=\"base_link_fixed_joint_lump__right_realsense_link_collision_5\">\n   \
+    \   <origin rpy=\"0 0 -1.57\" xyz=\"0.3 -0.2 0.3\"/>\n      <geometry>\n     \
+    \   <box size=\"0.07 0.3 0.09\"/>\n      </geometry>\n    </collision>\n    <collision\
+    \ name=\"base_link_fixed_joint_lump__top_plate_link_collision_6\">\n      <origin\
+    \ rpy=\"0 -0 0\" xyz=\"0.0812 0 0.245\"/>\n      <geometry>\n        <mesh filename=\"\
+    package://explorer_x1_sensor_config_2/meshes/top_plate.dae\" scale=\"1 1 1\"/>\n\
+    \      </geometry>\n    </collision>\n    <collision name=\"base_link_fixed_joint_lump__top_plate_link_collision_7\"\
+    >\n      <origin rpy=\"0 -0 0\" xyz=\"0.0812 0 0.245\"/>\n      <geometry>\n \
+    \       <box size=\"0.32 0.41 0.09\"/>\n      </geometry>\n    </collision>\n\
+    \    <visual name=\"base_link_visual\">\n      <origin rpy=\"0 0 -3.14159\" xyz=\"\
+    0 0 0\"/>\n      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/chassis.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__center_left_headlight_link_visual_1\"\
+    >\n      <origin rpy=\"0 0 -3.14159\" xyz=\"0.485766 0.0844 0.06\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__center_left_rear_headlight_link_visual_2\"\
+    >\n      <origin rpy=\"0 -0 0\" xyz=\"-0.485766 0.0844 0.06\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__center_right_headlight_link_visual_3\"\
+    >\n      <origin rpy=\"0 0 -3.14159\" xyz=\"0.485766 -0.0844 0.06\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__center_right_rear_headlight_link_visual_4\"\
+    >\n      <origin rpy=\"0 -0 0\" xyz=\"-0.485766 -0.0844 0.06\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__front_realsense_link_visual_5\"\
+    >\n      <origin rpy=\"0 -0 1.57079\" xyz=\"0.4 0 0.3\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/accessories/kinect.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__lateral_left_front_headlight_link_visual_6\"\
+    >\n      <origin rpy=\"0 0 -1.57\" xyz=\"0.25 0.25 0.1\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__lateral_left_rear_headlight_link_visual_7\"\
+    >\n      <origin rpy=\"0 0 -1.57\" xyz=\"-0.25 0.25 0.1\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__lateral_right_front_headlight_link_visual_8\"\
+    >\n      <origin rpy=\"0 -0 1.57\" xyz=\"0.25 -0.25 0.1\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__lateral_right_rear_headlight_link_visual_9\"\
+    >\n      <origin rpy=\"0 -0 1.57\" xyz=\"-0.25 -0.25 0.1\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__left_headlight_link_visual_10\"\
+    >\n      <origin rpy=\"0 0 -3.14159\" xyz=\"0.461459 0.216803 0.06\"/>\n     \
+    \ <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__marker_visual_11\"\
+    >\n      <origin rpy=\"-3.14159 1.57079 -1.60259\" xyz=\"0.066047 0.212211 0.209188\"\
+    />\n      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/led.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__marker_visual_12\"\
+    >\n      <origin rpy=\"-3.14159 1.57079 -1.60259\" xyz=\"-0.066047 0.212211 0.209188\"\
+    />\n      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/led.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__left_realsense_link_visual_13\"\
+    >\n      <origin rpy=\"0 -0 3.1408\" xyz=\"0.3 0.2 0.3\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/accessories/kinect.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__left_rear_headlight_link_visual_14\"\
+    >\n      <origin rpy=\"0 -0 0\" xyz=\"-0.461459 0.216803 0.06\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__marker_visual_15\"\
+    >\n      <origin rpy=\"3.14159 1.57079 7e-06\" xyz=\"-0.42493 0 0.209188\"/>\n\
+    \      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/led.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__marker_visual_16\"\
+    >\n      <origin rpy=\"3.14159 1.57079 7e-06\" xyz=\"-0.42493 0.13619 0.209188\"\
+    />\n      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/led.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__rear_realsense_link_visual_17\"\
+    >\n      <origin rpy=\"0 0 -1.57239\" xyz=\"0.2 0 0.3\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/accessories/kinect.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__marker_visual_18\"\
+    >\n      <origin rpy=\"3.14159 1.57079 7e-06\" xyz=\"-0.42493 -0.13619 0.209188\"\
+    />\n      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/led.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__right_headlight_link_visual_19\"\
+    >\n      <origin rpy=\"0 0 -3.14159\" xyz=\"0.461459 -0.216803 0.06\"/>\n    \
+    \  <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__marker_visual_20\"\
+    >\n      <origin rpy=\"3.14159 1.57079 1.60259\" xyz=\"0.066047 -0.212211 0.209188\"\
+    />\n      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/led.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__marker_visual_21\"\
+    >\n      <origin rpy=\"3.14159 1.57079 1.60259\" xyz=\"-0.066047 -0.212211 0.209188\"\
+    />\n      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/led.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__right_realsense_link_visual_22\"\
+    >\n      <origin rpy=\"0 -0 0.000795\" xyz=\"0.3 -0.2 0.3\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/accessories/kinect.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__right_rear_headlight_link_visual_23\"\
+    >\n      <origin rpy=\"0 -0 0\" xyz=\"-0.461459 -0.216803 0.06\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__top_plate_link_visual_24\"\
+    >\n      <origin rpy=\"0 -0 0\" xyz=\"0.0812 0 0.245\"/>\n      <geometry>\n \
+    \       <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/top_plate.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"base_link_fixed_joint_lump__front_laser_mount_visual_25\"\
+    >\n      <origin rpy=\"0 -0 0\" xyz=\"0.2812 0 0.345\"/>\n      <geometry>\n \
+    \       <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/sick-lms1xx-bracket.stl\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n      <material name=\"dark_grey\"/>\n\
+    \    </visual>\n    <visual name=\"base_link_fixed_joint_lump__front_laser_visual_visual_26\"\
+    >\n      <origin rpy=\"0 -0 0\" xyz=\"0.2812 0 0.494\"/>\n      <geometry>\n \
+    \       <cylinder length=\"0.1\" radius=\"0.025\"/>\n      </geometry>\n     \
+    \ <material name=\"front_laser_visual_material\">\n        <color rgba=\"0.5 1.0\
+    \ 0.5 1.0\"/>\n      </material>\n    </visual>\n    <visual name=\"left_headlight_body_light_source_visual\"\
+    >\n      <origin rpy=\"0 0 -3.14159\" xyz=\"0.461959 0.216803 0.06\"/>\n     \
+    \ <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"center_left_headlight_body_light_source_visual\"\
+    >\n      <origin rpy=\"0 0 -3.14159\" xyz=\"0.486266 0.0844 0.06\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"center_right_headlight_body_light_source_visual\"\
+    >\n      <origin rpy=\"0 0 -3.14159\" xyz=\"0.486266 -0.0844 0.06\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"right_headlight_body_light_source_visual\"\
+    >\n      <origin rpy=\"0 0 -3.14159\" xyz=\"0.461959 -0.216803 0.06\"/>\n    \
+    \  <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"lateral_left_front_headlight_body_light_source_visual\"\
+    >\n      <origin rpy=\"0 0 -1.57\" xyz=\"0.25 0.2505 0.1\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"lateral_left_rear_headlight_body_light_source_visual\"\
+    >\n      <origin rpy=\"0 0 -1.57\" xyz=\"-0.25 0.2505 0.1\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"lateral_right_front_headlight_body_light_source_visual\"\
+    >\n      <origin rpy=\"0 -0 1.57\" xyz=\"0.25 -0.2505 0.1\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"lateral_right_rear_headlight_body_light_source_visual\"\
+    >\n      <origin rpy=\"0 -0 1.57\" xyz=\"-0.25 -0.2505 0.1\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"left_rear_headlight_body_light_source_visual\"\
+    >\n      <origin rpy=\"0 -0 0\" xyz=\"-0.461959 0.216803 0.06\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"center_left_rear_headlight_body_light_source_visual\"\
+    >\n      <origin rpy=\"0 -0 0\" xyz=\"-0.486266 0.0844 0.06\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"center_right_rear_headlight_body_light_source_visual\"\
+    >\n      <origin rpy=\"0 -0 0\" xyz=\"-0.486266 -0.0844 0.06\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"right_rear_headlight_body_light_source_visual\"\
+    >\n      <origin rpy=\"0 -0 0\" xyz=\"-0.461959 -0.216803 0.06\"/>\n      <geometry>\n\
+    \        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/headlight_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"rear_right_led_body_light_source_visual\"\
+    >\n      <origin rpy=\"-3.14159 1.56859 7e-06\" xyz=\"-0.42543 -0.13619 0.209187\"\
+    />\n      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/led_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"rear_center_led_body_light_source_visual\"\
+    >\n      <origin rpy=\"-3.14159 1.56859 7e-06\" xyz=\"-0.42543 -0 0.209187\"/>\n\
+    \      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/led_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"rear_left_led_body_light_source_visual\"\
+    >\n      <origin rpy=\"-3.14159 1.56859 7e-06\" xyz=\"-0.42543 0.13619 0.209187\"\
+    />\n      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/led_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"right_lateral_front_led_body_light_source_visual\"\
+    >\n      <origin rpy=\"3.14159 1.56859 1.60259\" xyz=\"0.066063 -0.212711 0.209187\"\
+    />\n      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/led_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"right_lateral_rear_led_body_light_source_visual\"\
+    >\n      <origin rpy=\"3.14159 1.56859 1.60259\" xyz=\"-0.066031 -0.212711 0.209187\"\
+    />\n      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/led_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"left_lateral_front_led_body_light_source_visual\"\
+    >\n      <origin rpy=\"-3.14159 1.56859 -1.60259\" xyz=\"0.066063 0.212711 0.209187\"\
+    />\n      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/led_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n    <visual name=\"left_lateral_rear_led_body_light_source_visual\"\
+    >\n      <origin rpy=\"-3.14159 1.56859 -1.60259\" xyz=\"-0.066031 0.212711 0.209187\"\
+    />\n      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/led_lamp.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n  </link>\n  <link name=\"\
+    X1/front_left_wheel_link\">\n    <inertial>\n      <origin rpy=\"0 -0 0\" xyz=\"\
+    0 0 0\"/>\n      <mass value=\"2.637\"/>\n      <inertia ixx=\"0.02467\" ixy=\"\
+    0\" ixz=\"0\" iyy=\"0.04411\" iyz=\"0\" izz=\"0.02467\"/>\n    </inertial>\n \
+    \   <collision name=\"front_left_wheel_link_collision\">\n      <origin rpy=\"\
+    1.5708 -0 0\" xyz=\"0 0 0\"/>\n      <geometry>\n        <cylinder length=\"0.1143\"\
+    \ radius=\"0.1651\"/>\n      </geometry>\n    </collision>\n    <visual name=\"\
+    front_left_wheel_link_visual\">\n      <origin rpy=\"0 -0 0\" xyz=\"0 0 0\"/>\n\
+    \      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/wheel.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n  </link>\n  <link name=\"\
+    X1/front_right_wheel_link\">\n    <inertial>\n      <origin rpy=\"0 -0 0\" xyz=\"\
+    0 0 0\"/>\n      <mass value=\"2.637\"/>\n      <inertia ixx=\"0.02467\" ixy=\"\
+    0\" ixz=\"0\" iyy=\"0.04411\" iyz=\"0\" izz=\"0.02467\"/>\n    </inertial>\n \
+    \   <collision name=\"front_right_wheel_link_collision\">\n      <origin rpy=\"\
+    1.5708 -0 0\" xyz=\"0 0 0\"/>\n      <geometry>\n        <cylinder length=\"0.1143\"\
+    \ radius=\"0.1651\"/>\n      </geometry>\n    </collision>\n    <visual name=\"\
+    front_right_wheel_link_visual\">\n      <origin rpy=\"0 -0 0\" xyz=\"0 0 0\"/>\n\
+    \      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/wheel.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n  </link>\n  <link name=\"\
+    X1/rear_left_wheel_link\">\n    <inertial>\n      <origin rpy=\"0 -0 0\" xyz=\"\
+    0 0 0\"/>\n      <mass value=\"2.637\"/>\n      <inertia ixx=\"0.02467\" ixy=\"\
+    0\" ixz=\"0\" iyy=\"0.04411\" iyz=\"0\" izz=\"0.02467\"/>\n    </inertial>\n \
+    \   <collision name=\"rear_left_wheel_link_collision\">\n      <origin rpy=\"\
+    1.5708 -0 0\" xyz=\"0 0 0\"/>\n      <geometry>\n        <cylinder length=\"0.1143\"\
+    \ radius=\"0.1651\"/>\n      </geometry>\n    </collision>\n    <visual name=\"\
+    rear_left_wheel_link_visual\">\n      <origin rpy=\"0 -0 0\" xyz=\"0 0 0\"/>\n\
+    \      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/wheel.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n  </link>\n  <link name=\"\
+    X1/rear_right_wheel_link\">\n    <inertial>\n      <origin rpy=\"0 -0 0\" xyz=\"\
+    0 0 0\"/>\n      <mass value=\"2.637\"/>\n      <inertia ixx=\"0.02467\" ixy=\"\
+    0\" ixz=\"0\" iyy=\"0.04411\" iyz=\"0\" izz=\"0.02467\"/>\n    </inertial>\n \
+    \   <collision name=\"rear_right_wheel_link_collision\">\n      <origin rpy=\"\
+    1.5708 -0 0\" xyz=\"0 0 0\"/>\n      <geometry>\n        <cylinder length=\"0.1143\"\
+    \ radius=\"0.1651\"/>\n      </geometry>\n    </collision>\n    <visual name=\"\
+    rear_right_wheel_link_visual\">\n      <origin rpy=\"0 -0 0\" xyz=\"0 0 0\"/>\n\
+    \      <geometry>\n        <mesh filename=\"package://explorer_x1_sensor_config_2/meshes/wheel.dae\"\
+    \ scale=\"1 1 1\"/>\n      </geometry>\n    </visual>\n  </link>\n  <joint name=\"\
+    front_left_wheel_joint\" type=\"revolute\">\n    <origin rpy=\"0 -0 0\" xyz=\"\
+    0.256 0.2854 0.03282\"/>\n    <parent link=\"X1/base_link\"/>\n    <child link=\"\
+    X1/front_left_wheel_link\"/>\n    <dynamics damping=\"0\" friction=\"0\"/>\n \
+    \   <axis xyz=\"0 1 0\"/>\n    <limit effort=\"-1\" lower=\"-1e+16\" upper=\"\
+    1e+16\" velocity=\"-1\"/>\n  </joint>\n  <joint name=\"front_right_wheel_joint\"\
+    \ type=\"revolute\">\n    <origin rpy=\"0 -0 0\" xyz=\"0.256 -0.2854 0.03282\"\
+    />\n    <parent link=\"X1/base_link\"/>\n    <child link=\"X1/front_right_wheel_link\"\
+    />\n    <dynamics damping=\"0\" friction=\"0\"/>\n    <axis xyz=\"0 1 0\"/>\n\
+    \    <limit effort=\"-1\" lower=\"-1e+16\" upper=\"1e+16\" velocity=\"-1\"/>\n\
+    \  </joint>\n  <joint name=\"rear_left_wheel_joint\" type=\"revolute\">\n    <origin\
+    \ rpy=\"0 -0 0\" xyz=\"-0.256 0.2854 0.03282\"/>\n    <parent link=\"X1/base_link\"\
+    />\n    <child link=\"X1/rear_left_wheel_link\"/>\n    <dynamics damping=\"0\"\
+    \ friction=\"0\"/>\n    <axis xyz=\"0 1 0\"/>\n    <limit effort=\"-1\" lower=\"\
+    -1e+16\" upper=\"1e+16\" velocity=\"-1\"/>\n  </joint>\n  <joint name=\"rear_right_wheel_joint\"\
+    \ type=\"revolute\">\n    <origin rpy=\"0 -0 0\" xyz=\"-0.256 -0.2854 0.03282\"\
+    />\n    <parent link=\"X1/base_link\"/>\n    <child link=\"X1/rear_right_wheel_link\"\
+    />\n    <dynamics damping=\"0\" friction=\"0\"/>\n    <axis xyz=\"0 1 0\"/>\n\
+    \    <limit effort=\"-1\" lower=\"-1e+16\" upper=\"1e+16\" velocity=\"-1\"/>\n\
+    \  </joint>\n</robot>\n\n"
+  robot_pose_ekf:
+    base_footprint_frame: X1
+    freq: 20.0
+    imu_used: true
+    odom_used: true
+    output_frame: X1/odom
+    sensor_timeout: 1.0
+    vo_used: false
+  ros_ign_bridge_lidar3d_set_rate:
+    service: /world/simple_cave_01/model/X1/link/base_link/sensor/front_laser/scan/set_rate
+  rpz_front_rgbd_points_voxels:
+    filter_field_name: ''
+    filter_limit_max: 1.0
+    filter_limit_min: 0.0
+    filter_limit_negative: false
+    input_frame: ''
+    keep_organized: false
+    leaf_size: 0.1
+    min_points_per_voxel: 1
+    output_frame: ''
+  rpz_planner:
+    angular_speed: 1.0
+    dist_mean: 4.0
+    dist_std: 2.0
+    dist_weight: 1.06
+    enable_fov: true
+    enable_visibility: true
+    fixed_endpoints:
+    - start
+    follow_opt_path: 1
+    gpu_id: 0
+    linear_speed: 1.0
+    map_frame: subt
+    map_step: 2
+    max_age: 1.0
+    min_gained_reward_to_opt: 0.0
+    min_n_wps_to_opt: 2
+    num_cameras: 4
+    num_iters: 25
+    num_opt_restarts: 0
+    path_step: 2
+    process_path_interval: 0.05
+    pub_intermediate: true
+    robot_frame: X1/base_footprint
+    trav_weight: 1.08
+    turn_weight: 0.24
+    use_map_rpz: false
+    use_rewards_history: true
+  tf:
+    buffer_size: 30.0
+    publish_frame_service: true
+    server:
+      streams:
+        body:
+          allow_transforms_update: true
+          child_frames: []
+          intermediate_frames: true
+          parent_frame: X1/base_link
+          publication_period: 0.02
+          publisher_queue_size: 100
+        laser:
+          allow_transforms_update: true
+          child_frames:
+          - X1/laser
+          intermediate_frames: true
+          parent_frame: X1/odom
+          publication_period: 0.02
+          publisher_queue_size: 10
+        odom:
+          allow_transforms_update: true
+          child_frames:
+          - X1/base_link
+          intermediate_frames: true
+          parent_frame: X1/odom
+          publication_period: 0.02
+          publisher_queue_size: 10
+      supports_transform_streams: true
+      transforms_update_period: 10.0
+    use_node_namespace: true
+  traversability_predictor:
+    baselink_frame: X1/base_footprint
+    confidence_threshold: -3
+    d2rpz_path: /opt/ros/trajopt_ws/src/dem_predictor/data/net_weights_d2rpz
+    gpu_id: 0
+    highres_z: true
+    map_frame: subt
+    pc_topic: dynamic_point_cloud_bigbox_filtered
+    s2d_path: /opt/ros/trajopt_ws/src/dem_predictor/data/net_weights_velo_s2d
+    threshold_output: false
+axis_angular: 0
+axis_arrow_horizontal: 4
+axis_arrow_vertical: 5
+axis_front_flippers: 5
+axis_horizontal: 2
+axis_linear: 1
+axis_rear_flippers: 4
+axis_vertical: 3
+button_map:
+  A: 1
+  B: 2
+  L: 4
+  R: 5
+  X: 0
+  Y: 3
+button_robot_map:
+  A: X1
+  B: X2
+  X: X3
+  Y: X4
+comm_led_service_suffixes:
+- /rear_center_led/enable
+- /center_led/enable
+dead_man_switch_left: 10
+dead_man_switch_right: 11
+enable_button: 4
+enable_statistics: true
+enable_turbo_button: 5
+flashlight_service_suffixes:
+- /right_headlight/enable
+- /center_right_headlight/enable
+- /center_left_headlight/enable
+- /left_headlight/enable
+- /downward_flashlight/enable
+- /left_flashlight/enable
+- /right_flashlight/enable
+flippers_use_axes: true
+ground_truth_publisher:
+  robot_name: X1
+joy_node:
+  autorepeat_rate: 20
+  deadzone: 0.1
+  dev: /dev/input/js0
+light_off_trigger: 7
+light_on_trigger: 6
+robot_address_map:
+  X1: X1
+  X2: X2
+  X3: X3
+  X4: X4
+robot_names:
+- X1
+- X2
+- X3
+- X4
+rosdistro: 'melodic
+
+  '
+roslaunch:
+  uris:
+    host_ruslan_thinkpad_t15g_gen_2i__32961: http://ruslan-ThinkPad-T15g-Gen-2i:32961/
+    host_ruslan_thinkpad_t15g_gen_2i__33207: http://ruslan-ThinkPad-T15g-Gen-2i:33207/
+    host_ruslan_thinkpad_t15g_gen_2i__34515: http://ruslan-ThinkPad-T15g-Gen-2i:34515/
+    host_ruslan_thinkpad_t15g_gen_2i__36805: http://ruslan-ThinkPad-T15g-Gen-2i:36805/
+    host_ruslan_thinkpad_t15g_gen_2i__38117: http://ruslan-ThinkPad-T15g-Gen-2i:38117/
+    host_ruslan_thinkpad_t15g_gen_2i__40889: http://ruslan-ThinkPad-T15g-Gen-2i:40889/
+rosversion: '1.14.11
+
+  '
+run_id: 4aa2968c-7456-11ec-85db-902e16e5d102
+rviz:
+  compressed:
+    mode: unchanged
+scale_angular: 0.4
+scale_angular_turbo: 0.8
+scale_front_flippers: 0.5
+scale_horizontal: 0.7
+scale_horizontal_turbo: 1.5
+scale_linear: 0.7
+scale_linear_turbo: 1.5
+scale_rear_flippers: 0.5
+scale_vertical: 50
+scale_vertical_turbo: 150
+select_led_service_suffixes:
+- /left_lateral_front_led/enable
+- /left_lateral_rear_led/enable
+- /rear_left_led/enable
+- /right_lateral_front_led/enable
+- /right_lateral_rear_led/enable
+- /rear_right_led/enable
+- /left_lateral_led/enable
+- /right_lateral_led/enable
+- /left_led/enable
+- /right_led/enable
+subt_frame_publisher:
+  robot_name: X1
+use_sim_time: true
+world_name: simple_cave_01

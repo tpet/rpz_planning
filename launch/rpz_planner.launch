@@ -15,7 +15,7 @@
     <arg name="enable_fov_vis" default="true"/>
     <arg name="max_age" default="1.0"/>
     <arg name="path_step" default="2"/>
-    <arg name="fixed_endpoints" default="['start', 'goal']"/>
+    <arg name="fixed_endpoints" default="['start']"/>
 
 <!--    <group ns="$(arg robot)">-->
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">

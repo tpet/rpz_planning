@@ -10,7 +10,7 @@
     <arg name="gpu_id" default="0"/>
     <arg name="rviz" default="false"/>
 
-    <arg name="follow_opt_path" default="false"/>
+    <arg name="follow_opt_path" default="true"/>
     <arg if="$(eval follow_opt_path)" name="path" default="optimized_path"/>
     <arg unless="$(eval follow_opt_path)" name="path" default="path"/>
 
