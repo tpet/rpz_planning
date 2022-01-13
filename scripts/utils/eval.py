@@ -306,18 +306,15 @@ class Eval:
             torch.manual_seed(self.seed); cloud = sample_points_from_meshes(mesh, 1000).squeeze(0).to(self.device)
             cloud = verts.cpu().numpy().transpose(1, 0)
             # TODO: correct coordinates mismatch in Blender (swap here X and Y)
-            R = np.array([[0., 1., 0.],
-                          [-1., 0., 0.],
-                          [0., 0., 1.]])
-            cloud = np.matmul(R, cloud)
+            R0 = np.array([[0., 1., 0.],
+                           [-1., 0., 0.],
+                           [0., 0., 1.]])
+            cloud = np.matmul(R0, cloud)
             # transform point cloud to global world frame
             T = numpify(transform.transform)
             R, t = T[:3, :3], T[:3, 3]
             cloud = np.matmul(R, cloud) + t.reshape([3, 1])
             # add intensity value based on the artifact type
-            # for i, name in enumerate(self.artifacts_names):
-            #     if name in artifact_name:
-            #         intensity = i
             intensity = self.artifacts_names.index(artifact_name[:-2])
             cloud = np.concatenate([cloud, intensity * np.ones([1, cloud.shape[1]])], axis=0)
             assert len(cloud.shape) == 2

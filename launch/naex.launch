@@ -7,6 +7,7 @@
     <arg name="cmd_vel" default="cmd_vel"/>
     <arg name="run_detector" default="true"/>
     <arg name="do_recording" default="false"/>
+    <arg name="run_trajopt" default="true" />
     <arg name="gpu_id" default="0"/>
     <arg name="rviz" default="false"/>
 
@@ -16,7 +17,6 @@
 
     <arg name="record_duration" default="60m"/>
     <arg name="bag_postfix" default=""/>
-    <arg name="run_trajopt" default="true" />
     <arg name="use_map_rpz" default="false" />
     <arg name="use_rewards_history" default="true"/>
     <arg name="trajopt_iters" default="25"/>  <!-- for 10 iters takes around ~0.5 sec to compute an opt path-->
@@ -28,7 +28,7 @@
     </node>
 
     <!-- Robot ground truth frame publisher-->
-    <node name="ground_truth_publisher" pkg="subt_virtual" type="ground_truth_publisher">
+    <node name="tf_gt_publisher" pkg="subt_virtual" type="ground_truth_publisher">
         <param name="robot_name" value="$(arg robot)" />
     </node>
 

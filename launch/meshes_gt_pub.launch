@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<launch>
+    <arg name="bag" default="version-1/explorer_x1_opt_path_true_simple_cave_03_intrins_rewards_hyps_ritz_2021-08-17-15-19-24.bag"/>
+    <arg name="bag_path" default="$(find rpz_planning)/data/bags/mapping_eval/$(arg bag)"/>
+    <arg name="bag_rate" default="4.0"/>
+    <arg name="bag_start" default="0.0"/>
+
+    <!-- Workaround for /tf_static problems with rosbag: https://github.com/ros/geometry2/issues/181 -->
+    <node name="play_tf_static" pkg="rpz_planning" type="play_tf_static"
+         args="$(arg bag_path)" output="log">
+        <remap from="~tf_static" to="/tf_static"/>
+    </node>
+
+    <!-- ROSBAG -->
+    <node name="rosbag_play_rpz" pkg="rosbag" type="play" output="log"
+          args="--clock --pause -s $(arg bag_start) -r $(arg bag_rate) $(arg bag_path)">
+    </node>
+
+    <!-- publish meshes -->
+    <node name="meshes_gt_publisher" pkg="rpz_planning" type="meshes_gt_pub.py" output="screen">
+        <rosparam subst_value="true">
+            do_points_sampling_from_mesh: True
+            n_sample_points: 50000
+            rate: 1.0
+        </rosparam>
+    </node>
+
+    <!-- RVIZ -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(dirname)/../config/ground_truth.rviz"/>
+</launch>
