@@ -48,11 +48,12 @@ class GTWorldPub:
                                 "vent", "helmet", "rope", "cube"]
         self.rgb_colors_palette = sns.color_palette(None, len(self.artifacts_names))  # for visualization in RViz
         self.map_gt = None
-        self.rate = rospy.get_param('~rate', 3.5)
+        self.rate = rospy.get_param('~rate', 1.0)
 
         # currently supported ground truth meshes of worlds
-        assert self.world_name in ['simple_cave_01', 'simple_cave_02', 'simple_cave_03']
-        self.load_world_mesh()
+        self.publish_world_mesh = self.world_name in ['simple_cave_01', 'simple_cave_02', 'simple_cave_03']
+        if self.publish_world_mesh:
+            self.load_world_mesh()
         # get the artifacts point cloud
         self.artifacts = self.get_artifacts()
 
@@ -164,7 +165,8 @@ class GTWorldPub:
         rospy.loginfo('Found %i Artifacts TF frames in %.3f [sec]: %s',
                       len(artifact_frames), (timer() - t0), artifact_frames)
 
-        artifacts = {'poses': [], 'names': []}
+        artifacts = {'poses': [], 'names': [], 'clouds': [], 'cloud_merged': None}
+        artifacts_cloud_merged = []
         for i, artifact_name in enumerate(artifact_frames):
             if 'gas' in artifact_name:
                 break
@@ -209,6 +211,35 @@ class GTWorldPub:
             marker.mesh_resource = f"package://rpz_planning/data/meshes/artifacts/{artifact_name[:-2]}.dae"
             self.artifacts_gt_marker_array.markers.append(marker)
 
+            # create artifacts point cloud here from their meshes
+            verts, faces, _ = load_obj(os.path.join(rospkg.RosPack().get_path('rpz_planning'),
+                                                    f"data/meshes/artifacts/{artifact_name[:-2]}.obj"))
+            # mesh = Meshes(verts=[verts], faces=[faces.verts_idx]).to(self.device)
+            # torch.manual_seed(self.seed)
+            # cloud = sample_points_from_meshes(mesh, 1000).squeeze(0).to(self.device)
+            cloud = verts.cpu().numpy().transpose(1, 0)
+            # transform point cloud to global world frame
+            T = numpify(transform.transform)
+            R, t = T[:3, :3], T[:3, 3]
+            cloud = np.matmul(R, cloud) + t.reshape([3, 1])
+            # add intensity value based on the artifact type
+            intensity = self.artifacts_names.index(artifact_name[:-2])
+            cloud = np.concatenate([cloud, intensity * np.ones([1, cloud.shape[1]])], axis=0)
+            assert len(cloud.shape) == 2
+            assert cloud.shape[0] == 4  # (4, n)
+            artifacts_cloud_merged.append(cloud)
+            artifacts['names'].append(artifact_name)
+            # center of an artifact point cloud in map_gt_frame
+            xyz = cloud[:3, :].mean(axis=1)
+            artifacts['poses'].append(xyz)
+            artifacts['clouds'].append(
+                torch.as_tensor(cloud.transpose([1, 0]), dtype=torch.float32).unsqueeze(0).to(self.device))
+
+        artifacts_cloud_merged_np = artifacts_cloud_merged[0]
+        for cloud in artifacts_cloud_merged[1:]:
+            artifacts_cloud_merged_np = np.concatenate([artifacts_cloud_merged_np, cloud], axis=1)
+        assert artifacts_cloud_merged_np.shape[0] == 4
+        artifacts['cloud_merged'] = artifacts_cloud_merged_np
         return artifacts
 
     def run(self):
@@ -216,9 +247,12 @@ class GTWorldPub:
         while not rospy.is_shutdown():
             # publish ground truth mesh
             stamp = rospy.Time.now()
-            self.map_gt_mesh_marker.header.stamp = stamp
-            self.world_mesh_pub.publish(self.map_gt_mesh_marker)
+            if self.publish_world_mesh:
+                self.map_gt_mesh_marker.header.stamp = stamp
+                self.world_mesh_pub.publish(self.map_gt_mesh_marker)
             self.artifacts_meshes_pub.publish(self.artifacts_gt_marker_array)
+            self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', rospy.Time.now(),
+                                    self.map_gt_frame)
 
             # publish ground truth cloud
             gt_cloud = self.map_gt.squeeze().numpy().transpose(1, 0)

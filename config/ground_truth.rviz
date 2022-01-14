@@ -29,7 +29,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: GT Artifacts Cloud
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -104,25 +104,7 @@ Visualization Manager:
           Value: true
         X1/base_link/right_realsense_optical:
           Value: true
-        X1/base_link_zero_pitch:
-          Value: true
-        X1/base_link_zero_roll:
-          Value: true
-        X1/base_link_zero_roll_pitch:
-          Value: true
-        X1/front_left_wheel_link:
-          Value: true
-        X1/front_right_wheel_link:
-          Value: true
         X1/map:
-          Value: true
-        X1/odom:
-          Value: true
-        X1/rear_left_wheel_link:
-          Value: true
-        X1/rear_right_wheel_link:
-          Value: true
-        X1_ground_truth:
           Value: true
         backpack_1:
           Value: true
@@ -162,8 +144,6 @@ Visualization Manager:
       Show Names: false
       Tree:
         world:
-          X1_ground_truth:
-            {}
           backpack_1:
             {}
           backpack_2:
@@ -192,41 +172,7 @@ Visualization Manager:
             {}
           subt:
             X1/map:
-              X1/odom:
-                X1:
-                  X1/base_link:
-                    X1/base_footprint:
-                      {}
-                    X1/base_link/front_laser:
-                      {}
-                    X1/base_link/front_realsense:
-                      X1/base_link/front_realsense_optical:
-                        {}
-                    X1/base_link/imu_sensor:
-                      {}
-                    X1/base_link/left_realsense:
-                      X1/base_link/left_realsense_optical:
-                        {}
-                    X1/base_link/rear_realsense:
-                      X1/base_link/rear_realsense_optical:
-                        {}
-                    X1/base_link/right_realsense:
-                      X1/base_link/right_realsense_optical:
-                        {}
-                    X1/base_link_zero_pitch:
-                      {}
-                    X1/base_link_zero_roll:
-                      {}
-                    X1/base_link_zero_roll_pitch:
-                      {}
-                  X1/front_left_wheel_link:
-                    {}
-                  X1/front_right_wheel_link:
-                    {}
-                  X1/rear_left_wheel_link:
-                    {}
-                  X1/rear_right_wheel_link:
-                    {}
+              {}
       Update Interval: 0
       Value: true
     - Class: rviz/Group
@@ -271,7 +217,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: Intensity
           Decay Time: 0
-          Enabled: false
+          Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Min Color: 0; 0; 0
@@ -282,11 +228,11 @@ Visualization Manager:
           Size (Pixels): 3
           Size (m): 0.05000000074505806
           Style: Flat Squares
-          Topic: /X1/artifacts_cloud
+          Topic: /artifacts_cloud
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: false
+          Value: true
         - Class: rviz/Marker
           Enabled: true
           Marker Topic: /world_mesh

@@ -302,8 +302,8 @@ class Eval:
             # create artifacts point cloud here from their meshes
             verts, faces, _ = load_obj(os.path.join(rospkg.RosPack().get_path('rpz_planning'),
                                                     f"data/meshes/artifacts/{artifact_name[:-2]}.obj"))
-            mesh = Meshes(verts=[verts], faces=[faces.verts_idx]).to(self.device)
-            torch.manual_seed(self.seed); cloud = sample_points_from_meshes(mesh, 1000).squeeze(0).to(self.device)
+            # mesh = Meshes(verts=[verts], faces=[faces.verts_idx]).to(self.device)
+            # torch.manual_seed(self.seed); cloud = sample_points_from_meshes(mesh, 1000).squeeze(0).to(self.device)
             cloud = verts.cpu().numpy().transpose(1, 0)
             # TODO: correct coordinates mismatch in Blender (swap here X and Y)
             R0 = np.array([[0., 1., 0.],

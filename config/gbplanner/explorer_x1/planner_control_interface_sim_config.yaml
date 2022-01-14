@@ -5,8 +5,8 @@ robot_type: kGround
 output_type: kAction
 #output_type: kTopic
 init_motion_enable: false
-planner_trigger_lead_time: 0.0
-#planner_trigger_lead_time: 0.2
+#planner_trigger_lead_time: 0.0
+planner_trigger_lead_time: 0.2
 smooth_heading_enable: true
 init_motion:
   z_takeoff: 2.5

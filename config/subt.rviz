@@ -126,6 +126,12 @@ Visualization Manager:
           Value: false
         X1/base_link/right_realsense_optical:
           Value: false
+        X1/base_link_zero_pitch:
+          Value: true
+        X1/base_link_zero_roll:
+          Value: true
+        X1/base_link_zero_roll_pitch:
+          Value: true
         X1/front_left_wheel_link:
           Value: true
         X1/front_right_wheel_link:
@@ -164,7 +170,7 @@ Visualization Manager:
           Value: false
         rescue_randy_4:
           Value: false
-        simple_cave_01:
+        simple_cave_02:
           Value: true
         subt:
           Value: true
@@ -203,7 +209,7 @@ Visualization Manager:
             {}
           rescue_randy_4:
             {}
-          simple_cave_01:
+          simple_cave_02:
             {}
           subt:
             X1/map:
@@ -806,13 +812,13 @@ Visualization Manager:
           Use rainbow: true
           Value: true
         - Class: rviz/Marker
-          Enabled: true
+          Enabled: false
           Marker Topic: /world_mesh
           Name: World mesh
           Namespaces:
             {}
           Queue Size: 100
-          Value: true
+          Value: false
         - Angle Tolerance: 0.10000000149011612
           Class: rviz/Odometry
           Covariance:
