@@ -4,7 +4,7 @@
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1" doc="Robot type, from {absolem, dtr, explorer_x1, marv, x1, x2}."/>
     <arg name="use_sim_time" default="true"/>
-    <arg name="rviz_en" default="false" />
+    <arg name="rviz" default="false" />
     <arg name="launch_prefix" default=""/> <!-- gdb -ex run //args -->
     <arg name="odometry_topic" default="/odom"/>
 
@@ -12,7 +12,6 @@
     <arg name="run_detector" default="true"/>
     <arg name="do_recording" default="false"/>
     <arg name="bag_postfix" default=""/> <!-- for recorded bag file name -->
-    <arg name="run_trajopt" default="false" />
     <arg name="use_map_rpz" default="false" />
     <arg name="enable_fov_vis" default="true" />
 
@@ -20,9 +19,6 @@
     <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/gbplanner/$(arg robot_type)/gbplanner_config.yaml"/>
     <arg name="pci_file" default="$(find rpz_planning)/config/gbplanner/$(arg robot_type)/planner_control_interface_sim_config.yaml"/>
     <arg name="voxblox_config_file" default="$(find rpz_planning)/config/gbplanner/$(arg robot_type)/voxblox_sim_config.yaml"/>
-<!--    <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/gbplanner/smb/gbplanner_config.yaml"/>-->
-<!--    <arg name="pci_file" default="$(find rpz_planning)/config/gbplanner/smb/planner_control_interface_sim_config.yaml"/>-->
-<!--    <arg name="voxblox_config_file" default="$(find rpz_planning)/config/gbplanner/smb/voxblox_sim_config.yaml"/>-->
     <arg name="map_config_file" default="$(arg voxblox_config_file)"/>
 
     <!-- Static TF -->
@@ -49,6 +45,14 @@
         <include file="$(find naex)/launch/planner.launch" pass_all_args="true">
             <arg name="planning_freq" value="0.0"/>
             <arg name="max_cloud_age" value="2.0"/>
+        </include>
+        <include file="$(find naex)/launch/follower.launch" pass_all_args="true">
+            <arg name="map_frame" value="subt"/>
+            <arg name="obstacle_avoidance" value="false"/>
+            <arg name="max_age" value="3600.0"/> <!-- we do not need local cloud if obstacle avoidance is switched off -->
+            <arg name="path_to_follow" value="path_to_follow"/>
+<!--            <arg name="path_to_follow" value="path_planned"/>-->
+            <arg name="keep_path" default="0."/>
         </include>
     </group>
 
@@ -82,50 +86,8 @@
         <remap from="odometry" to="$(arg odometry_topic)"/>
         <rosparam command="load" file="$(arg pci_file)" />
         <param name="world_frame_id" value="subt" />
-        <param if="$(arg run_trajopt)" name="output_type" value="kTopic" />
-        <param unless="$(arg run_trajopt)" name="output_type" value="kAction" />
+        <param name="output_type" value="kTopic" />
     </node>
-
-    <group>
-        <group if="$(arg run_trajopt)">
-            <!-- Traversability estimate -->
-            <include unless="$(arg use_map_rpz)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
-
-            <!-- Trajectory optimization -->
-            <include ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true">
-                <arg name="num_opt_restarts" value="0"/>
-                <arg name="input_path_topic" value="path_planned"/>
-                <arg name="output_path_topic" value="path_to_follow"/>
-                <arg name="pub_intermediate" value="true"/>
-                <arg name="use_map_rpz" value="$(arg use_map_rpz)"/>
-                <arg name="enable_fov_vis" value="$(arg enable_fov_vis)"/>
-                <arg name="max_age" value="1.0"/>
-                <arg name="path_step" value="10"/>
-            </include>
-            <!-- Path follower from naex -->
-            <include ns="$(arg robot)" file="$(find naex)/launch/follower.launch" pass_all_args="true">
-                <arg name="map_frame" value="subt"/>
-                <arg name="obstacle_avoidance" value="false"/>
-                <arg name="max_age" value="3600.0"/> <!-- we do not need local cloud if obstacle avoidance is switched off -->
-                <arg if="$(arg run_trajopt)" name="path_to_follow" value="path_to_follow"/>
-                <arg unless="$(arg run_trajopt)" name="path_to_follow" value="path_planned"/>
-                <arg name="keep_path" default="0."/>
-            </include>
-        </group>
-
-        <!-- Path follower from gbplanner -->
-        <node unless="$(arg run_trajopt)" name="smb_path_tracker_node" pkg="smb_path_tracker" type="smb_path_tracker_ros_node" output="screen">
-            <remap from="cmd_vel" to="$(arg robot)/cmd_vel" />
-            <remap from="odometry" to="$(arg odometry_topic)" />
-            <param name="robot_frame" value="$(arg robot)/base_link" />
-            <param name="fixed_frame" value="subt" />
-            <param name="critical_angle" value="0.52"/>
-            <param name="max_ang_vel" value="1.5"/> <!-- 0.5 -->
-            <param name="desired_vel" value="1.0"/>  <!-- 0.5 -->
-            <param name="look_ahead_error_margin" value="0.2"/>
-            <param name="look_ahead_distance" value="0.8"/> <!-- 0.5 -->
-        </node>
-    </group>
 
     <!-- Transform PoseArray to Path msg -->
     <node name="path_transformer" pkg="rpz_planning" type="pose_array_to_path.py" output="screen">
@@ -135,15 +97,20 @@
         </rosparam>
     </node>
 
-    <!-- Artifacts detector -->
-    <include if="$(arg run_detector)" file="$(find rpz_planning)/launch/detector_x1.launch"/>
-
-    <!-- Data recording -->
-    <include if="$(arg do_recording)" file="$(find rpz_planning)/launch/record.launch" pass_all_args="true">
-        <arg name="path" value="control_path"/>
+    <!-- Traversability estimation -->
+    <include unless="$(arg use_map_rpz)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
+    <!-- Trajectory optimization -->
+    <include ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true">
+        <arg name="input_path_topic" value="path_planned"/>
+        <arg name="output_path_topic" value="path_to_follow"/>
+        <arg name="pub_intermediate" value="true"/>
+        <arg name="use_map_rpz" value="$(arg use_map_rpz)"/>
+        <arg name="enable_fov_vis" value="$(arg enable_fov_vis)"/>
+        <arg name="path_step" default="20"/>
+        <arg name="fixed_endpoints" default="['start', 'goal']"/>
     </include>
 
     <!-- RVIZ -->
-    <node if="$(arg rviz_en)" pkg="rviz" type="rviz" name="gbplanner_ui" output="screen" args="-d $(find rpz_planning)/config/gbplanner.rviz"/>
+    <node if="$(arg rviz)" pkg="rviz" type="rviz" name="gbplanner_ui" output="screen" args="-d $(find rpz_planning)/config/gbplanner.rviz"/>
 
 </launch>
