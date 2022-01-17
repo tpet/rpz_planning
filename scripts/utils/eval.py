@@ -143,7 +143,7 @@ class Eval:
             self.ws_writer.write(0, 3, 'Exploration chamfer loss')
             self.ws_writer.write(0, 4, 'Exploration completeness')
             self.ws_writer.write(0, 5, 'Map face loss')
-            self.ws_writer.write(0, 6, 'Map fdge loss')
+            self.ws_writer.write(0, 6, 'Map edge loss')
             self.ws_writer.write(0, 7, 'Map chamfer loss')
             self.ws_writer.write(0, 8, 'Artifacts exploration completeness')
             self.ws_writer.write(0, 9, 'Detections score')
