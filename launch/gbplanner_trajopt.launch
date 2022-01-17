@@ -12,7 +12,7 @@
     <arg name="run_detector" default="true"/>
     <arg name="do_recording" default="false"/>
     <arg name="bag_postfix" default=""/> <!-- for recorded bag file name -->
-    <arg name="use_map_rpz" default="false" />
+    <arg name="use_map_rpz" default="true" />
     <arg name="enable_fov_vis" default="true" />
 
     <!-- Config files -->
@@ -54,7 +54,8 @@
 <!--            <arg name="path_to_follow" value="path_planned"/>-->
             <arg name="keep_path" default="0."/>
             <arg name="local_goal_dims" default="'xy'"/>
-            <arg name="goal_reached_dist" default="0.7"/>
+            <arg name="goal_reached_dist" default="0.5"/>
+            <arg name="look_ahead" default="5.0"/>
         </include>
     </group>
 
@@ -89,7 +90,7 @@
         <rosparam command="load" file="$(arg pci_file)" />
         <param name="world_frame_id" value="subt" />
         <param name="output_type" value="kTopic" />
-        <param name="planner_trigger_lead_time" value="1.5" /> <!-- as the optimized path is on traversability map -->
+        <param name="planner_trigger_lead_time" value="2.0" /> <!-- as the optimized path is on traversability map -->
     </node>
 
     <!-- Transform PoseArray to Path msg -->
