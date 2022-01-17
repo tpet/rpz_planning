@@ -54,7 +54,7 @@
 <!--            <arg name="path_to_follow" value="path_planned"/>-->
             <arg name="keep_path" default="0."/>
             <arg name="local_goal_dims" default="'xy'"/>
-            <arg name="goal_reached_dist" default="0.5"/>
+            <arg name="goal_reached_dist" default="0.7"/>
         </include>
     </group>
 
@@ -112,6 +112,14 @@
         <arg name="enable_fov_vis" value="$(arg enable_fov_vis)"/>
         <arg name="path_step" default="2"/>
         <arg name="fixed_endpoints" default="['start', 'goal']"/> <!-- in order to reach the goal precisely for PCI -->
+    </include>
+
+    <!-- Artifacts detector -->
+    <include if="$(arg run_detector)" file="$(find rpz_planning)/launch/detector_x1.launch"/>
+
+    <!-- Data recording -->
+    <include if="$(arg do_recording)" file="$(find rpz_planning)/launch/record.launch" pass_all_args="true">
+        <arg name="path" value="control_path"/>
     </include>
 
     <!-- RVIZ -->
