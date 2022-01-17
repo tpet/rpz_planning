@@ -53,6 +53,8 @@
             <arg name="path_to_follow" value="path_to_follow"/>
 <!--            <arg name="path_to_follow" value="path_planned"/>-->
             <arg name="keep_path" default="0."/>
+            <arg name="local_goal_dims" default="'xy'"/>
+            <arg name="goal_reached_dist" default="0.5"/>
         </include>
     </group>
 
@@ -87,6 +89,7 @@
         <rosparam command="load" file="$(arg pci_file)" />
         <param name="world_frame_id" value="subt" />
         <param name="output_type" value="kTopic" />
+        <param name="planner_trigger_lead_time" value="1.5" /> <!-- as the optimized path is on traversability map -->
     </node>
 
     <!-- Transform PoseArray to Path msg -->
@@ -94,6 +97,7 @@
         <rosparam subst_value="true">
             pose_array_topic: pci_command_path
             path_topic: $(arg robot)/path_planned
+            path_step: 10  <!-- as global path contains dense waypoints -->
         </rosparam>
     </node>
 
@@ -106,11 +110,11 @@
         <arg name="pub_intermediate" value="true"/>
         <arg name="use_map_rpz" value="$(arg use_map_rpz)"/>
         <arg name="enable_fov_vis" value="$(arg enable_fov_vis)"/>
-        <arg name="path_step" default="20"/>
-        <arg name="fixed_endpoints" default="['start', 'goal']"/>
+        <arg name="path_step" default="2"/>
+        <arg name="fixed_endpoints" default="['start', 'goal']"/> <!-- in order to reach the goal precisely for PCI -->
     </include>
 
     <!-- RVIZ -->
-    <node if="$(arg rviz)" pkg="rviz" type="rviz" name="gbplanner_ui" output="screen" args="-d $(find rpz_planning)/config/gbplanner.rviz"/>
+    <node if="$(arg rviz)" pkg="rviz" type="rviz" name="gbplanner_ui" output="screen" args="-d $(find rpz_planning)/config/gbplanner_trajopt.rviz"/>
 
 </launch>
