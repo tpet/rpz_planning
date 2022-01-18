@@ -1740,7 +1740,8 @@ class RPZPlanner(object):
                 xyyaw = torch.cat((xy, yaw), dim=-1)
             elif self.order == DimOrder.YAW_X_Y:
                 xyyaw = torch.cat((yaw, xy), dim=-1)
-            assert xyyaw.shape == (n_poses, 3)
+            rospy.logdebug('XYYAW shape: %i, %i, n_poses: %i', xyyaw.shape[0], xyyaw.shape[1], n_poses)
+            # assert xyyaw.shape == (n_poses, 3)
 
             if self.use_map_rpz:
                 # Find current xyz nearest neighbors within the map. In the
@@ -1779,8 +1780,8 @@ class RPZPlanner(object):
                 rpz = interpolate_rpz(rpz_all, xyyaw_grid, order=self.order)
 
             # Transform z?
-            assert rpz.shape == (n_poses, 3)
-            assert xyyaw.shape == (n_poses, 3)
+            # assert rpz.shape == (n_poses, 3)
+            # assert xyyaw.shape == (n_poses, 3)
             if self.order == DimOrder.X_Y_YAW:
                 # Fix yaw from XY.
                 xyzrpy_to_opt = torch.cat((xyyaw[:, :2], rpz[:, 2:], rpz[:, :2], xyyaw[:, 2:]), dim=-1)
@@ -1810,7 +1811,8 @@ class RPZPlanner(object):
                 # include rewards history from global map
                 assert len(self.local_map_idx) == n_pts
                 rewards_prev = self.global_map[3, self.local_map_idx].to(self.device).view(-1, n_pts)
-                rewards = rewards.view(n_poses * n_cams, n_pts)
+                # rewards = rewards.view(n_poses * n_cams, n_pts)
+                rewards = rewards.view(-1, n_pts)
                 rewards = torch.cat([rewards_prev, rewards], dim=0)
             else:
                 rewards_prev = 0.0
@@ -1900,12 +1902,12 @@ class RPZPlanner(object):
             criterion.backward()
             optimizer.step()
 
-            rospy.loginfo( 'Iter. %i: time cost %.1f / %.1f s, '
+            rospy.logdebug('Iter. %i: time cost %.1f / %.1f s, '
                            'reward %.0f / %.0f, '
                            '(%.3f s).',
                            iter, time_cost.detach().item(), time_cost0.detach().item(),
                            gained_reward.detach().item(), gained_reward0.detach().item(),
-                           timer() - t_iter )
+                           timer() - t_iter)
 
         rospy.loginfo('Trajectory optimization took %.1f s', timer() - t0)
 
