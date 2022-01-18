@@ -55,7 +55,7 @@
             <arg name="keep_path" default="0."/>
             <arg name="local_goal_dims" default="'xy'"/>
             <arg name="goal_reached_dist" default="0.5"/>
-            <arg name="look_ahead" default="5.0"/>
+            <arg name="look_ahead" default="10.0"/>
         </include>
     </group>
 
@@ -121,6 +121,7 @@
     <!-- Data recording -->
     <include if="$(arg do_recording)" file="$(find rpz_planning)/launch/record.launch" pass_all_args="true">
         <arg name="path" value="control_path"/>
+        <arg name="follow_opt_path" default="true"/>
     </include>
 
     <!-- RVIZ -->

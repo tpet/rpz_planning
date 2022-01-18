@@ -98,6 +98,7 @@
     <!-- Data recording -->
     <include if="$(arg do_recording)" file="$(find rpz_planning)/launch/record.launch" pass_all_args="true">
         <arg name="path" value="control_path"/>
+        <arg name="follow_opt_path" default="false"/>
     </include>
 
     <!-- RVIZ -->
