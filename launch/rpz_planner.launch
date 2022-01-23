@@ -43,7 +43,7 @@
             turn_weight: 0.24
 
             dist_mean: 4.0
-            dist_std: 2.0
+            dist_std: 4.0
 
             enable_visibility: $(arg enable_fov_vis)
             enable_fov: $(arg enable_fov_vis)

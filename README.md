@@ -1,5 +1,7 @@
 # RPZ Planning
 
+[![RPZ planning](./doc/demo.png)](https://drive.google.com/file/d/1QDqUHD66gWjiNSvwA8Adamq7DweJWobA/view?usp=sharing)
+
 ## Demo
 
 This is a quick-start section, which describes how to use the `rpz_planner` as a stand-alone package
