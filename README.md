@@ -1,6 +1,6 @@
 # RPZ Planning
 
-[![RPZ planning](./doc/demo.png)](https://drive.google.com/file/d/1QDqUHD66gWjiNSvwA8Adamq7DweJWobA/view?usp=sharing)
+[![RPZ planning](./docs/demo.png)](https://drive.google.com/file/d/1QDqUHD66gWjiNSvwA8Adamq7DweJWobA/view?usp=sharing)
 
 ## Demo
 
