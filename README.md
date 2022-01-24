@@ -1,5 +1,7 @@
 # RPZ Planning
 
+[![RPZ planning](./docs/demo.png)](https://drive.google.com/file/d/1QDqUHD66gWjiNSvwA8Adamq7DweJWobA/view?usp=sharing)
+
 ## Demo
 
 This is a quick-start section, which describes how to use the `rpz_planner` as a stand-alone package
@@ -11,8 +13,8 @@ If you would like to explore, how the trajectory optimization works using a prer
 ## Prerequisites
 
 - [Singularity](https://github.com/tpet/rpz_planning/blob/master/docs/singularity.md)
-- [DARPA Subt simulator](https://github.com/tpet/rpz_planning/blob/master/docs/darpa_subt.d)
-- [Exloration pipeline](https://github.com/tpet/rpz_planning/blob/master/docs/naex.md)
+- [DARPA Subt simulator](https://github.com/tpet/rpz_planning/blob/master/docs/darpa_subt.md)
+- [Exloration pipeline](https://github.com/tpet/naex/blob/master/README.md)
 
 ## Exploration with trajectory optimization
 
