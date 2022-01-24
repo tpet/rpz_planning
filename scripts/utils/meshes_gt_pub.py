@@ -72,7 +72,7 @@ class GTWorldPub:
                                                 (intensity, np.float32)])
         data['x'] = points[0, ...]
         data['y'] = points[1, ...]
-        data['z'] = points[2, ...] + 0.5
+        data['z'] = points[2, ...]
         if points.shape[0] > 3:
             data[intensity] = points[3, ...]
         pc_msg = msgify(PointCloud2, data)
@@ -212,10 +212,8 @@ class GTWorldPub:
             self.artifacts_gt_marker_array.markers.append(marker)
 
             # create artifacts point cloud here from their meshes
-            # verts, faces, _ = load_obj(os.path.join(rospkg.RosPack().get_path('rpz_planning'),
-            #                                         f"data/meshes/artifacts/{artifact_name[:-2]}.obj"))
             verts, faces, _ = load_obj(os.path.join(rospkg.RosPack().get_path('rpz_planning'),
-                                                    "data/meshes/artifacts/rescue_randy.obj"))
+                                                    f"data/meshes/artifacts/{artifact_name[:-2]}.obj"))
             # mesh = Meshes(verts=[verts], faces=[faces.verts_idx]).to(self.device)
             # torch.manual_seed(self.seed)
             # cloud = sample_points_from_meshes(mesh, 1000).squeeze(0).to(self.device)

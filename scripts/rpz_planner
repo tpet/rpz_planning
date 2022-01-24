@@ -1870,7 +1870,6 @@ class RPZPlanner(object):
                 if iter == (self.num_iters - 1):
                     t_reward = timer()
                     # Publish reward cloud for visualization.
-                    reward_cloud['z'] += 0.2
                     reward_cloud['reward'] = rewards.detach().cpu().numpy()
                     reward_cloud['new_reward'] = (rewards-rewards_prev).detach().cpu().numpy()
                     reward_cloud['distance'] = reduce_rewards(dist_mask).detach().cpu().numpy()
