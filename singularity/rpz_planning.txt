@@ -7,20 +7,17 @@ From: subt_tradr_robot.simg
     apt-get -y update
 
     mkdir -p /opt/ros/trajopt_ws/src && cd /opt/ros/trajopt_ws/src && \
-    git clone https://github.com/tpet/rpz_planning.git
-    git clone -b sim https://bitbucket.org/salanvoj/dem_predictor.git
-
-    cd /opt/ros/trajopt_ws/src/ && ln -s /opt/ros/cras_subt/src/naex/ .
+    git clone -b icra-2022 https://github.com/tpet/rpz_planning.git
+    git clone -b icra-2022 https://bitbucket.org/salanvoj/dem_predictor.git
+    git clone -b icra-2022 https://github.com/tpet/naex.git
     cd /opt/ros/trajopt_ws/src/ && ln -s /opt/ros/cras_subt/src/artifact_detection/ .
+
     cd /opt/ros/trajopt_ws/ && \
     /bin/bash -c "source /opt/ros/melodic/setup.bash && \
                   source /opt/ros/cras_subt/devel/setup.bash && \
  				  catkin build dem_predictor rpz_planning naex artifact_detection"
 
  	echo "Built ROS workspace"
-
-%setup
-	touch /usr/bin/nvidia-smi
 
 %runscript
     echo "Running demo example on bag file"

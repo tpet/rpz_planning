@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 """RPZ compliant planner."""
 from __future__ import absolute_import, division, print_function
+from copy import copy
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
 # from exploration.msg import Path
-from PIL.ImageEnhance import Color
 from geometry_msgs.msg import (Point,
                                Pose,
                                PoseStamped,
@@ -29,6 +28,7 @@ import tf2_ros
 # from tf2_sensor_msgs.tf2_sensor_msgs import do_transform_cloud
 from threading import RLock
 from timeit import default_timer as timer
+import traceback
 import torch
 import torch.nn.functional as fun
 from visualization_msgs.msg import Marker, MarkerArray
@@ -921,15 +921,10 @@ def select_pts_to_optimize(path_pts, rpz_cloud):
     assert isinstance(path_pts, torch.Tensor)
     assert path_pts.ndim == 2
     assert path_pts.shape[1] >= 3  # (P1, >=3)
-    t0 = timer()
     # check if path points are inside available rectangular traversability area
     trav_mask = (path_pts[:, 0] > np.min(rpz_cloud['x'])) & (path_pts[:, 0] < np.max(rpz_cloud['x'])) & \
                 (path_pts[:, 1] > np.min(rpz_cloud['y'])) & (path_pts[:, 1] < np.max(rpz_cloud['y']))
-    if torch.sum(trav_mask) > 2:  # if there are at least two points of the path lying in traversable area
-        path_pts = path_pts[trav_mask, :]
-
-    rospy.logdebug('Points to optimize selection took %s:.3f sec', timer() - t0)
-    return path_pts
+    return trav_mask
 
 
 class RPZPlanner(object):
@@ -961,7 +956,7 @@ class RPZPlanner(object):
 
         # Set the device
         device_id = rospy.get_param('~gpu_id', 0)
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and device_id >= 0:
             self.device = torch.device("cuda:" + str(device_id))
             rospy.loginfo("Using GPU device id: %i, name: %s", device_id, torch.cuda.get_device_name(device_id))
         else:
@@ -971,6 +966,8 @@ class RPZPlanner(object):
         # self.order = DimOrder.YAW_X_Y
         self.order = DimOrder.X_Y_YAW
         assert self.order in (DimOrder.X_Y_YAW, DimOrder.YAW_X_Y)
+        self.num_opt_restarts = rospy.get_param('~num_opt_restarts', 0)
+        self.process_path_interval = rospy.get_param('~process_path_interval', 0.05)
         self.num_iters = rospy.get_param('~num_iters', 10)
         self.map_step = rospy.get_param('~map_step', 4)
         self.path_step = rospy.get_param('~path_step', 2)
@@ -1003,13 +1000,21 @@ class RPZPlanner(object):
         # Latest point cloud map to cover
         self.map_lock = RLock()
         self.map_msg = None
-        self.map = None  # n-by-3 cloud position array
+        self.map = None  # 3-by-n cloud position array
         self.map_index = None  # Nearest neighbor index for self.map
         self.map_normals = None  # n-by-3 normal array corresponding to self.map
         # self.map_x_index = None  # Index of above
         self.global_map = None
         self.local_map_idx = None
         self.global_map_initialized = False
+
+        self.path_lock = RLock()
+        self.path_msg = None
+        if self.num_opt_restarts > 0 and self.process_path_interval > 0.0:
+            self.process_path_timer = rospy.Timer(rospy.Duration.from_sec(self.process_path_interval),
+                                                  self.process_path_buffer_safe)
+        else:
+            self.process_path_timer = None
 
         self.tf = tf2_ros.Buffer()
         self.tf_sub = tf2_ros.TransformListener(self.tf)
@@ -1530,22 +1535,70 @@ class RPZPlanner(object):
     def path_received(self, msg):
         assert isinstance(msg, Path)
 
-        # publish unoptimized path (planned) to follow until optimization is done
-        self.path_pub.publish(msg)
+        # Avoid timer if not available (no restarts).
+        if self.process_path_timer is None:
+            self.process_path(msg, restart=0)
+            return
+
+        # Save path to be processed in timer callback.
+        with self.path_lock:
+            if self.path_msg is None or msg.header.stamp < self.path_msg.header.stamp:
+                self.path_msg = msg
+                rospy.loginfo('Path with %i poses stored for further processing.', len(msg.poses))
+
+    def process_path_buffer(self, evt):
+        with self.path_lock:
+            if self.path_msg is None:
+                return
+            msg = self.path_msg
+            self.path_msg = None
+
+        do_restart = True
+        for restart in range(self.num_opt_restarts + 1):
+            if restart > 0:
+                if not do_restart:
+                    rospy.loginfo('Further optimization of old path halted. Nothing to optimize.')
+                    break
+                with self.path_lock:
+                     if self.path_msg is not None:
+                        rospy.loginfo('Further optimization of old path halted. New path received.')
+                        break
+            do_restart = self.process_path(msg, restart=restart)
+
+    def process_path_buffer_safe(self, evt):
+        try:
+            self.process_path_buffer(evt)
+        except Exception as ex:
+            rospy.logerr('Exception during processing path: %s', traceback.format_exc())
+
+    @timing
+    def process_path(self, msg, restart=0):
+        """Path received callback.
+        @return Flag to allow restart.
+        """
+        assert isinstance(msg, Path)
+
+        # Publish unoptimized planned path to follow until optimization is done.
+        # Don't publish the original path when restarted to use new inputs.
+        if restart == 0:
+            self.path_pub.publish(msg)
 
         # Discard old messages.
         age = (rospy.Time.now() - msg.header.stamp).to_sec()
-        if age > self.max_age:
+        if restart == 0 and age > self.max_age:
             rospy.logwarn('Discarding path %.1f s > %.1f s old.', age, self.max_age)
             return
 
         # Subsample input path to reduce computation.
+        n_poses_orig = len(msg.poses)
         if self.path_step > 1:
+            msg = copy(msg)
             msg.poses = msg.poses[::self.path_step]
 
         # Discard short paths.
         n_poses = len(msg.poses)
-        rospy.loginfo('Path with %i poses received.', n_poses)
+        rospy.loginfo('Processing path with %i poses (%i original)...',
+                      n_poses, n_poses_orig)
         if n_poses < 2:
             rospy.logwarn('Path is too short for optimization.')
             return
@@ -1633,23 +1686,25 @@ class RPZPlanner(object):
         # Optionally, offset z if needed.
 
         if self.use_map_rpz:
-            path_mask = ((xyzrpy[:, 0] >= local_map[0, :].min()) & (xyzrpy[:, 0] <= local_map[0, :].max())
+            trav_mask = ((xyzrpy[:, 0] >= local_map[0, :].min()) & (xyzrpy[:, 0] <= local_map[0, :].max())
                          & (xyzrpy[:, 1] >= local_map[1, :].min()) & (xyzrpy[:, 1] <= local_map[1, :].max()))
-            xyzrpy = xyzrpy[path_mask]
         else:
-            xyzrpy = select_pts_to_optimize(xyzrpy, self.rpz_cloud)
+            trav_mask = select_pts_to_optimize(xyzrpy, self.rpz_cloud)
 
-        n_poses = xyzrpy.shape[0]
-        if n_poses == 0:
-            rospy.logwarn('Path is outside of traversability map: optimization is not performed')
-            return
+        # Do restart if path not optimized till the end.
+        do_restart = not trav_mask[-1]
+
+        if torch.sum(trav_mask) > 2:  # if there are at least two points of the path lying in traversable area
+            xyzrpy_to_opt = xyzrpy[trav_mask]
+        else:
+            xyzrpy_to_opt = xyzrpy
 
         opt_i = slice(1 if 'start' in self.fixed_endpoints else None,
                       -1 if 'goal' in self.fixed_endpoints else None)
 
-        xy_start = xyzrpy[:1, :2].detach()
-        xy_goal = xyzrpy[-1:, :2].detach()
-        xy_opt = xyzrpy[opt_i, :2].detach()
+        xy_start = xyzrpy_to_opt[:1, :2].detach()
+        xy_goal = xyzrpy_to_opt[-1:, :2].detach()
+        xy_opt = xyzrpy_to_opt[opt_i, :2].detach()
         xy_opt.requires_grad = True
 
         optimizer = torch.optim.Adam([xy_opt], lr=0.05)
@@ -1685,7 +1740,8 @@ class RPZPlanner(object):
                 xyyaw = torch.cat((xy, yaw), dim=-1)
             elif self.order == DimOrder.YAW_X_Y:
                 xyyaw = torch.cat((yaw, xy), dim=-1)
-            assert xyyaw.shape == (n_poses, 3)
+            rospy.logdebug('XYYAW shape: %i, %i, n_poses: %i', xyyaw.shape[0], xyyaw.shape[1], n_poses)
+            # assert xyyaw.shape == (n_poses, 3)
 
             if self.use_map_rpz:
                 # Find current xyz nearest neighbors within the map. In the
@@ -1695,7 +1751,7 @@ class RPZPlanner(object):
                 # xyz array to establish correspondences (non-differentiable),
                 # then xyyaw is used to do differentiable interpolation in the
                 # plane.
-                xyz = torch.cat([xy, xyzrpy[:, 2:3].detach()], dim=1)
+                xyz = torch.cat([xy, xyzrpy_to_opt[:, 2:3].detach()], dim=1)
                 d, idx = map_index.query(xyz.detach().cpu().numpy())
                 assert xyz.shape == (n_poses, 3)
 
@@ -1724,15 +1780,15 @@ class RPZPlanner(object):
                 rpz = interpolate_rpz(rpz_all, xyyaw_grid, order=self.order)
 
             # Transform z?
-            assert rpz.shape == (n_poses, 3)
-            assert xyyaw.shape == (n_poses, 3)
+            # assert rpz.shape == (n_poses, 3)
+            # assert xyyaw.shape == (n_poses, 3)
             if self.order == DimOrder.X_Y_YAW:
                 # Fix yaw from XY.
-                xyzrpy = torch.cat((xyyaw[:, :2], rpz[:, 2:], rpz[:, :2], xyyaw[:, 2:]), dim=-1)
+                xyzrpy_to_opt = torch.cat((xyyaw[:, :2], rpz[:, 2:], rpz[:, :2], xyyaw[:, 2:]), dim=-1)
             elif self.order == DimOrder.YAW_X_Y:
-                xyzrpy = torch.cat((xyyaw[:, 1:], rpz[:, 2:], rpz[:, :2], xyyaw[:, :1]), dim=-1)
+                xyzrpy_to_opt = torch.cat((xyyaw[:, 1:], rpz[:, 2:], rpz[:, :2], xyyaw[:, :1]), dim=-1)
 
-            if torch.isnan(xyzrpy).any():
+            if torch.isnan(xyzrpy_to_opt).any():
                 rospy.logwarn("Path contains NANs. Optimization will not be performed this time")
                 msg_out = msg
                 msg_out.header.stamp = rospy.Time.now()
@@ -1741,6 +1797,7 @@ class RPZPlanner(object):
             else:
                 # TODO: Test yaw processing from map to grid and back.
                 # TODO: Alternative solution is to recompute yaw from XY again.
+                xyzrpy[trav_mask] = xyzrpy_to_opt
                 msg_out = xyzrpy_to_path_msg(xyzrpy)
                 msg_out.header = msg.header
                 for p in msg_out.poses:
@@ -1748,13 +1805,14 @@ class RPZPlanner(object):
                     p.header = msg.header
 
             # compute path reward and cloud masks
-            rewards, vis_mask, fov_mask, dist_mask = self.path_reward(xyzrpy, local_map, vis_mask=vis_mask)
+            rewards, vis_mask, fov_mask, dist_mask = self.path_reward(xyzrpy_to_opt, local_map, vis_mask=vis_mask)
 
             if self.use_rewards_history:
                 # include rewards history from global map
                 assert len(self.local_map_idx) == n_pts
                 rewards_prev = self.global_map[3, self.local_map_idx].to(self.device).view(-1, n_pts)
-                rewards = rewards.view(n_poses * n_cams, n_pts)
+                # rewards = rewards.view(n_poses * n_cams, n_pts)
+                rewards = rewards.view(-1, n_pts)
                 rewards = torch.cat([rewards_prev, rewards], dim=0)
             else:
                 rewards_prev = 0.0
@@ -1784,7 +1842,7 @@ class RPZPlanner(object):
                 break
 
             # Penalize path length change, high roll and pitch and yaw changes.
-            time_cost = self.path_cost(xyzrpy)
+            time_cost = self.path_cost(xyzrpy_to_opt)
 
             # criterion = time_cost / (gained_reward + 1e-3)
             criterion = time_cost / (gained_reward + 1.0)
@@ -1802,18 +1860,27 @@ class RPZPlanner(object):
                     assert isinstance(p, PoseStamped)
                     p.header = msg.header
                     p.header.stamp = msg_out.header.stamp
-                if self.follow_opt_path:
+                # Don't publish intermediate paths when restarted.
+                rospy.loginfo('follow_opt_path %i, restart %i, iter %i / %i',
+                              self.follow_opt_path, restart, iter, self.num_iters - 1)
+                if self.follow_opt_path and ((restart == 0) or (iter == self.num_iters - 1)):
                     self.path_pub.publish(msg_out)
-                # Publish reward cloud for visualization.
-                reward_cloud['reward'] = rewards.detach().cpu().numpy()
-                reward_cloud['new_reward'] = (rewards-rewards_prev).detach().cpu().numpy()
-                reward_cloud['distance'] = reduce_rewards(dist_mask).detach().cpu().numpy()
-                reward_cloud['visibility'] = reduce_rewards(vis_mask).detach().cpu().numpy()
-                reward_cloud['fov'] = reduce_rewards(fov_mask).detach().cpu().numpy()
-                reward_cloud_msg = msgify(PointCloud2, reward_cloud)
-                assert isinstance(reward_cloud_msg, PointCloud2)
-                reward_cloud_msg.header = msg.header
-                self.reward_cloud_pub.publish(reward_cloud_msg)
+
+                # Don't publish clouds in each iterations.
+                if iter == (self.num_iters - 1):
+                    t_reward = timer()
+                    # Publish reward cloud for visualization.
+                    reward_cloud['reward'] = rewards.detach().cpu().numpy()
+                    reward_cloud['new_reward'] = (rewards-rewards_prev).detach().cpu().numpy()
+                    reward_cloud['distance'] = reduce_rewards(dist_mask).detach().cpu().numpy()
+                    reward_cloud['visibility'] = reduce_rewards(vis_mask).detach().cpu().numpy()
+                    reward_cloud['fov'] = reduce_rewards(fov_mask).detach().cpu().numpy()
+                    reward_cloud_msg = msgify(PointCloud2, reward_cloud)
+                    assert isinstance(reward_cloud_msg, PointCloud2)
+                    reward_cloud_msg.header = msg.header
+                    self.reward_cloud_pub.publish(reward_cloud_msg)
+                    rospy.loginfo('Reward cloud with %i points published (%.3f s).',
+                                  reward_cloud.size, timer() - t_reward)
 
                 # Visualize cameras (first and last).
                 t = timer()
@@ -1835,12 +1902,12 @@ class RPZPlanner(object):
             criterion.backward()
             optimizer.step()
 
-            rospy.loginfo( 'Iter. %i: time cost %.1f / %.1f s, '
+            rospy.logdebug('Iter. %i: time cost %.1f / %.1f s, '
                            'reward %.0f / %.0f, '
                            '(%.3f s).',
                            iter, time_cost.detach().item(), time_cost0.detach().item(),
                            gained_reward.detach().item(), gained_reward0.detach().item(),
-                           timer() - t_iter )
+                           timer() - t_iter)
 
         rospy.loginfo('Trajectory optimization took %.1f s', timer() - t0)
 
@@ -1862,6 +1929,8 @@ class RPZPlanner(object):
                 global_cloud_msg.header = msg.header
                 self.global_reward_cloud_pub.publish(global_cloud_msg)
             rospy.loginfo('Global map publishing took %.3f s', timer() - t0)
+
+        return do_restart
 
 
 if __name__ == '__main__':

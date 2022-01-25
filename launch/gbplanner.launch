@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<launch>
+    <!-- All settings -->
+    <arg name="robot" default="X1"/>
+    <arg name="robot_type" default="explorer_x1" doc="Robot type, from {absolem, dtr, explorer_x1, marv, x1, x2}."/>
+    <arg name="use_sim_time" default="true"/>
+    <arg name="rviz" default="false" />
+    <arg name="launch_prefix" default=""/> <!-- gdb -ex run //args -->
+    <arg name="odometry_topic" default="/odom"/>
+
+    <!-- Additional modules -->
+    <arg name="run_detector" default="true"/>
+    <arg name="do_recording" default="false"/>
+    <arg name="bag_postfix" default=""/> <!-- for recorded bag file name -->
+
+    <!-- Config files -->
+    <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/gbplanner/$(arg robot_type)/gbplanner_config.yaml"/>
+    <arg name="pci_file" default="$(find rpz_planning)/config/gbplanner/$(arg robot_type)/planner_control_interface_sim_config.yaml"/>
+    <arg name="voxblox_config_file" default="$(find rpz_planning)/config/gbplanner/$(arg robot_type)/voxblox_sim_config.yaml"/>
+    <arg name="map_config_file" default="$(arg voxblox_config_file)"/>
+
+    <!-- Static TF -->
+    <node pkg="tf" type="static_transform_publisher" name="tf_53" args="0 0 0 0 0 0 subt navigation 100" />
+
+    <!-- Subt frame publisher-->
+    <node name="subt_frame_publisher" pkg="subt_virtual" type="subt_frame_publisher" output="log">
+        <param name="robot_name" value="$(arg robot)"/>
+    </node>
+
+    <!-- Ground truth tf frames publisher-->
+    <node name="ground_truth_tfs_publisher" pkg="subt_virtual" type="ground_truth_publisher">
+        <param name="robot_name" value="$(arg robot)" />
+    </node>
+
+    <!-- Naex -->
+    <group ns="$(arg robot)">
+        <node if="0" name="map_to_subt_identity" pkg="tf" type="static_transform_publisher"
+              args="0 0 0 0 0 0 subt $(arg robot)/map 0.1"/>
+        <include file="$(find naex)/launch/tf.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/preproc.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/odom.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/slam.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/planner.launch" pass_all_args="true">
+            <arg name="planning_freq" value="0.0"/>
+            <arg name="max_cloud_age" value="2.0"/>
+        </include>
+    </group>
+
+    <!-- Odometry provider from tfs -->
+    <node name="odometry_provider" pkg="nav_utils" type="tf_to_odom" output="log">
+        <param name="parent_frame" value="subt" />
+        <param name="child_frame" value="$(arg robot)/base_footprint" />
+        <param name="no_wait_frame" value="$(arg robot)/odom" />
+        <param name="timer_freq" value="50" />
+    </node>
+
+    <node pkg="topic_tools" type="relay" name="vlp_relay" args="$(arg robot)/points_slow_filtered /input_pointcloud" />
+    <node pkg="topic_tools" type="relay" name="front_rgbd_relay" args="$(arg robot)/front_rgbd/points_slow_filtered /input_pointcloud" />
+    <node pkg="topic_tools" type="relay" name="rear_rgbd_relay" args="$(arg robot)/rear_rgbd/points_slow_filtered /input_pointcloud" />
+    <node pkg="topic_tools" type="relay" name="right_rgbd_relay" args="$(arg robot)/right_rgbd/points_slow_filtered /input_pointcloud" />
+    <node pkg="topic_tools" type="relay" name="left_rgbd_relay" args="$(arg robot)/left_rgbd/points_slow_filtered /input_pointcloud" />
+
+    <!-- Graph based planning -->
+    <node pkg="gbplanner" type="gbplanner_node" name="gbplanner_node" output="screen" launch-prefix="$(arg launch_prefix)">
+        <remap from="odometry" to="$(arg odometry_topic)" />
+        <remap from="/pointcloud" to="/input_pointcloud" />
+        <rosparam command="load" file="$(arg gbplanner_config_file)" />
+        <rosparam command="load" file="$(arg map_config_file)" />
+    </node>
+
+    <!-- Planner and Control Interface -->
+    <node pkg="pci_general" type="pci_general_ros_node" name="pci_general_ros_node" output="screen">
+        <remap from="command/trajectory" to="smb/command/trajectory" />
+        <remap from="planner_server" to="gbplanner" />
+        <remap from="planner_homing_server" to="gbplanner/homing" />
+        <remap from="odometry" to="$(arg odometry_topic)"/>
+        <rosparam command="load" file="$(arg pci_file)" />
+        <param name="world_frame_id" value="subt" />
+        <param name="output_type" value="kAction" />
+    </node>
+
+    <!-- Path follower from gbplanner -->
+    <node name="smb_path_tracker_node" pkg="smb_path_tracker" type="smb_path_tracker_ros_node" output="screen">
+        <remap from="cmd_vel" to="$(arg robot)/cmd_vel" />
+        <remap from="odometry" to="$(arg odometry_topic)" />
+        <param name="robot_frame" value="$(arg robot)/base_link" />
+        <param name="fixed_frame" value="subt" />
+        <param name="critical_angle" value="0.52"/>
+        <param name="max_ang_vel" value="1.5"/> <!-- 0.5 -->
+        <param name="desired_vel" value="1.0"/>  <!-- 0.5 -->
+        <param name="look_ahead_error_margin" value="0.2"/>
+        <param name="look_ahead_distance" value="0.8"/> <!-- 0.5 -->
+    </node>
+
+    <!-- Artifacts detector -->
+    <include if="$(arg run_detector)" file="$(find rpz_planning)/launch/detector_x1.launch"/>
+
+    <!-- Data recording -->
+    <include if="$(arg do_recording)" file="$(find rpz_planning)/launch/record.launch" pass_all_args="true">
+        <arg name="path" value="control_path"/>
+        <arg name="follow_opt_path" default="false"/>
+    </include>
+
+    <!-- RVIZ -->
+    <node if="$(arg rviz)" pkg="rviz" type="rviz" name="gbplanner_ui" output="screen" args="-d $(find rpz_planning)/config/gbplanner.rviz"/>
+
+</launch>

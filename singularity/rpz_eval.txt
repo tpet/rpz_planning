@@ -11,13 +11,14 @@ From: ros:melodic-robot
     apt-get -y install python-catkin-tools \
                        libgoogle-glog-dev \
                        ros-melodic-ros-numpy \
+                       ros-melodic-rviz \
                        python3-pip
 
     # clone necessary ROS packages
-    mkdir -p /opt/ros/py3_trajopt_ws/src && cd /opt/ros/py3_trajopt_ws/src && \
-    git clone https://github.com/tpet/rpz_planning.git
-    git clone -b sim https://bitbucket.org/salanvoj/dem_predictor.git
-    mkdir -p /opt/ros/py3_trajopt_ws/src/thirdparty/ && cd /opt/ros/py3_trajopt_ws/src/thirdparty/ && \
+    mkdir -p /opt/ros/trajopt_ws/src && cd /opt/ros/trajopt_ws/src && \
+    git clone -b icra-2022 https://github.com/tpet/rpz_planning.git
+    git clone -b icra-2022 https://bitbucket.org/salanvoj/dem_predictor.git
+    mkdir -p /opt/ros/trajopt_ws/src/thirdparty/ && cd /opt/ros/trajopt_ws/src/thirdparty/ && \
     git clone -b melodic-devel https://github.com/ros/geometry2 && \
 	git clone -b melodic-devel https://github.com/ros/geometry && \
 	git clone -b melodic https://github.com/ros-perception/vision_opencv
@@ -28,11 +29,11 @@ From: ros:melodic-robot
     /bin/bash -c "source /opt/venv/bin/activate && \
 				  pip install torch==1.7.1+cu101 torchvision==0.8.2+cu101 torchaudio==0.7.2 -f https://download.pytorch.org/whl/torch_stable.html && \
 				  pip install "git+https://github.com/facebookresearch/pytorch3d.git@stable" && \
-				  pip install open3d scikit-image matplotlib imageio plotly opencv-python catkin_pkg empy rospkg"
+				  pip install open3d scikit-image matplotlib imageio plotly opencv-python catkin_pkg empy rospkg xlwt pycryptodomex gnupg"
 
     echo "Installed python dependencies"
 
-    cd /opt/ros/py3_trajopt_ws/ && \
+    cd /opt/ros/trajopt_ws/ && \
     /bin/bash -c "source /opt/ros/melodic/setup.bash && \
                   catkin config -DPYTHON_EXECUTABLE=/opt/venv/bin/python && \
  				  catkin build rpz_planning"
@@ -41,6 +42,6 @@ From: ros:melodic-robot
 
 %runscript
     /bin/bash -c "source /opt/ros/melodic/setup.bash && \
-    			  source /opt/ros/py3_trajopt_ws/devel/setup.bash --extend && \
+    			  source /opt/ros/trajopt_ws/devel/setup.bash --extend && \
     			  source /opt/venv/bin/activate && \
     			  roslaunch rpz_planning eval.launch"

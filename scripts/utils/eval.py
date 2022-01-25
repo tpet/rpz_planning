@@ -13,11 +13,13 @@ from rpz_planning import point_face_distance_truncated
 from rpz_planning import face_point_distance_truncated
 # from rpz_planning import edge_point_distance_truncated
 # from rpz_planning import chamfer_distance_truncated
+# import colorsys
+import seaborn as sns
 import rospy
 from sensor_msgs.msg import PointCloud2, PointCloud
 from std_msgs.msg import Float64
 from rpz_planning.msg import Metrics
-from visualization_msgs.msg import Marker
+from visualization_msgs.msg import Marker, MarkerArray
 from timeit import default_timer as timer
 import time
 from ros_numpy import msgify, numpify
@@ -61,33 +63,44 @@ class Eval:
         self.do_points_sampling_from_map = rospy.get_param('~do_points_sampling_from_map', True)
         self.n_sample_points = rospy.get_param('~n_sample_points', 10000)
         self.do_eval = rospy.get_param('~do_eval', True)
-        self.load_gt = rospy.get_param('~load_gt', True)
+        self.world_name = rospy.get_param('~world_name')
+        self.load_gt = rospy.get_param('~load_gt', "simple_cave" in self.world_name)
         self.record_metrics = rospy.get_param('~record_metrics', True)
         self.xls_file = rospy.get_param('~metrics_xls_file', f'/tmp/mapping-eval')
         self.xls_file = f'{self.xls_file[:-4]}.xls'
         self.coverage_dist_th = rospy.get_param('~coverage_dist_th', 0.2)
         self.artifacts_coverage_dist_th = rospy.get_param('~artifacts_coverage_dist_th', 0.1)
-        self.artifacts_hypothesis_topic = rospy.get_param('~artifacts_hypothesis_topic',
-                                                          'detection_localization/dbg_confirmed_hypotheses_pcl')
+        self.artifacts_hyps_topic = rospy.get_param('~artifacts_hyps_topic',
+                                                    'detection_localization/dbg_hypotheses_pcl')
+        self.artifacts_confirm_hyps_topic = rospy.get_param('~artifacts_confirm_hyps_topic',
+                                                            'detection_localization/dbg_confirmed_hypotheses_pcl')
         self.artifacts_names = ["rescue_randy", "phone", "backpack", "drill", "extinguisher",
                                 "vent", "helmet", "rope", "cube"]
+        self.rgb_colors_palette = sns.color_palette(None, len(self.artifacts_names))  # for visualization in RViz
         self.max_age = rospy.get_param('~max_age', 1.0)
         self.rate = rospy.get_param('~eval_rate', 1.0)
         # exploration metrics publishers
         self.metrics_pub = rospy.Publisher('~metrics', Metrics, queue_size=1)
         # world ground truth mesh publisher
         self.world_mesh_pub = rospy.Publisher('/world_mesh', Marker, queue_size=1)
+        self.artifacts_gt_markers_pub = rospy.Publisher('/artifacts_gt_markers', MarkerArray, queue_size=1)
+        self.artifacts_preds_markers_pub = rospy.Publisher('artifacts_preds_markers', MarkerArray, queue_size=1)
+        self.artifacts_texts_markers_pub = rospy.Publisher('/artifacts_texts_markers', MarkerArray, queue_size=1)
 
         self.map_gt_frame = rospy.get_param('~map_gt_frame', 'subt')
         self.map_gt_mesh = None
         self.map_gt_trimesh = None  # mesh loaded with trimesh library
         self.map_gt_mesh_marker = Marker()
+        self.artifacts_gt_marker_array = MarkerArray()
+        self.artifacts_preds_marker_array = MarkerArray()
+        self.artifacts_colors_palette = self.get_artifacts_colors_markers()
         self.artifacts = {'poses': None, 'names': None, 'clouds': None, 'cloud_merged': None}
         self.map_gt = None
         self.pc_msg = None
         self.map_frame = None
         self.map = None
         self.detections = {'poses': [], 'classes': []}
+        self.detections_before_clusterring = {'poses': [], 'classes': []}
         self.detections_dist_th = rospy.get_param('~detections_dist_th', 5.0)
         self.robot_frame = 'X1'
         self.robot_gt_frame = self.robot_frame + '_ground_truth'
@@ -125,24 +138,24 @@ class Eval:
             self.wb = xlwt.Workbook()
             self.ws_writer = self.wb.add_sheet(f"Exp_{timer()}".replace('.', '_'))
             self.ws_writer.write(0, 0, 'Time stamp')
-            self.ws_writer.write(0, 1, 'Exploration Face loss')
-            self.ws_writer.write(0, 2, 'Exploration Edge loss')
-            self.ws_writer.write(0, 3, 'Exploration Chamfer loss')
+            self.ws_writer.write(0, 1, 'Exploration face loss')
+            self.ws_writer.write(0, 2, 'Exploration edge loss')
+            self.ws_writer.write(0, 3, 'Exploration chamfer loss')
             self.ws_writer.write(0, 4, 'Exploration completeness')
-            self.ws_writer.write(0, 5, 'Map Face loss')
-            self.ws_writer.write(0, 6, 'Map Edge loss')
-            self.ws_writer.write(0, 7, 'Map Chamfer loss')
-            self.ws_writer.write(0, 8, 'Artifacts Exploration completeness')
+            self.ws_writer.write(0, 5, 'Map face loss')
+            self.ws_writer.write(0, 6, 'Map edge loss')
+            self.ws_writer.write(0, 7, 'Map chamfer loss')
+            self.ws_writer.write(0, 8, 'Artifacts exploration completeness')
             self.ws_writer.write(0, 9, 'Detections score')
             self.ws_writer.write(0, 10, 'mAP')
-            self.ws_writer.write(0, 11, 'Total Expected reward')
+            self.ws_writer.write(0, 11, 'Total expected reward')
             self.ws_writer.write(0, 12, 'Total artifacts reward')
             self.ws_writer.write(0, 13, 'Travelled distance')
-            self.ws_writer.write(0, 14, 'Total Actual reward')
+            self.ws_writer.write(0, 14, 'Total actual reward')
             self.ws_writer.write(0, 15, 'Localization error: pos')
             self.ws_writer.write(0, 16, 'Localization error: ang')
             self.ws_writer.write(0, 17, 'Detected artifacts')
-            self.ws_writer.write(0, 18, 'Artifacts Localization error')
+            self.ws_writer.write(0, 18, 'Artifacts localization error')
             self.row_number = 1
 
         # subscribing to actual reward topic
@@ -152,7 +165,9 @@ class Eval:
         # obtaining the constructed map (reward cloud)
         rospy.Subscriber(self.map_topic, PointCloud2, self.get_constructed_map)
         # subscribing to localized detection results for evaluation
-        rospy.Subscriber(self.artifacts_hypothesis_topic, PointCloud, self.get_detections)
+        rospy.Subscriber(self.artifacts_confirm_hyps_topic, PointCloud, self.get_confirmed_detections)
+        # subscribing to localized detection results for evaluation
+        rospy.Subscriber(self.artifacts_hyps_topic, PointCloud, self.get_detections)
 
         # evaluation runner
         rospy.Timer(rospy.Duration(1. / self.rate), self.run)
@@ -240,9 +255,9 @@ class Eval:
         marker.scale.y = 1
         marker.scale.z = 1
         marker.color.a = 0.4
-        marker.color.r = 0
-        marker.color.g = 1
-        marker.color.b = 0
+        marker.color.r = 0.4
+        marker.color.g = 0.5
+        marker.color.b = 0.6
         marker.type = Marker.MESH_RESOURCE
         marker.mesh_resource = f"package://rpz_planning/data/meshes/{self.map_gt_frame}.dae"
         self.map_gt_mesh_marker = marker
@@ -265,10 +280,11 @@ class Eval:
         rospy.logdebug('Found TF frames: %s', all_frames)
         rospy.loginfo('Found %i Artifacts TF frames in %.3f [sec]: %s',
                       len(artifact_frames), (timer() - t0), artifact_frames)
-        # if len(artifact_frames) != 18:  # if artifacts are not found just hard code them and hope for the best
-        #     artifact_frames = ['backpack_1', 'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'phone_2',
-        #                        'extinguisher_1', 'extinguisher_2', 'drill_1', 'vent_1', 'vent_2', 'helmet_1',
-        #                        'helmet_2', 'phone_1', 'drill_2', 'gas_2', 'gas_1', 'rope_2', 'rope_1']
+        if self.world_name == 'finals_qual':
+            if len(artifact_frames) != 18:  # if artifacts are not found just hard code them and hope for the best
+                artifact_frames = ['backpack_1', 'rescue_randy_1', 'rescue_randy_2', 'rescue_randy_3', 'phone_2',
+                                   'extinguisher_1', 'extinguisher_2', 'drill_1', 'vent_1', 'vent_2', 'helmet_1',
+                                   'helmet_2', 'phone_1', 'drill_2', 'gas_2', 'gas_1', 'rope_2', 'rope_1']
 
         artifacts = {'poses': [], 'names': [], 'clouds': [], 'cloud_merged': None}
         artifacts_cloud_merged = []
@@ -290,32 +306,48 @@ class Eval:
             # torch.manual_seed(self.seed); cloud = sample_points_from_meshes(mesh, 1000).squeeze(0).to(self.device)
             cloud = verts.cpu().numpy().transpose(1, 0)
             # TODO: correct coordinates mismatch in Blender (swap here X and Y)
-            R = np.array([[0., 1., 0.],
-                          [-1., 0., 0.],
-                          [0., 0., 1.]])
-            cloud = np.matmul(R, cloud)
+            R0 = np.array([[0., 1., 0.],
+                           [-1., 0., 0.],
+                           [0., 0., 1.]])
+            cloud = np.matmul(R0, cloud)
             # transform point cloud to global world frame
             T = numpify(transform.transform)
             R, t = T[:3, :3], T[:3, 3]
             cloud = np.matmul(R, cloud) + t.reshape([3, 1])
             # add intensity value based on the artifact type
-            if 'backpack' in artifact_name:
-                intensity = 1
-            elif 'phone' in artifact_name:
-                intensity = 2
-            elif 'rescue_randy' in artifact_name:
-                intensity = 3
-            else:
-                intensity = -1
+            intensity = self.artifacts_names.index(artifact_name[:-2])
             cloud = np.concatenate([cloud, intensity * np.ones([1, cloud.shape[1]])], axis=0)
             assert len(cloud.shape) == 2
             assert cloud.shape[0] == 4  # (4, n)
             artifacts_cloud_merged.append(cloud)
             artifacts['names'].append(artifact_name)
             # center of an artifact point cloud in map_gt_frame
-            artifacts['poses'].append(cloud[:3, :].mean(axis=1))
+            xyz = cloud[:3, :].mean(axis=1)
+            artifacts['poses'].append(xyz)
             artifacts['clouds'].append(
                 torch.as_tensor(cloud.transpose([1, 0]), dtype=torch.float32).unsqueeze(0).to(self.device))
+
+            # construct visualization marker for each gt artifact
+            marker = Marker()
+            marker.header.frame_id = self.map_gt_frame
+            marker.header.stamp = rospy.Time.now()
+            marker.ns = "artifacts_ns"
+            marker.id = i
+            marker.action = Marker.ADD
+            marker.pose.position.x = xyz[0]
+            marker.pose.position.y = xyz[1]
+            marker.pose.position.z = xyz[2]
+            marker.scale.x = 1
+            marker.scale.y = 1
+            marker.scale.z = 8
+            marker.color.a = 1.0
+            marker.color.r = 0.0
+            marker.color.g = 0.0
+            marker.color.b = 0.0
+            marker.text = artifact_name
+            marker.type = Marker.TEXT_VIEW_FACING
+            self.artifacts_gt_marker_array.markers.append(marker)
+
         artifacts_cloud_merged_np = artifacts_cloud_merged[0]
         for cloud in artifacts_cloud_merged[1:]:
             artifacts_cloud_merged_np = np.concatenate([artifacts_cloud_merged_np, cloud], axis=1)
@@ -349,7 +381,7 @@ class Eval:
         assert self.map.size()[2] >= 3
         rospy.logdebug('Point cloud conversion took: %.3f s', timer() - t0)
 
-    def get_detections(self, pc_msg):
+    def get_detections_poses_classes(self, pc_msg):
         assert isinstance(pc_msg, PointCloud)
         # transform poses to map_gt_frame
         try:
@@ -357,18 +389,78 @@ class Eval:
                                                  rospy.Time(0), rospy.Duration(3))
         except tf2_ros.LookupException:
             rospy.logwarn('No transform between map gt frame and its detections frame')
-            return
+            return None, None
         T = numpify(transform.transform)
         R, t = T[:3, :3], T[:3, 3]
         poses = []
         for p in pc_msg.points:
             pose = np.matmul(R, np.array([p.x, p.y, p.z]).reshape([3, 1])) + t.reshape([3, 1])
             poses.append(pose)
-        self.detections['poses'] = np.array(poses)
+        poses = np.asarray(poses)
         class_numbers = pc_msg.channels[-1].values  # most probable class values
         # convert numbers to names
-        self.detections['classes'] = [self.artifacts_names[int(n)] for n in class_numbers]
+        classes = [self.artifacts_names[int(n)] for n in class_numbers]
         # assert len(self.detections['classes']) == len(self.detections['poses'])
+        assert len(poses) == len(classes)
+        return poses, classes
+
+    def get_artifacts_colors_markers(self):
+        artifacts_texts_marker_array = MarkerArray()
+        for i, cl in enumerate(self.artifacts_names):
+            # construct visualization marker for each gt artifact
+            marker = Marker()
+            marker.header.frame_id = self.map_gt_frame
+            marker.header.stamp = rospy.Time.now()
+            marker.ns = "artifacts_texts_ns"
+            marker.id = i
+            marker.action = Marker.ADD
+            marker.pose.position.x = 150.0 - i*10
+            marker.pose.position.y = -100.0
+            marker.pose.position.z = 1.0
+            marker.scale.x = 1
+            marker.scale.y = 1
+            marker.scale.z = 8
+            marker.color.a = 1.0
+            marker.color.r = self.rgb_colors_palette[i][0]
+            marker.color.g = self.rgb_colors_palette[i][1]
+            marker.color.b = self.rgb_colors_palette[i][2]
+            marker.text = cl
+            marker.type = Marker.TEXT_VIEW_FACING
+            artifacts_texts_marker_array.markers.append(marker)
+        return artifacts_texts_marker_array
+
+    def get_confirmed_detections(self, dets_pc_msg):
+        poses, classes = self.get_detections_poses_classes(dets_pc_msg)
+        self.artifacts_preds_marker_array = MarkerArray()
+        for i, cl in enumerate(classes):
+            # construct visualization marker for each gt artifact
+            marker = Marker()
+            marker.header.frame_id = self.map_gt_frame
+            marker.header.stamp = rospy.Time.now()
+            marker.ns = "artifacts_preds_ns"
+            marker.id = i
+            marker.action = Marker.ADD
+            marker.pose.position.x = poses[i][0]
+            marker.pose.position.y = poses[i][1]
+            marker.pose.position.z = poses[i][2]
+            marker.scale.x = 10
+            marker.scale.y = 10
+            marker.scale.z = 10
+            marker.color.a = 0.6
+            marker.color.r = self.rgb_colors_palette[int(dets_pc_msg.channels[-1].values[i])][0]
+            marker.color.g = self.rgb_colors_palette[int(dets_pc_msg.channels[-1].values[i])][1]
+            marker.color.b = self.rgb_colors_palette[int(dets_pc_msg.channels[-1].values[i])][2]
+            marker.type = Marker.SPHERE
+            # marker.text = cl + '_pred'
+            # marker.type = Marker.TEXT_VIEW_FACING
+            self.artifacts_preds_marker_array.markers.append(marker)
+        self.detections['poses'] = poses
+        self.detections['classes'] = classes
+
+    def get_detections(self, dets_pc_msg):
+        poses, classes = self.get_detections_poses_classes(dets_pc_msg)
+        self.detections_before_clusterring['poses'] = poses
+        self.detections_before_clusterring['classes'] = classes
 
     def get_actual_reward(self, msg):
         assert isinstance(msg, Float64)
@@ -592,10 +684,12 @@ class Eval:
         # number of correctly detected artifacts from confirmed hypothesis
         artifacts_localization_error = None
         if len(self.detections['poses']) > 0:
-            self.metrics_msg.dets_score, \
-            self.mAP, \
+            self.metrics_msg.dets_score, _, \
             artifacts_localization_error = self.evaluate_detections(self.detections, self.artifacts,
                                                                     darpa_dist_th=self.detections_dist_th)
+        if len(self.detections_before_clusterring['poses']) > 0:
+            self.mAP = self.evaluate_detections(self.detections_before_clusterring, self.artifacts,
+                                                darpa_dist_th=self.detections_dist_th)[1]
         rospy.logdebug('Artifacts evaluation took: %.3f s\n', timer() - t0)
         return artifacts_localization_error
 
@@ -673,6 +767,9 @@ class Eval:
         # publish ground truth
         self.map_gt_mesh_marker.header.stamp = rospy.Time.now()
         self.world_mesh_pub.publish(self.map_gt_mesh_marker)
+        self.artifacts_gt_markers_pub.publish(self.artifacts_gt_marker_array)
+        self.artifacts_preds_markers_pub.publish(self.artifacts_preds_marker_array)
+        self.artifacts_texts_markers_pub.publish(self.artifacts_colors_palette)
         self.publish_pointcloud(self.artifacts['cloud_merged'], 'artifacts_cloud', rospy.Time.now(), self.map_gt_frame)
 
         rospy.logdebug('Travelled distance: %.1f', self.travelled_dist)

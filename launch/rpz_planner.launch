@@ -4,7 +4,8 @@
     <arg name="robot" default="X1"/>
     <arg name="robot_type" default="explorer_x1"/>
     <arg name="use_rewards_history" default="true"/>
-    <arg name="trajopt_iters" default="10"/>
+    <arg name="trajopt_iters" default="25"/>
+    <arg name="num_opt_restarts" default="0"/>
     <arg name="gpu_id" default="0"/>
     <arg name="input_path_topic" default="path"/>
     <arg name="output_path_topic" default="path_to_follow"/>
@@ -13,7 +14,8 @@
     <arg name="use_map_rpz" default="false"/>
     <arg name="enable_fov_vis" default="true"/>
     <arg name="max_age" default="1.0"/>
-    <arg name="path_step" default="10"/>
+    <arg name="path_step" default="2"/>
+    <arg name="fixed_endpoints" default="['start']"/>
 
 <!--    <group ns="$(arg robot)">-->
     <node name="rpz_planner" pkg="rpz_planning" type="rpz_planner" output="screen">
@@ -22,15 +24,17 @@
             robot_frame: $(arg robot)/base_footprint
             max_age: $(arg max_age)
             num_cameras: 1
+            num_opt_restarts: $(arg num_opt_restarts)
+            process_path_interval: 0.05
             num_iters: $(arg trajopt_iters)
             map_step: 2
             path_step: $(arg path_step)
-            min_n_wps_to_opt: 6
-            min_gained_reward_to_opt: 200.0
+            min_n_wps_to_opt: 2
+            min_gained_reward_to_opt: 0.0
             use_rewards_history: $(arg use_rewards_history)
             linear_speed: 1.0
             angular_speed: 1.0
-            fixed_endpoints: ['start']
+            fixed_endpoints: $(arg fixed_endpoints)
             gpu_id: $(arg gpu_id)
             pub_intermediate: $(arg pub_intermediate)
 

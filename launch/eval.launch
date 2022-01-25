@@ -3,14 +3,16 @@
 <launch>
     <arg name="robot" default="X1"/>
     <arg name="world_name" default="simple_cave_03"/>
+<!--    <arg name="world_name" default="finals_qual"/>-->
     <arg name="gt_mesh_file" default="$(find rpz_planning)/data/meshes/$(arg world_name).obj"/>
     <arg name="rviz" default="false"/>
     <arg name="do_eval" default="true"/>
     <arg name="do_metrics_record" default="true"/>
     <arg name="load_gt" default="true"/>
-    <arg name="bag" default="explorer_x1_opt_path_true_simple_cave_03_intrins_rewards_hyps_ritz_2021-08-17-15-19-24.bag"/>
+    <arg name="bag" default="version-1/explorer_x1_opt_path_true_simple_cave_03_intrins_rewards_hyps_ritz_2021-08-17-15-19-24.bag"/>
+<!--    <arg name="bag" default="version-1/explorer_x1_opt_path_true_ritz_finals_qual_2021-09-06-16-24-24.bag"/>-->
     <arg name="bag_path" default="$(find rpz_planning)/data/bags/mapping_eval/$(arg bag)"/>
-    <arg name="bag_rate" default="10.0"/>
+    <arg name="bag_rate" default="4.0"/>
     <arg name="bag_start" default="0.0"/>
     <arg name="eval_rate" default="1.0"/>
     <arg name="gpu_id" default="0"/>
@@ -56,6 +58,7 @@
             <rosparam subst_value="true">
                 map_topic: $(arg map_topic)  <!-- Point cloud map constructed during exploration -->
                 gt_mesh: $(arg gt_mesh_file) <!-- Path to .obj or .ply ground truth mesh file of the world -->
+                world_name: $(arg world_name)
                 do_points_sampling_from_mesh: True <!-- Whether to use points sampling method from mesh (True) or use mesh vertices (False) -->
                 do_points_sampling_from_map: True <!-- Whether to subsample constructed map before metrics computation -->
                 n_sample_points: 50000 <!-- Max number of sampled points that are used both from gt mesh and constructed map if above params are True -->
@@ -63,7 +66,8 @@
                 load_gt: $(arg load_gt) <!-- Whether to load ground truth mesh of the environment -->
                 coverage_dist_th: 0.5 <!-- Threshold value [m]: defines if a world mesh point is considered being covered -->
                 artifacts_coverage_dist_th: 0.1 <!-- Threshold value [m]: defines if an artifact mesh point is considered covered -->
-                artifacts_hypothesis_topic: "detection_localization/dbg_confirmed_hypotheses_pcl" <!-- Detections localization output to evaluate -->
+                artifacts_confirm_hyps_topic: "detection_localization/dbg_confirmed_hypotheses_pcl" <!-- Detections localization output to evaluate -->
+                artifacts_hyps_topic: "detection_localization/dbg_hypotheses_pcl"
                 actual_reward_topic: $(arg actual_reward_topic) <!-- Actual rewards topic: from constructed or gt rewards map -->
                 detections_dist_th: 5.0 <!-- Threshold value [m]: defines if an artifact detection point is considered close to gt pose -->
                                         <!-- according to the rules: https://www.subtchallenge.com/resources/SubT_Challenge_Finals_Rules.pdf -->

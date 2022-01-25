@@ -31,4 +31,4 @@ From: subt_tradr_robot.simg
 %runscript
     echo "Running demo example on bag file"
     /bin/bash -c "source /opt/ros/trajopt_ws/devel/setup.bash && \
-    			  roslaunch rpz_planning play.launch bag:=$HOME/subt/trajopt_ws/src/rpz_planning/data/marv_2021-04-29-12-48-13.bag"
+    roslaunch rpz_planning play.launch bag:=$HOME/subt/trajopt_ws/src/rpz_planning/data/marv_2021-04-29-12-48-13.bag"

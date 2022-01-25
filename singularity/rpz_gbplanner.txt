@@ -10,7 +10,8 @@ From: rpz_planning.simg
                        libgoogle-glog-dev \
                        ros-melodic-joy \
                        ros-melodic-twist-mux \
-                       ros-melodic-interactive-marker-twist-server
+                       ros-melodic-interactive-marker-twist-server \
+                       ros-melodic-rosmon
 
     # create ROS ws: clone planner and dependencies
 

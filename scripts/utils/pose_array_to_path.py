@@ -4,6 +4,7 @@ import rospy
 from geometry_msgs.msg import PoseArray, PoseStamped
 from std_msgs.msg import Header
 from nav_msgs.msg import Path
+from copy import copy
 
 
 class PathConverter:
@@ -15,12 +16,15 @@ class PathConverter:
         self.path_pub = rospy.Publisher(rospy.get_param('~path_topic', 'path'), Path, queue_size=1)
         self.pose_arr_sub = rospy.Subscriber(rospy.get_param('~pose_array_topic', 'pci_command_path'), PoseArray,
                                              callback=self.path_cb, queue_size=1)
+        self.path_step = rospy.get_param('~path_step', 1)
+        assert self.path_step > 0
 
     def path_cb(self, pose_arr):
         assert isinstance(pose_arr, PoseArray)
         path_msg = Path()
-        # path_msg.header = pose_arr.header
-        path_msg.poses = [PoseStamped(Header(), p) for p in pose_arr.poses]
+        path_msg.header = pose_arr.header
+        path_msg.header.stamp = rospy.Time.now()
+        path_msg.poses = [PoseStamped(Header(), p) for p in pose_arr.poses[::self.path_step]]
         self.path_pub.publish(path_msg)
 
 

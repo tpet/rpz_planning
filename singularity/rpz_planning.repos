@@ -4,10 +4,12 @@ repositories:
   dem_predictor:
     type: git
     url: https://bitbucket.org/salanvoj/dem_predictor.git
-    version: sim
+    version: icra-2022
   naex:
     type: git
     url: https://github.com/tpet/naex.git
+    version: icra-2022
   rpz_planning:
     type: git
     url: https://github.com/tpet/rpz_planning.git
+    version: icra-2022

@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<launch>
+    <!-- All settings -->
+    <arg name="robot" default="X1"/>
+    <arg name="robot_type" default="explorer_x1" doc="Robot type, from {absolem, dtr, explorer_x1, marv, x1, x2}."/>
+    <arg name="use_sim_time" default="true"/>
+    <arg name="rviz" default="false" />
+    <arg name="launch_prefix" default=""/> <!-- gdb -ex run //args -->
+    <arg name="odometry_topic" default="/odom"/>
+
+    <!-- Additional modules -->
+    <arg name="run_detector" default="true"/>
+    <arg name="do_recording" default="false"/>
+    <arg name="bag_postfix" default=""/> <!-- for recorded bag file name -->
+    <arg name="use_map_rpz" default="false" />
+    <arg name="enable_fov_vis" default="true" />
+
+    <!-- Config files -->
+    <arg name="gbplanner_config_file" default="$(find rpz_planning)/config/gbplanner/$(arg robot_type)/gbplanner_config.yaml"/>
+    <arg name="pci_file" default="$(find rpz_planning)/config/gbplanner/$(arg robot_type)/planner_control_interface_sim_config.yaml"/>
+    <arg name="voxblox_config_file" default="$(find rpz_planning)/config/gbplanner/$(arg robot_type)/voxblox_sim_config.yaml"/>
+    <arg name="map_config_file" default="$(arg voxblox_config_file)"/>
+
+    <!-- Static TF -->
+    <node pkg="tf" type="static_transform_publisher" name="tf_53" args="0 0 0 0 0 0 subt navigation 100" />
+
+    <!-- Subt frame publisher-->
+    <node name="subt_frame_publisher" pkg="subt_virtual" type="subt_frame_publisher" output="log">
+        <param name="robot_name" value="$(arg robot)"/>
+    </node>
+
+    <!-- Ground truth tf frames publisher-->
+    <node name="ground_truth_tfs_publisher" pkg="subt_virtual" type="ground_truth_publisher">
+        <param name="robot_name" value="$(arg robot)" />
+    </node>
+
+    <!-- Naex -->
+    <group ns="$(arg robot)">
+        <node if="0" name="map_to_subt_identity" pkg="tf" type="static_transform_publisher"
+              args="0 0 0 0 0 0 subt $(arg robot)/map 0.1"/>
+        <include file="$(find naex)/launch/tf.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/preproc.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/odom.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/slam.launch" pass_all_args="true"/>
+        <include file="$(find naex)/launch/planner.launch" pass_all_args="true">
+            <arg name="planning_freq" value="0.0"/>
+            <arg name="max_cloud_age" value="2.0"/>
+        </include>
+        <include file="$(find naex)/launch/follower.launch" pass_all_args="true">
+            <arg name="map_frame" value="subt"/>
+            <arg name="obstacle_avoidance" value="false"/>
+            <arg name="max_age" value="3600.0"/> <!-- we do not need local cloud if obstacle avoidance is switched off -->
+            <arg name="path_to_follow" value="path_to_follow"/>
+<!--            <arg name="path_to_follow" value="path_planned"/>-->
+            <arg name="keep_path" default="0."/>
+            <arg name="local_goal_dims" default="'xy'"/>
+            <arg name="goal_reached_dist" default="0.5"/>
+            <arg name="look_ahead" default="10.0"/>
+        </include>
+    </group>
+
+    <!-- Odometry provider from tfs -->
+    <node name="odometry_provider" pkg="nav_utils" type="tf_to_odom" output="log">
+        <param name="parent_frame" value="subt" />
+        <param name="child_frame" value="$(arg robot)/base_footprint" />
+        <param name="no_wait_frame" value="$(arg robot)/odom" />
+        <param name="timer_freq" value="50" />
+    </node>
+
+    <node pkg="topic_tools" type="relay" name="vlp_relay" args="$(arg robot)/points_slow_filtered /input_pointcloud" />
+    <node pkg="topic_tools" type="relay" name="front_rgbd_relay" args="$(arg robot)/front_rgbd/points_slow_filtered /input_pointcloud" />
+    <node pkg="topic_tools" type="relay" name="rear_rgbd_relay" args="$(arg robot)/rear_rgbd/points_slow_filtered /input_pointcloud" />
+    <node pkg="topic_tools" type="relay" name="right_rgbd_relay" args="$(arg robot)/right_rgbd/points_slow_filtered /input_pointcloud" />
+    <node pkg="topic_tools" type="relay" name="left_rgbd_relay" args="$(arg robot)/left_rgbd/points_slow_filtered /input_pointcloud" />
+
+    <!-- Graph based planning -->
+    <node pkg="gbplanner" type="gbplanner_node" name="gbplanner_node" output="screen" launch-prefix="$(arg launch_prefix)">
+        <remap from="odometry" to="$(arg odometry_topic)" />
+        <remap from="/pointcloud" to="/input_pointcloud" />
+        <rosparam command="load" file="$(arg gbplanner_config_file)" />
+        <rosparam command="load" file="$(arg map_config_file)" />
+    </node>
+
+    <!-- Planner and Control Interface -->
+    <node pkg="pci_general" type="pci_general_ros_node" name="pci_general_ros_node" output="screen">
+        <remap from="command/trajectory" to="smb/command/trajectory" />
+        <remap from="planner_server" to="gbplanner" />
+        <remap from="planner_homing_server" to="gbplanner/homing" />
+        <remap from="odometry" to="$(arg odometry_topic)"/>
+        <rosparam command="load" file="$(arg pci_file)" />
+        <param name="world_frame_id" value="subt" />
+        <param name="output_type" value="kTopic" />
+        <param name="planner_trigger_lead_time" value="1.5" /> <!-- as the optimized path is on traversability map -->
+    </node>
+
+    <!-- Transform PoseArray to Path msg -->
+    <node name="path_transformer" pkg="rpz_planning" type="pose_array_to_path.py" output="screen">
+        <rosparam subst_value="true">
+            pose_array_topic: pci_command_path
+            path_topic: $(arg robot)/path_planned
+            path_step: 10  <!-- as global path contains dense waypoints -->
+        </rosparam>
+    </node>
+
+    <!-- Traversability estimation -->
+    <include unless="$(arg use_map_rpz)" ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_predictor.launch" pass_all_args="true"/>
+    <!-- Trajectory optimization -->
+    <include ns="$(arg robot)" file="$(find rpz_planning)/launch/rpz_planner.launch" pass_all_args="true">
+        <arg name="input_path_topic" value="path_planned"/>
+        <arg name="output_path_topic" value="path_to_follow"/>
+        <arg name="pub_intermediate" value="true"/>
+        <arg name="use_map_rpz" value="$(arg use_map_rpz)"/>
+        <arg name="enable_fov_vis" value="$(arg enable_fov_vis)"/>
+        <arg name="path_step" default="2"/>
+        <arg name="fixed_endpoints" default="['start', 'goal']"/> <!-- in order to reach the goal precisely for PCI -->
+    </include>
+
+    <!-- Artifacts detector -->
+    <include if="$(arg run_detector)" file="$(find rpz_planning)/launch/detector_x1.launch"/>
+
+    <!-- Data recording -->
+    <include if="$(arg do_recording)" file="$(find rpz_planning)/launch/record.launch" pass_all_args="true">
+        <arg name="path" value="control_path"/>
+        <arg name="follow_opt_path" default="true"/>
+    </include>
+
+    <!-- RVIZ -->
+    <node if="$(arg rviz)" pkg="rviz" type="rviz" name="gbplanner_ui" output="screen" args="-d $(find rpz_planning)/config/gbplanner_trajopt.rviz"/>
+
+</launch>
