@@ -2,6 +2,8 @@
 
 [![RPZ planning](./docs/demo.png)](https://youtu.be/0KzWxQjTqWM)
 
+Video overview is available at [https://youtu.be/0KzWxQjTqWM](https://youtu.be/0KzWxQjTqWM).
+
 ## Demo
 
 This is a quick-start section, which describes how to use the `rpz_planner` as a stand-alone package
