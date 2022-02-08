@@ -2,8 +2,6 @@
 
 [![RPZ planning](./docs/demo.png)](https://youtu.be/0KzWxQjTqWM)
 
-Video overview is available at [https://youtu.be/0KzWxQjTqWM](https://youtu.be/0KzWxQjTqWM).
-
 ## Demo
 
 This is a quick-start section, which describes how to use the `rpz_planner` as a stand-alone package
@@ -41,3 +39,7 @@ with local trajectory optimization:
 ```bash
 roslaunch rpz_planning naex.launch follow_opt_path:=true
 ```
+
+## Reference
+
+**Trajectory Optimization using Learned Robot-Terrain Interaction Model in Exploration of Large Subterranean Environments** [Paper](https://ieeexplore.ieee.org/document/9699042), [Video](https://youtu.be/0KzWxQjTqWM).
