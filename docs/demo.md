@@ -1,7 +1,7 @@
 ## Prerequisites
 
 Before running the demo, make sure you followed the installation instructions in
-[install.md](https://github.com/tpet/rpz_planning/blob/devel/docs/install.md)
+[install.md](https://github.com/tpet/rpz_planning/blob/b9dd03793d6c0cbeef0b6325ece647bec8f8de8c/docs/install.md)
 
 ## Singularity
 
@@ -29,7 +29,7 @@ The trajectory optimization takes into account traversability information
 (local map roll, pitch and height values), as well as observation rewards.
 
 Download an example bag-file from
-[http://ptak.felk.cvut.cz/darpa-subt/data/rpz_planning/bags/trajopt_input/marv_2021-04-29-12-48-13.bag](http://ptak.felk.cvut.cz/darpa-subt/data/rpz_planning/bags/trajopt_input/marv_2021-04-29-12-48-13.bag)
+[http://ptak.felk.cvut.cz/darpa-subt/data/rpz_planning/bags/trajopt_input/marv_opt_path_false_2021-06-30-14-44-51.bag](http://ptak.felk.cvut.cz/darpa-subt/data/rpz_planning/bags/trajopt_input/marv_opt_path_false_2021-06-30-14-44-51.bag)
 and place it in the `rpz_planning/data` directory. Then launch the demo:
 
 ```bash
