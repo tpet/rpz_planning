@@ -1,4 +1,4 @@
-# RPZ Planning
+# RPZ Planning (RA-L 2022 with ICRA option)
 
 [![RPZ planning](./docs/demo.png)](https://youtu.be/0KzWxQjTqWM)
 
