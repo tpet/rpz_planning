@@ -4,6 +4,8 @@
     <arg name="robot" default="X1"/>
     <arg name="world_frame" default="subt"/>
     <arg name="route_wps_dist" default="1.0"/>
+    <arg name="rate" default="10.0"/>
+    <arg name="poses_gt" default="poses_gt.csv"/>
 
     <!-- Travelled distance publisher -->
     <node name="travelled_dist_publisher" pkg="rpz_planning" type="travelled_dist.py" output="screen">
@@ -11,6 +13,8 @@
             robot: $(arg robot)
             world_frame: $(arg world_frame)
             route_wps_dist: $(arg route_wps_dist)
+            rate: $(arg rate)
+            poses_gt: $(arg poses_gt)
         </rosparam>
     </node>
 
