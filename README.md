@@ -39,3 +39,20 @@ with local trajectory optimization:
 ```bash
 roslaunch rpz_planning naex.launch follow_opt_path:=true
 ```
+
+## Citation
+
+Feel free to cite the work if you find it useful for your research.
+
+```
+@ARTICLE{9699042,
+  author={Agishev, Ruslan and Petříček, Tomáš and Zimmermann, Karel},
+  journal={IEEE Robotics and Automation Letters}, 
+  title={Trajectory Optimization Using Learned Robot-Terrain Interaction Model in Exploration of Large Subterranean Environments}, 
+  year={2022},
+  volume={7},
+  number={2},
+  pages={3365-3371},
+  doi={10.1109/LRA.2022.3147332}}
+```
+
