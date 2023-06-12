@@ -42,7 +42,7 @@ roslaunch rpz_planning naex.launch follow_opt_path:=true
 
 ## Reference
 
-**Trajectory Optimization using Learned Robot-Terrain Interaction Model in Exploration of Large Subterranean Environments** [Paper](https://ieeexplore.ieee.org/document/9699042), [Video](https://youtu.be/0KzWxQjTqWM).
+**Trajectory Optimization using Learned Robot-Terrain Interaction Model in Exploration of Large Subterranean Environments** [Paper](https://ieeexplore.ieee.org/document/9699042), [Video](https://youtu.be/0KzWxQjTqWM), [Slides](https://docs.google.com/presentation/d/1WUqTYKdAe21JxEmdzwivXqo7qX3y2ghoJC7UWHFKY10/edit?usp=sharing)
 
 ```
 @ARTICLE{9699042,
