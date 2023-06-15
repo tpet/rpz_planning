@@ -1,6 +1,10 @@
 # RPZ Planning (RA-L 2022 with ICRA option)
 
-[![RPZ planning](./docs/demo.png)](https://youtu.be/0KzWxQjTqWM)
+[![RA-L](http://img.shields.io/badge/RAL-2022-critical.svg?style=plastic)](https://ieeexplore.ieee.org/document/9699042)
+[![Slides](http://img.shields.io/badge/presentation-slides-blue.svg?style=plastic)](https://docs.google.com/presentation/d/1WUqTYKdAe21JxEmdzwivXqo7qX3y2ghoJC7UWHFKY10/edit?usp=sharing)
+[![VIdeo](http://img.shields.io/badge/video-overview-blue.svg?style=plastic)](https://youtu.be/0KzWxQjTqWM)
+
+![RPZ planning](./docs/demo.png)
 
 ## Demo
 
@@ -42,7 +46,7 @@ roslaunch rpz_planning naex.launch follow_opt_path:=true
 
 ## Reference
 
-**Trajectory Optimization using Learned Robot-Terrain Interaction Model in Exploration of Large Subterranean Environments** [Paper](https://ieeexplore.ieee.org/document/9699042), [Video](https://youtu.be/0KzWxQjTqWM), [Slides](https://docs.google.com/presentation/d/1WUqTYKdAe21JxEmdzwivXqo7qX3y2ghoJC7UWHFKY10/edit?usp=sharing)
+**Trajectory Optimization using Learned Robot-Terrain Interaction Model in Exploration of Large Subterranean Environments**
 
 ```
 @ARTICLE{9699042,
